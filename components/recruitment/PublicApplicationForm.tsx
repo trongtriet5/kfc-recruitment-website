@@ -1,0 +1,1257 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
+import api from '@/lib/api'
+import { PROVINCES, getDistrictsByProvince, getWardsByDistrict } from '@/lib/vietnam-addresses'
+import Icon from '@/components/icons/Icon'
+
+const POSITIONS = [
+  'Quản lý cửa hàng',
+  'Trưởng ca / giám sát ca',
+  'Nhân viên cửa hàng (Parttime: Thu ngân, Order, Pha chế)',
+  'Nhân viên cửa hàng (Parttime: Hoạt náo viên CSS)',
+  'Nhân viên cửa hàng (Fulltime: Có kinh nghiệm 6 tháng trở lên trong F&B)',
+  'Nhân viên cửa hàng (Fulltime: Xoay ca 8 tiếng được nhưng không có kinh nghiệm F&B)',
+  'Công nhân sản xuất',
+  'Captain (Fulltime)',
+  'Tổ trưởng cửa hàng',
+  'Other',
+]
+
+const WORK_SHIFTS = [
+  '6 tiếng ngày',
+  '8 tiếng ngày',
+  'Ca đêm 18:00/20:00 - 2:00/3:00',
+]
+
+const REFERRERS = [
+  'Nhân viên công ty',
+  'Cộng tác viên',
+  'Không có',
+]
+
+interface FormData {
+  fullName: string
+  gender: 'MALE' | 'FEMALE'
+  phone: string
+  dateOfBirth: string
+  email: string
+  cccd: string
+  currentCity: string
+  currentDistrict: string
+  currentWard: string
+  currentStreet: string
+  permanentSameAsCurrent: boolean
+  permanentCity: string
+  permanentDistrict: string
+  permanentWard: string
+  permanentStreet: string
+  appliedPosition: string
+  appliedPositionOther: string
+  availableStartDate: string
+  preferredWorkShift: string
+  canWorkTet: 'Có' | 'Không'
+  referrer: string
+  referrerName: string
+  preferredLocations: string[]
+  workExperience: string
+}
+
+export default function PublicApplicationForm() {
+  const searchParams = useSearchParams()
+  const campaignLink = searchParams.get('campaignId') || ''
+  const legacyLink = searchParams.get('link') || searchParams.get('formId') || '' // For backward compatibility
+
+  const [formInfo, setFormInfo] = useState<any>(null)
+  const [campaignInfo, setCampaignInfo] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [success, setSuccess] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const [formData, setFormData] = useState<FormData>({
+    fullName: '',
+    gender: 'MALE',
+    phone: '',
+    dateOfBirth: '',
+    email: '',
+    cccd: '',
+    currentCity: '',
+    currentDistrict: '',
+    currentWard: '',
+    currentStreet: '',
+    permanentSameAsCurrent: false,
+    permanentCity: '',
+    permanentDistrict: '',
+    permanentWard: '',
+    permanentStreet: '',
+    appliedPosition: '',
+    appliedPositionOther: '',
+    availableStartDate: '',
+    preferredWorkShift: '',
+    canWorkTet: 'Không',
+    referrer: 'Không có',
+    referrerName: '',
+    preferredLocations: [],
+    workExperience: '',
+  })
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    if (campaignLink) {
+      loadCampaignInfo()
+    } else if (legacyLink) {
+      // Backward compatibility: load form by link
+      loadFormInfo()
+    } else {
+      setError('Thiếu link chiến dịch tuyển dụng')
+      setLoading(false)
+    }
+  }, [campaignLink, legacyLink])
+
+  const loadCampaignInfo = async () => {
+    try {
+      const res = await api.get(`/recruitment/campaigns/link/${encodeURIComponent(campaignLink)}`)
+      setCampaignInfo(res.data)
+      setFormInfo(res.data.form)
+    } catch (err: any) {
+      console.error('Error loading campaign:', err)
+      setError(err.response?.data?.message || 'Không tìm thấy chiến dịch tuyển dụng')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadFormInfo = async () => {
+    try {
+      const res = await api.get(`/recruitment/forms/link/${encodeURIComponent(legacyLink)}`)
+      setFormInfo(res.data)
+    } catch (err: any) {
+      console.error('Error loading form:', err)
+      setError(err.response?.data?.message || 'Không tìm thấy form tuyển dụng')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const formatPhone = (value: string) => {
+    // Chỉ cho phép số
+    const numbers = value.replace(/\D/g, '')
+    // Giới hạn 10-11 số
+    if (numbers.length > 11) return numbers.slice(0, 11)
+    return numbers
+  }
+
+  const formatDateOfBirth = (value: string) => {
+    // Chỉ cho phép số và dấu /
+    let formatted = value.replace(/[^\d/]/g, '')
+    // Tự động thêm dấu /
+    if (formatted.length === 2 && !formatted.includes('/')) {
+      formatted = formatted + '/'
+    } else if (formatted.length === 5 && formatted.split('/').length === 2) {
+      formatted = formatted + '/'
+    }
+    // Giới hạn độ dài
+    if (formatted.length > 10) return formatted.slice(0, 10)
+    return formatted
+  }
+
+  const formatCCCD = (value: string) => {
+    // Chỉ cho phép số, giới hạn 12 số
+    const numbers = value.replace(/\D/g, '')
+    return numbers.slice(0, 12)
+  }
+
+  const validateEmail = (email: string) => {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return re.test(email)
+  }
+
+  const validatePhone = (phone: string) => {
+    // Số điện thoại Việt Nam: 10-11 số, bắt đầu bằng 0
+    const re = /^0\d{9,10}$/
+    return re.test(phone)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+
+    // Validation
+    if (!formData.fullName.trim()) {
+      setError('Vui lòng nhập họ và tên')
+      return
+    }
+    if (!formData.phone || !validatePhone(formData.phone)) {
+      setError('Vui lòng nhập số điện thoại hợp lệ (10-11 số, bắt đầu bằng 0)')
+      return
+    }
+    if (!formData.dateOfBirth) {
+      setError('Vui lòng nhập ngày sinh')
+      return
+    }
+    if (formData.email && !validateEmail(formData.email)) {
+      setError('Vui lòng nhập email hợp lệ')
+      return
+    }
+    if (!formData.cccd || formData.cccd.length !== 12) {
+      setError('Vui lòng nhập CCCD (12 số)')
+      return
+    }
+    if (!formData.currentCity || !formData.currentDistrict || !formData.currentWard) {
+      setError('Vui lòng điền đầy đủ địa chỉ nơi ở hiện tại')
+      return
+    }
+    if (!formData.permanentSameAsCurrent) {
+      if (!formData.permanentCity || !formData.permanentDistrict || !formData.permanentWard) {
+        setError('Vui lòng điền đầy đủ địa chỉ thường trú')
+        return
+      }
+    }
+    if (!formData.appliedPosition) {
+      setError('Vui lòng chọn vị trí ứng tuyển')
+      return
+    }
+    if (formData.appliedPosition === 'Other' && !formData.appliedPositionOther.trim()) {
+      setError('Vui lòng nhập tên vị trí ứng tuyển')
+      return
+    }
+    if (!formData.availableStartDate) {
+      setError('Vui lòng chọn ngày có thể bắt đầu công việc')
+      return
+    }
+    const startDate = new Date(formData.availableStartDate)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    if (startDate <= today) {
+      setError('Ngày bắt đầu công việc phải lớn hơn ngày hiện tại')
+      return
+    }
+    if (!formData.preferredWorkShift) {
+      setError('Vui lòng chọn ca làm việc mong muốn')
+      return
+    }
+    if (!formData.canWorkTet) {
+      setError('Vui lòng chọn có thể làm việc Tết hay không')
+      return
+    }
+    if (!formData.referrer) {
+      setError('Vui lòng chọn người giới thiệu')
+      return
+    }
+    if ((formData.referrer === 'Nhân viên công ty' || formData.referrer === 'Cộng tác viên') && !formData.referrerName.trim()) {
+      setError('Vui lòng nhập tên người giới thiệu')
+      return
+    }
+    if (formData.preferredLocations.length === 0) {
+      setError('Vui lòng chọn ít nhất một địa điểm mong muốn làm việc')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      // Convert dateOfBirth from DD/MM/YYYY to YYYY-MM-DD
+      const [day, month, year] = formData.dateOfBirth.split('/')
+      const dateOfBirthISO = `${year}-${month}-${day}`
+
+      await api.post('/recruitment/apply', {
+        ...formData,
+        dateOfBirth: dateOfBirthISO,
+        formId: formInfo?.id || '',
+        campaignId: campaignInfo?.id || undefined,
+      })
+
+      setSuccess(true)
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Có lỗi xảy ra khi gửi đơn ứng tuyển')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="text-lg text-gray-600">Đang tải form...</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error && !formInfo && (campaignLink || legacyLink)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
+          <div className="text-red-600 text-lg mb-4">{error}</div>
+          <p className="text-gray-600 text-sm">
+            Vui lòng kiểm tra lại link chiến dịch tuyển dụng hoặc liên hệ với người quản lý.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Nếu không có link, hiển thị form mặc định (để test)
+  if (!campaignLink && !legacyLink) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
+          <div className="text-yellow-600 text-lg mb-4">Thiếu thông tin chiến dịch</div>
+          <p className="text-gray-600 text-sm">
+            Vui lòng truy cập form qua link chiến dịch được cung cấp.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
+          <div className="mb-4 flex justify-center">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+              <Icon name="check" size={32} className="text-green-600" />
+            </div>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Gửi đơn thành công!</h2>
+          <p className="text-gray-600">
+            Cảm ơn bạn đã ứng tuyển. Chúng tôi sẽ liên hệ với bạn trong thời gian sớm nhất.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Get districts and wards based on selected province/district
+  const currentDistricts = formData.currentCity ? getDistrictsByProvince(formData.currentCity) : []
+  const currentWards = formData.currentDistrict ? getWardsByDistrict(formData.currentDistrict) : []
+  const permanentDistricts = formData.permanentCity ? getDistrictsByProvince(formData.permanentCity) : []
+  const permanentWards = formData.permanentDistrict ? getWardsByDistrict(formData.permanentDistrict) : []
+
+  // Real-time validation functions
+  const validateField = (name: string, value: any) => {
+    const errors: Record<string, string> = {}
+    
+    switch (name) {
+      case 'fullName':
+        if (!value || !value.trim()) {
+          errors.fullName = 'Vui lòng nhập họ và tên'
+        } else if (value.trim().length < 2) {
+          errors.fullName = 'Họ và tên phải có ít nhất 2 ký tự'
+        } else if (value.trim().length > 100) {
+          errors.fullName = 'Họ và tên không được vượt quá 100 ký tự'
+        }
+        break
+      case 'phone':
+        if (!value) {
+          errors.phone = 'Vui lòng nhập số điện thoại'
+        } else if (!validatePhone(value)) {
+          errors.phone = 'Số điện thoại không hợp lệ (10-11 số, bắt đầu bằng 0)'
+        }
+        break
+      case 'email':
+        if (value && !validateEmail(value)) {
+          errors.email = 'Email không hợp lệ'
+        }
+        break
+      case 'cccd':
+        if (!value) {
+          errors.cccd = 'Vui lòng nhập CCCD'
+        } else if (value.length !== 12) {
+          errors.cccd = 'CCCD phải có đúng 12 số'
+        } else if (!/^\d+$/.test(value)) {
+          errors.cccd = 'CCCD chỉ được chứa số'
+        }
+        break
+      case 'dateOfBirth':
+        if (!value) {
+          errors.dateOfBirth = 'Vui lòng nhập ngày sinh'
+        } else if (!/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+          errors.dateOfBirth = 'Ngày sinh phải có định dạng DD/MM/YYYY'
+        } else {
+          const [day, month, year] = value.split('/').map(Number)
+          const birthDate = new Date(year, month - 1, day)
+          const today = new Date()
+          const age = today.getFullYear() - year
+          if (birthDate > today || age < 16) {
+            errors.dateOfBirth = 'Bạn phải từ 16 tuổi trở lên'
+          } else if (age > 100) {
+            errors.dateOfBirth = 'Ngày sinh không hợp lệ'
+          }
+        }
+        break
+      case 'currentCity':
+        if (!value) {
+          errors.currentCity = 'Vui lòng chọn tỉnh/thành phố'
+        }
+        break
+      case 'currentDistrict':
+        if (!value) {
+          errors.currentDistrict = 'Vui lòng chọn quận/huyện'
+        }
+        break
+      case 'currentWard':
+        if (!value) {
+          errors.currentWard = 'Vui lòng chọn phường/xã'
+        }
+        break
+      case 'currentStreet':
+        if (!value || !value.trim()) {
+          errors.currentStreet = 'Vui lòng nhập số nhà, tên đường'
+        } else if (value.trim().length < 5) {
+          errors.currentStreet = 'Địa chỉ phải có ít nhất 5 ký tự'
+        }
+        break
+      case 'permanentCity':
+        if (!formData.permanentSameAsCurrent && !value) {
+          errors.permanentCity = 'Vui lòng chọn tỉnh/thành phố'
+        }
+        break
+      case 'permanentDistrict':
+        if (!formData.permanentSameAsCurrent && !value) {
+          errors.permanentDistrict = 'Vui lòng chọn quận/huyện'
+        }
+        break
+      case 'permanentWard':
+        if (!formData.permanentSameAsCurrent && !value) {
+          errors.permanentWard = 'Vui lòng chọn phường/xã'
+        }
+        break
+      case 'permanentStreet':
+        if (!formData.permanentSameAsCurrent && (!value || !value.trim())) {
+          errors.permanentStreet = 'Vui lòng nhập số nhà, tên đường'
+        } else if (!formData.permanentSameAsCurrent && value.trim().length < 5) {
+          errors.permanentStreet = 'Địa chỉ phải có ít nhất 5 ký tự'
+        }
+        break
+      case 'appliedPosition':
+        if (!value) {
+          errors.appliedPosition = 'Vui lòng chọn vị trí ứng tuyển'
+        }
+        break
+      case 'appliedPositionOther':
+        if (formData.appliedPosition === 'Other' && (!value || !value.trim())) {
+          errors.appliedPositionOther = 'Vui lòng nhập tên vị trí ứng tuyển'
+        } else if (formData.appliedPosition === 'Other' && value.trim().length < 3) {
+          errors.appliedPositionOther = 'Tên vị trí phải có ít nhất 3 ký tự'
+        }
+        break
+      case 'availableStartDate':
+        if (!value) {
+          errors.availableStartDate = 'Vui lòng chọn ngày có thể bắt đầu công việc'
+        } else {
+          const startDate = new Date(value)
+          const today = new Date()
+          today.setHours(0, 0, 0, 0)
+          if (startDate <= today) {
+            errors.availableStartDate = 'Ngày bắt đầu công việc phải lớn hơn ngày hiện tại'
+          }
+        }
+        break
+      case 'preferredWorkShift':
+        if (!value) {
+          errors.preferredWorkShift = 'Vui lòng chọn ca làm việc mong muốn'
+        }
+        break
+      case 'canWorkTet':
+        if (!value) {
+          errors.canWorkTet = 'Vui lòng chọn có thể làm việc Tết hay không'
+        }
+        break
+      case 'referrer':
+        if (!value) {
+          errors.referrer = 'Vui lòng chọn người giới thiệu'
+        }
+        break
+      case 'referrerName':
+        if ((formData.referrer === 'Nhân viên công ty' || formData.referrer === 'Cộng tác viên') && (!value || !value.trim())) {
+          errors.referrerName = 'Vui lòng nhập tên người giới thiệu'
+        } else if ((formData.referrer === 'Nhân viên công ty' || formData.referrer === 'Cộng tác viên') && value.trim().length < 2) {
+          errors.referrerName = 'Tên người giới thiệu phải có ít nhất 2 ký tự'
+        }
+        break
+      case 'preferredLocations':
+        if (!value || value.length === 0) {
+          errors.preferredLocations = 'Vui lòng chọn ít nhất một địa điểm mong muốn làm việc'
+        }
+        break
+      case 'workExperience':
+        if (value && value.trim().length > 1000) {
+          errors.workExperience = 'Kinh nghiệm làm việc không được vượt quá 1000 ký tự'
+        }
+        break
+    }
+    
+    setValidationErrors((prev) => {
+      const newErrors = { ...prev }
+      if (errors[name]) {
+        newErrors[name] = errors[name]
+      } else {
+        delete newErrors[name]
+      }
+      return newErrors
+    })
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-3xl mx-auto px-4">
+        <div className="bg-white rounded-lg shadow-lg p-8">
+          {/* Banner */}
+          {formInfo?.bannerUrl && (
+            <div className="mb-6">
+              <img
+                src={formInfo.bannerUrl}
+                alt="Banner"
+                className="w-full h-48 object-cover rounded-lg"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                }}
+              />
+            </div>
+          )}
+          
+          {/* Title */}
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            {formInfo?.formTitle || formInfo?.title || 'Đơn ứng tuyển'}
+          </h1>
+          
+          {/* Content */}
+          {formInfo?.formContent && (
+            <div
+              className="text-gray-600 mb-6 prose prose-sm max-w-none"
+              dangerouslySetInnerHTML={{ __html: formInfo.formContent }}
+            />
+          )}
+          {!formInfo?.formContent && formInfo?.description && (
+            <p className="text-gray-600 mb-6">{formInfo.description}</p>
+          )}
+
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md text-red-700">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Thông tin cá nhân */}
+            <div className="border-b border-gray-200 pb-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Thông tin cá nhân</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Họ và tên <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.fullName}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setFormData({ ...formData, fullName: value })
+                      validateField('fullName', value)
+                    }}
+                    onBlur={() => validateField('fullName', formData.fullName)}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                      validationErrors.fullName
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-yellow-500'
+                    }`}
+                    required
+                  />
+                  {validationErrors.fullName && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.fullName}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Giới tính <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.gender}
+                    onChange={(e) => setFormData({ ...formData, gender: e.target.value as 'MALE' | 'FEMALE' })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                    required
+                  >
+                    <option value="MALE">Nam</option>
+                    <option value="FEMALE">Nữ</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Số điện thoại <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.phone}
+                    onChange={(e) => {
+                      const value = formatPhone(e.target.value)
+                      setFormData({ ...formData, phone: value })
+                      validateField('phone', value)
+                    }}
+                    onBlur={() => validateField('phone', formData.phone)}
+                    placeholder="0123456789"
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                      validationErrors.phone
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-yellow-500'
+                    }`}
+                    required
+                  />
+                  {validationErrors.phone && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.phone}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Ngày sinh <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.dateOfBirth}
+                    onChange={(e) => {
+                      const value = formatDateOfBirth(e.target.value)
+                      setFormData({ ...formData, dateOfBirth: value })
+                      validateField('dateOfBirth', value)
+                    }}
+                    onBlur={() => validateField('dateOfBirth', formData.dateOfBirth)}
+                    placeholder="DD/MM/YYYY"
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                      validationErrors.dateOfBirth
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-yellow-500'
+                    }`}
+                    required
+                  />
+                  {validationErrors.dateOfBirth && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.dateOfBirth}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setFormData({ ...formData, email: value })
+                      validateField('email', value)
+                    }}
+                    onBlur={() => validateField('email', formData.email)}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                      validationErrors.email
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-yellow-500'
+                    }`}
+                  />
+                  {validationErrors.email && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.email}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    CCCD <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.cccd}
+                    onChange={(e) => {
+                      const value = formatCCCD(e.target.value)
+                      setFormData({ ...formData, cccd: value })
+                      validateField('cccd', value)
+                    }}
+                    onBlur={() => validateField('cccd', formData.cccd)}
+                    placeholder="12 số"
+                    maxLength={12}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                      validationErrors.cccd
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-yellow-500'
+                    }`}
+                    required
+                  />
+                  {validationErrors.cccd && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.cccd}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Nơi ở hiện tại */}
+            <div className="border-b border-gray-200 pb-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Nơi ở hiện tại</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Thành phố/Tỉnh <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.currentCity}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setFormData({ ...formData, currentCity: value, currentDistrict: '', currentWard: '' })
+                      validateField('currentCity', value)
+                    }}
+                    onBlur={() => validateField('currentCity', formData.currentCity)}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                      validationErrors.currentCity
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-yellow-500'
+                    }`}
+                    required
+                  >
+                    <option value="">Chọn tỉnh/thành phố</option>
+                    {PROVINCES.map((province) => (
+                      <option key={province.code} value={province.code}>
+                        {province.name}
+                      </option>
+                    ))}
+                  </select>
+                  {validationErrors.currentCity && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.currentCity}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Quận/Huyện <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.currentDistrict}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setFormData({ ...formData, currentDistrict: value, currentWard: '' })
+                      validateField('currentDistrict', value)
+                    }}
+                    onBlur={() => validateField('currentDistrict', formData.currentDistrict)}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                      validationErrors.currentDistrict
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-yellow-500'
+                    }`}
+                    required
+                    disabled={!formData.currentCity}
+                  >
+                    <option value="">Chọn quận/huyện</option>
+                    {currentDistricts.map((district) => (
+                      <option key={district.code} value={district.code}>
+                        {district.name}
+                      </option>
+                    ))}
+                  </select>
+                  {validationErrors.currentDistrict && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.currentDistrict}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Phường/Xã <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.currentWard}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setFormData({ ...formData, currentWard: value })
+                      validateField('currentWard', value)
+                    }}
+                    onBlur={() => validateField('currentWard', formData.currentWard)}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                      validationErrors.currentWard
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-yellow-500'
+                    }`}
+                    required
+                    disabled={!formData.currentDistrict}
+                  >
+                    <option value="">Chọn phường/xã</option>
+                    {currentWards.map((ward) => (
+                      <option key={ward.code} value={ward.code}>
+                        {ward.name}
+                      </option>
+                    ))}
+                  </select>
+                  {validationErrors.currentWard && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.currentWard}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Số nhà, tên đường <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.currentStreet}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setFormData({ ...formData, currentStreet: value })
+                      validateField('currentStreet', value)
+                    }}
+                    onBlur={() => validateField('currentStreet', formData.currentStreet)}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                      validationErrors.currentStreet
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-yellow-500'
+                    }`}
+                    required
+                  />
+                  {validationErrors.currentStreet && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.currentStreet}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Địa chỉ thường trú */}
+            <div className="border-b border-gray-200 pb-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Địa chỉ thường trú</h2>
+              
+              <div className="mb-4">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.permanentSameAsCurrent}
+                    onChange={(e) => {
+                      const checked = e.target.checked
+                      setFormData({ ...formData, permanentSameAsCurrent: checked })
+                      // Clear validation errors for permanent address fields when checked
+                      if (checked) {
+                        setValidationErrors((prev) => {
+                          const newErrors = { ...prev }
+                          delete newErrors.permanentCity
+                          delete newErrors.permanentDistrict
+                          delete newErrors.permanentWard
+                          delete newErrors.permanentStreet
+                          return newErrors
+                        })
+                      }
+                    }}
+                    className="mr-2"
+                  />
+                  <span className="text-sm text-gray-700">Địa chỉ thường trú giống nơi ở hiện tại</span>
+                </label>
+              </div>
+
+              {!formData.permanentSameAsCurrent && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Thành phố/Tỉnh <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.permanentCity}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setFormData({ ...formData, permanentCity: value, permanentDistrict: '', permanentWard: '' })
+                        validateField('permanentCity', value)
+                      }}
+                      onBlur={() => validateField('permanentCity', formData.permanentCity)}
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                        validationErrors.permanentCity
+                          ? 'border-red-500 focus:ring-red-500'
+                          : 'border-gray-300 focus:ring-yellow-500'
+                      }`}
+                      required
+                    >
+                      <option value="">Chọn tỉnh/thành phố</option>
+                      {PROVINCES.map((province) => (
+                        <option key={province.code} value={province.code}>
+                          {province.name}
+                        </option>
+                      ))}
+                    </select>
+                    {validationErrors.permanentCity && (
+                      <p className="mt-1 text-sm text-red-600">{validationErrors.permanentCity}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Quận/Huyện <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.permanentDistrict}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setFormData({ ...formData, permanentDistrict: value, permanentWard: '' })
+                        validateField('permanentDistrict', value)
+                      }}
+                      onBlur={() => validateField('permanentDistrict', formData.permanentDistrict)}
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                        validationErrors.permanentDistrict
+                          ? 'border-red-500 focus:ring-red-500'
+                          : 'border-gray-300 focus:ring-yellow-500'
+                      }`}
+                      required
+                      disabled={!formData.permanentCity}
+                    >
+                      <option value="">Chọn quận/huyện</option>
+                      {permanentDistricts.map((district) => (
+                        <option key={district.code} value={district.code}>
+                          {district.name}
+                        </option>
+                      ))}
+                    </select>
+                    {validationErrors.permanentDistrict && (
+                      <p className="mt-1 text-sm text-red-600">{validationErrors.permanentDistrict}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Phường/Xã <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.permanentWard}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setFormData({ ...formData, permanentWard: value })
+                        validateField('permanentWard', value)
+                      }}
+                      onBlur={() => validateField('permanentWard', formData.permanentWard)}
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                        validationErrors.permanentWard
+                          ? 'border-red-500 focus:ring-red-500'
+                          : 'border-gray-300 focus:ring-yellow-500'
+                      }`}
+                      required
+                      disabled={!formData.permanentDistrict}
+                    >
+                      <option value="">Chọn phường/xã</option>
+                      {permanentWards.map((ward) => (
+                        <option key={ward.code} value={ward.code}>
+                          {ward.name}
+                        </option>
+                      ))}
+                    </select>
+                    {validationErrors.permanentWard && (
+                      <p className="mt-1 text-sm text-red-600">{validationErrors.permanentWard}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Số nhà, tên đường <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.permanentStreet}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setFormData({ ...formData, permanentStreet: value })
+                        validateField('permanentStreet', value)
+                      }}
+                      onBlur={() => validateField('permanentStreet', formData.permanentStreet)}
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                        validationErrors.permanentStreet
+                          ? 'border-red-500 focus:ring-red-500'
+                          : 'border-gray-300 focus:ring-yellow-500'
+                      }`}
+                      required
+                    />
+                    {validationErrors.permanentStreet && (
+                      <p className="mt-1 text-sm text-red-600">{validationErrors.permanentStreet}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Vị trí ứng tuyển */}
+            <div className="border-b border-gray-200 pb-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Thông tin ứng tuyển</h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Vị trí ứng tuyển <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.appliedPosition}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setFormData({ ...formData, appliedPosition: value, appliedPositionOther: '' })
+                      validateField('appliedPosition', value)
+                    }}
+                    onBlur={() => validateField('appliedPosition', formData.appliedPosition)}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                      validationErrors.appliedPosition
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-yellow-500'
+                    }`}
+                    required
+                  >
+                    <option value="">Chọn vị trí</option>
+                    {POSITIONS.map((position) => (
+                      <option key={position} value={position}>
+                        {position}
+                      </option>
+                    ))}
+                  </select>
+                  {validationErrors.appliedPosition && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.appliedPosition}</p>
+                  )}
+                </div>
+
+                {formData.appliedPosition === 'Other' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tên vị trí ứng tuyển <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.appliedPositionOther}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setFormData({ ...formData, appliedPositionOther: value })
+                        validateField('appliedPositionOther', value)
+                      }}
+                      onBlur={() => validateField('appliedPositionOther', formData.appliedPositionOther)}
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                        validationErrors.appliedPositionOther
+                          ? 'border-red-500 focus:ring-red-500'
+                          : 'border-gray-300 focus:ring-yellow-500'
+                      }`}
+                      required
+                    />
+                    {validationErrors.appliedPositionOther && (
+                      <p className="mt-1 text-sm text-red-600">{validationErrors.appliedPositionOther}</p>
+                    )}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Ngày có thể bắt đầu công việc <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.availableStartDate}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setFormData({ ...formData, availableStartDate: value })
+                      validateField('availableStartDate', value)
+                    }}
+                    onBlur={() => validateField('availableStartDate', formData.availableStartDate)}
+                    min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                      validationErrors.availableStartDate
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-yellow-500'
+                    }`}
+                    required
+                  />
+                  {validationErrors.availableStartDate && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.availableStartDate}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Ca làm việc mong muốn <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.preferredWorkShift}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setFormData({ ...formData, preferredWorkShift: value })
+                      validateField('preferredWorkShift', value)
+                    }}
+                    onBlur={() => validateField('preferredWorkShift', formData.preferredWorkShift)}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                      validationErrors.preferredWorkShift
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-yellow-500'
+                    }`}
+                    required
+                  >
+                    <option value="">Chọn ca làm việc</option>
+                    {WORK_SHIFTS.map((shift) => (
+                      <option key={shift} value={shift}>
+                        {shift}
+                      </option>
+                    ))}
+                  </select>
+                  {validationErrors.preferredWorkShift && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.preferredWorkShift}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Bạn có thể làm việc Tết không? <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.canWorkTet}
+                    onChange={(e) => {
+                      const value = e.target.value as 'Có' | 'Không'
+                      setFormData({ ...formData, canWorkTet: value })
+                      validateField('canWorkTet', value)
+                    }}
+                    onBlur={() => validateField('canWorkTet', formData.canWorkTet)}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                      validationErrors.canWorkTet
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-yellow-500'
+                    }`}
+                    required
+                  >
+                    <option value="Không">Không</option>
+                    <option value="Có">Có</option>
+                  </select>
+                  {validationErrors.canWorkTet && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.canWorkTet}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Người giới thiệu <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.referrer}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setFormData({ ...formData, referrer: value, referrerName: '' })
+                      validateField('referrer', value)
+                    }}
+                    onBlur={() => validateField('referrer', formData.referrer)}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                      validationErrors.referrer
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-yellow-500'
+                    }`}
+                    required
+                  >
+                    {REFERRERS.map((ref) => (
+                      <option key={ref} value={ref}>
+                        {ref}
+                      </option>
+                    ))}
+                  </select>
+                  {validationErrors.referrer && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.referrer}</p>
+                  )}
+                </div>
+
+                {(formData.referrer === 'Nhân viên công ty' || formData.referrer === 'Cộng tác viên') && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tên người giới thiệu <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.referrerName}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setFormData({ ...formData, referrerName: value })
+                        validateField('referrerName', value)
+                      }}
+                      onBlur={() => validateField('referrerName', formData.referrerName)}
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                        validationErrors.referrerName
+                          ? 'border-red-500 focus:ring-red-500'
+                          : 'border-gray-300 focus:ring-yellow-500'
+                      }`}
+                      required
+                    />
+                    {validationErrors.referrerName && (
+                      <p className="mt-1 text-sm text-red-600">{validationErrors.referrerName}</p>
+                    )}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Địa điểm mong muốn làm việc <span className="text-red-500">*</span>
+                  </label>
+                  <div className={`grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto border rounded-md p-2 ${
+                    validationErrors.preferredLocations
+                      ? 'border-red-500'
+                      : 'border-gray-300'
+                  }`}>
+                    {currentDistricts.map((district) => (
+                      <label key={district.code} className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={formData.preferredLocations.includes(district.code)}
+                          onChange={(e) => {
+                            let newLocations: string[]
+                            if (e.target.checked) {
+                              newLocations = [...formData.preferredLocations, district.code]
+                            } else {
+                              newLocations = formData.preferredLocations.filter((loc) => loc !== district.code)
+                            }
+                            setFormData({
+                              ...formData,
+                              preferredLocations: newLocations,
+                            })
+                            validateField('preferredLocations', newLocations)
+                          }}
+                          onBlur={() => validateField('preferredLocations', formData.preferredLocations)}
+                          className="mr-2"
+                        />
+                        <span className="text-sm">{district.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {validationErrors.preferredLocations && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.preferredLocations}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Kinh nghiệm làm việc trước đó
+                  </label>
+                  <textarea
+                    value={formData.workExperience}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setFormData({ ...formData, workExperience: value })
+                      validateField('workExperience', value)
+                    }}
+                    onBlur={() => validateField('workExperience', formData.workExperience)}
+                    rows={4}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                      validationErrors.workExperience
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-yellow-500'
+                    }`}
+                    placeholder="Mô tả kinh nghiệm làm việc của bạn..."
+                  />
+                  {validationErrors.workExperience && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.workExperience}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-4">
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-6 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitting ? 'Đang gửi...' : 'Gửi đơn ứng tuyển'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  )
+}
+

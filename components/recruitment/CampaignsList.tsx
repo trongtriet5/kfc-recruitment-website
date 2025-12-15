@@ -1,0 +1,349 @@
+'use client'
+
+import { useEffect, useState, useRef } from 'react'
+import api from '@/lib/api'
+import { useClickOutside } from '@/hooks/useClickOutside'
+import Icon from '@/components/icons/Icon'
+import { getBrandLabel } from '@/lib/brand-utils'
+
+interface Campaign {
+  id: string
+  name: string
+  description: string | null
+  link: string
+  startDate: string
+  endDate: string | null
+  isActive: boolean
+  form: { title: string; brand: string }
+  _count: { candidates: number }
+}
+
+export default function CampaignsList() {
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [forms, setForms] = useState<any[]>([])
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('')
+  const [statistics, setStatistics] = useState<any>(null)
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    formId: '',
+    startDate: '',
+    endDate: '',
+    isActive: true,
+  })
+  const createFormRef = useRef<HTMLDivElement>(null)
+
+  useClickOutside(createFormRef, () => {
+    if (showCreateForm) {
+      setShowCreateForm(false)
+      setFormData({
+        name: '',
+        description: '',
+        formId: '',
+        startDate: '',
+        endDate: '',
+        isActive: true,
+      })
+    }
+  }, showCreateForm)
+
+  useEffect(() => {
+    loadCampaigns()
+    loadForms()
+    loadStatistics()
+  }, [])
+
+  useEffect(() => {
+    loadStatistics(selectedCampaignId || undefined)
+  }, [selectedCampaignId])
+
+  const loadForms = () => {
+    api
+      .get('/recruitment/forms')
+      .then((res) => setForms(res.data))
+      .catch(console.error)
+  }
+
+  const loadCampaigns = () => {
+    api
+      .get('/recruitment/campaigns')
+      .then((res) => setCampaigns(res.data))
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }
+
+  const loadStatistics = async (campaignId?: string) => {
+    try {
+      const params = campaignId ? `?campaignId=${campaignId}` : ''
+      const res = await api.get(`/recruitment/campaigns/statistics${params}`)
+      setStatistics(res.data)
+    } catch (err) {
+      console.error('Error loading statistics:', err)
+    }
+  }
+
+  const getCampaignUrl = (link: string) => {
+    return `${window.location.origin}/apply?campaignId=${encodeURIComponent(link)}`
+  }
+
+  const copyLink = (link: string) => {
+    const fullUrl = getCampaignUrl(link)
+    navigator.clipboard.writeText(fullUrl)
+    alert('Đã copy link!')
+  }
+
+  const openForm = (link: string) => {
+    window.open(getCampaignUrl(link), '_blank')
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await api.post('/recruitment/campaigns', formData)
+      setShowCreateForm(false)
+      setFormData({
+        name: '',
+        description: '',
+        formId: '',
+        startDate: '',
+        endDate: '',
+        isActive: true,
+      })
+      loadCampaigns()
+      loadStatistics()
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Có lỗi xảy ra')
+    }
+  }
+
+  if (loading) {
+    return <div className="text-center py-4">Đang tải...</div>
+  }
+
+  return (
+    <div>
+      <div className="mb-4 flex justify-between items-center">
+        <h2 className="text-xl font-semibold">Chiến dịch tuyển dụng</h2>
+        <button
+          onClick={() => setShowCreateForm(true)}
+          className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+        >
+          Tạo chiến dịch
+        </button>
+      </div>
+
+      {/* Statistics Cards */}
+      {statistics && (
+        <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-sm text-gray-600">Tổng ứng viên</div>
+            <div className="text-2xl font-bold text-gray-900 mt-1">
+              {statistics.totalCandidates || 0}
+            </div>
+            {selectedCampaignId && (
+              <div className="text-xs text-gray-500 mt-1">
+                {campaigns.find(c => c.id === selectedCampaignId)?.name}
+              </div>
+            )}
+          </div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-sm text-gray-600">Đang lọc CV</div>
+            <div className="text-2xl font-bold text-blue-600 mt-1">
+              {statistics.candidatesByStatus?.find((s: any) => s.status === 'CV_FILTERING')?._count || 0}
+            </div>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-sm text-gray-600">CV đạt</div>
+            <div className="text-2xl font-bold text-green-600 mt-1">
+              {statistics.candidatesByStatus?.find((s: any) => s.status === 'CV_PASSED')?._count || 0}
+            </div>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-sm text-gray-600">Đã trúng tuyển</div>
+            <div className="text-2xl font-bold text-yellow-600 mt-1">
+              {statistics.candidatesByStatus?.find((s: any) => s.status === 'ONBOARDING_ACCEPTED')?._count || 0}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Campaign Filter */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Lọc theo chiến dịch
+        </label>
+        <select
+          value={selectedCampaignId}
+          onChange={(e) => setSelectedCampaignId(e.target.value)}
+          className="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-md"
+        >
+          <option value="">Tất cả chiến dịch</option>
+          {campaigns.map((campaign) => (
+            <option key={campaign.id} value={campaign.id}>
+              {campaign.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {showCreateForm && (
+        <div ref={createFormRef} className="mb-6 bg-white shadow rounded-lg p-6">
+          <h3 className="text-lg font-medium mb-4">Tạo chiến dịch mới</h3>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tên chiến dịch <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                rows={3}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Form tuyển dụng <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.formId}
+                  onChange={(e) => setFormData({ ...formData, formId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  required
+                >
+                  <option value="">Chọn form</option>
+                  {forms.map((form) => (
+                    <option key={form.id} value={form.id}>
+                      {form.title} ({getBrandLabel(form.brand)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ngày bắt đầu <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={formData.startDate}
+                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ngày kết thúc</label>
+                <input
+                  type="date"
+                  value={formData.endDate}
+                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  min={formData.startDate}
+                />
+              </div>
+            </div>
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="isActive"
+                checked={formData.isActive}
+                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                className="mr-2"
+              />
+              <label htmlFor="isActive" className="text-sm text-gray-700">
+                Kích hoạt
+              </label>
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setShowCreateForm(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md"
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+              >
+                Tạo
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="bg-white shadow overflow-hidden sm:rounded-md">
+        <ul className="divide-y divide-gray-200">
+          {campaigns.length === 0 ? (
+            <li className="px-4 py-5 text-center text-gray-500">Chưa có chiến dịch nào</li>
+          ) : (
+            campaigns
+              .filter((campaign) => !selectedCampaignId || campaign.id === selectedCampaignId)
+              .map((campaign) => (
+              <li key={campaign.id} className="px-4 py-4 sm:px-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center">
+                      <h3 className="text-sm font-medium text-gray-900">{campaign.name}</h3>
+                      <span
+                        className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          campaign.isActive
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}
+                      >
+                        {campaign.isActive ? 'Đang hoạt động' : 'Tạm dừng'}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-500">{campaign.description}</p>
+                    <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
+                      <span>Form: {campaign.form.title}</span>
+                      <span>
+                        {new Date(campaign.startDate).toLocaleDateString('vi-VN')}
+                        {campaign.endDate &&
+                          ` - ${new Date(campaign.endDate).toLocaleDateString('vi-VN')}`}
+                      </span>
+                      <span>Ứng viên: {campaign._count.candidates}</span>
+                      <span>Link: {campaign.link}</span>
+                    </div>
+                  </div>
+                  <div className="ml-4 flex items-center space-x-2">
+                    <button
+                      onClick={() => copyLink(campaign.link)}
+                      className="text-sm text-yellow-600 hover:text-yellow-700 px-3 py-1 border border-yellow-300 rounded-md hover:bg-yellow-50 flex items-center gap-1"
+                    >
+                      <Icon name="copy" size={16} />
+                      Copy link
+                    </button>
+                    <button
+                      onClick={() => openForm(campaign.link)}
+                      className="text-sm text-green-600 hover:text-green-700 px-3 py-1 border border-green-300 rounded-md hover:bg-green-50 flex items-center gap-1"
+                    >
+                      <Icon name="eye" size={16} />
+                      Mở form
+                    </button>
+                  </div>
+                </div>
+              </li>
+            ))
+          )}
+        </ul>
+      </div>
+    </div>
+  )
+}
+

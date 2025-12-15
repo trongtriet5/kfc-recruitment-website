@@ -1,0 +1,593 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ AUTH & USER ============
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String
+  fullName      String
+  phone         String?
+  role          UserRole @default(USER)
+  departmentId  String?
+  positionId    String?
+  employeeId    String?  @unique
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  department    Department? @relation(fields: [departmentId], references: [id])
+  position      Position?    @relation(fields: [positionId], references: [id])
+  employee      Employee?    @relation("EmployeeUser", fields: [employeeId], references: [id])
+
+  requests      Request[]
+  timekeeping   Timekeeping[]
+  interviews    Interview[]
+  contracts     Contract[]
+  decisions     Decision[]
+  payrolls      Payroll[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  HEAD_OF_DEPARTMENT
+  MANAGER
+  SUPERVISOR
+  USER
+}
+
+// ============ ORGANIZATION ============
+model Department {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  employees   Employee[]
+  requests    Request[]
+  headcounts  Headcount[]
+  headcountPositions HeadcountPosition[]
+  payrolls    Payroll[]
+
+  @@map("departments")
+}
+
+model Position {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  employees   Employee[]
+  headcounts  Headcount[]
+  headcountPositions HeadcountPosition[]
+
+  @@map("positions")
+}
+
+model Store {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  address     String
+  brand       Brand
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employees   Employee[]
+  proposals   RecruitmentProposal[]
+  headcounts  Headcount[]
+  headcountPositions HeadcountPosition[]
+
+  @@map("stores")
+}
+
+enum Brand {
+  TAM_HAO
+  MAYCHA
+  BOTH
+}
+
+// ============ EMPLOYEE ============
+model Employee {
+  id              String          @id @default(cuid())
+  employeeCode    String          @unique
+  fullName        String
+  email           String?         @unique
+  phone           String
+  gender          Gender
+  dateOfBirth     DateTime?
+  address         String?
+  idCard          String?         @unique
+  education       Education
+  status          EmployeeStatus  @default(PENDING)
+  departmentId    String?
+  positionId      String?
+  storeId         String?
+  brand           Brand?
+  contractType    ContractType?
+  startDate       DateTime?
+  endDate         DateTime?
+  salary          Decimal?        @db.Decimal(12, 2)
+  insuranceNumber String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  department      Department?     @relation(fields: [departmentId], references: [id])
+  position        Position?       @relation(fields: [positionId], references: [id])
+  store           Store?          @relation(fields: [storeId], references: [id])
+  user            User?            @relation("EmployeeUser")
+  contracts       Contract[]
+  requests        Request[]
+  timekeeping     Timekeeping[]
+  payrolls        Payroll[]
+  decisions       Decision[]
+
+  @@map("employees")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum Education {
+  HIGH_SCHOOL
+  VOCATIONAL
+  COLLEGE
+  UNIVERSITY
+  POSTGRADUATE
+}
+
+enum EmployeeStatus {
+  PENDING
+  WORKING
+  PROBATION
+  TEMPORARY_LEAVE
+  RESIGNED
+}
+
+enum ContractType {
+  APPRENTICESHIP
+  VOCATIONAL_TRAINING
+  FIXED_12_MONTHS_1
+  FIXED_14_MONTHS_1
+  FIXED_24_MONTHS_1
+  FIXED_36_MONTHS_1
+  PROBATION
+  SERVICE
+  INDEFINITE
+  FIXED_12_MONTHS_2
+  FIXED_14_MONTHS_2
+  FIXED_24_MONTHS_2
+  FIXED_36_MONTHS_2
+}
+
+// ============ REQUESTS (Đơn từ) ============
+model Request {
+  id            String        @id @default(cuid())
+  type          RequestType
+  status        RequestStatus @default(PENDING)
+  employeeId    String
+  departmentId  String?
+  startDate     DateTime?
+  endDate       DateTime?
+  reason        String?
+  description   String?
+  attachments   String[]      @default([])
+  approverId    String?
+  approvedAt    DateTime?
+  rejectedAt    DateTime?
+  rejectionReason String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  employee      Employee      @relation(fields: [employeeId], references: [id])
+  department    Department?   @relation(fields: [departmentId], references: [id])
+  approver      User?         @relation("RequestApprover", fields: [approverId], references: [id])
+
+  // Leave specific
+  leaveType     LeaveType?
+  leaveDays     Float?
+
+  // Overtime specific
+  overtimeHours Float?
+  overtimeDate  DateTime?
+
+  // Check-in/out confirmation
+  checkInTime   DateTime?
+  checkOutTime  DateTime?
+  actualCheckIn DateTime?
+  actualCheckOut DateTime?
+
+  // Shift change
+  fromShift     String?
+  toShift       String?
+  shiftDate     DateTime?
+
+  // Business trip
+  tripLocation  String?
+  tripPurpose  String?
+
+  @@map("requests")
+}
+
+enum RequestType {
+  LEAVE
+  ABSENCE
+  OVERTIME
+  CHECKIN_CONFIRMATION
+  SHIFT_CHANGE
+  BUSINESS_TRIP
+  WORK_SCHEDULE
+  RESIGNATION
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum LeaveType {
+  PAID_LEAVE
+  UNPAID_LEAVE
+  SICK_LEAVE
+  MATERNITY_LEAVE
+  OTHER
+}
+
+// ============ RECRUITMENT (Tuyển dụng) ============
+model RecruitmentForm {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  brand       Brand
+  source      String
+  link        String   @unique
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  campaigns   Campaign[]
+  candidates  Candidate[]
+
+  @@map("recruitment_forms")
+}
+
+model Campaign {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  formId      String
+  link        String   @unique
+  startDate   DateTime
+  endDate     DateTime?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  form        RecruitmentForm @relation(fields: [formId], references: [id])
+  candidates  Candidate[]
+
+  @@map("campaigns")
+}
+
+model Candidate {
+  id              String            @id @default(cuid())
+  fullName        String
+  email           String?
+  phone           String
+  cvUrl           String?
+  formId          String?
+  campaignId      String?
+  status          CandidateStatus
+  brand           Brand?
+  position        String?
+  storeId         String?
+  notes           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  form            RecruitmentForm?  @relation(fields: [formId], references: [id])
+  campaign        Campaign?         @relation(fields: [campaignId], references: [id])
+  store           Store?            @relation(fields: [storeId], references: [id])
+  interviews     Interview[]
+  proposals       RecruitmentProposal[]
+
+  @@map("candidates")
+}
+
+enum CandidateStatus {
+  // Ứng tuyển
+  CV_FILTERING
+  CV_PASSED
+  CV_FAILED
+  BLACKLIST
+  CANNOT_CONTACT
+  AREA_NOT_RECRUITING
+
+  // Phỏng vấn
+  WAITING_INTERVIEW
+  HR_INTERVIEW_PASSED
+  HR_INTERVIEW_FAILED
+  SM_AM_INTERVIEW_PASSED
+  SM_AM_INTERVIEW_FAILED
+  SM_AM_INTERVIEW_NO_SHOW
+  OM_PV_INTERVIEW_PASSED
+  OM_PV_INTERVIEW_FAILED
+  OM_PV_INTERVIEW_NO_SHOW
+
+  // Thư mời
+  OFFER_SENT
+  OFFER_ACCEPTED
+  OFFER_REJECTED
+
+  // Trúng tuyển
+  WAITING_ONBOARDING
+  ONBOARDING_ACCEPTED
+  ONBOARDING_REJECTED
+}
+
+model Interview {
+  id          String   @id @default(cuid())
+  candidateId String
+  interviewerId String
+  type        InterviewType
+  scheduledAt DateTime
+  location    String?
+  notes       String?
+  result      InterviewResult?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  candidate   Candidate @relation(fields: [candidateId], references: [id])
+  interviewer User      @relation(fields: [interviewerId], references: [id])
+
+  @@map("interviews")
+}
+
+enum InterviewType {
+  HR_SCREENING
+  SM_AM_INTERVIEW
+  OM_PV_INTERVIEW
+}
+
+enum InterviewResult {
+  PASSED
+  FAILED
+  NO_SHOW
+}
+
+model RecruitmentProposal {
+  id          String            @id @default(cuid())
+  title       String
+  description String?
+  storeId     String?
+  positionId  String?
+  quantity    Int
+  reason      String?
+  status      ProposalStatus    @default(PENDING)
+  approverId  String?
+  approvedAt  DateTime?
+  rejectedAt  DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  store       Store?            @relation(fields: [storeId], references: [id])
+  position    Position?         @relation(fields: [positionId], references: [id])
+  approver    User?             @relation("ProposalApprover", fields: [approverId], references: [id])
+  candidates  Candidate[]
+
+  @@map("recruitment_proposals")
+}
+
+enum ProposalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum HeadcountPeriod {
+  MONTH
+  QUARTER
+  HALF_YEAR
+  YEAR
+}
+
+model Headcount {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  period      HeadcountPeriod
+  departmentId String?
+  storeId     String?
+  current     Int      @default(0)
+  target      Int
+  year        Int
+  month       Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  department  Department? @relation(fields: [departmentId], references: [id])
+  store       Store?      @relation(fields: [storeId], references: [id])
+  positions   HeadcountPosition[]
+
+  @@map("headcounts")
+}
+
+model HeadcountPosition {
+  id          String   @id @default(cuid())
+  headcountId String
+  positionId  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  headcount   Headcount @relation(fields: [headcountId], references: [id], onDelete: Cascade)
+  position    Position  @relation(fields: [positionId], references: [id])
+
+  @@unique([headcountId, positionId])
+  @@map("headcount_positions")
+}
+
+// ============ CONTRACTS ============
+model Contract {
+  id          String        @id @default(cuid())
+  employeeId  String
+  type        ContractType
+  startDate   DateTime
+  endDate     DateTime?
+  salary      Decimal       @db.Decimal(12, 2)
+  position    String?
+  department  String?
+  fileUrl     String?
+  status      ContractStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  employee    Employee      @relation(fields: [employeeId], references: [id])
+  createdBy   User          @relation("ContractCreator", fields: [createdById], references: [id])
+  createdById String
+
+  @@map("contracts")
+}
+
+enum ContractStatus {
+  ACTIVE
+  EXPIRED
+  TERMINATED
+}
+
+// ============ DECISIONS ============
+model Decision {
+  id          String        @id @default(cuid())
+  type        DecisionType
+  employeeId  String
+  title       String
+  content     String
+  effectiveDate DateTime
+  fileUrl     String?
+  status      DecisionStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  employee    Employee      @relation(fields: [employeeId], references: [id])
+  createdBy   User          @relation("DecisionCreator", fields: [createdById], references: [id])
+  createdById String
+
+  @@map("decisions")
+}
+
+enum DecisionType {
+  REWARD
+  TRANSFER
+  DISCIPLINARY
+  DISMISSAL
+  APPOINTMENT
+  RECEPTION
+  SALARY_ADJUSTMENT
+  CONTRACT_TERMINATION
+}
+
+enum DecisionStatus {
+  ACTIVE
+  CANCELLED
+}
+
+// ============ TIMEKEEPING (Chấm công) ============
+model Timekeeping {
+  id            String    @id @default(cuid())
+  employeeId    String
+  userId        String?
+  date          DateTime  @db.Date
+  checkInTime   DateTime?
+  checkOutTime  DateTime?
+  checkInLat    Float?
+  checkInLng    Float?
+  checkOutLat   Float?
+  checkOutLng   Float?
+  workHours     Float?
+  overtimeHours Float?
+  status        TimekeepingStatus @default(NORMAL)
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  employee      Employee  @relation(fields: [employeeId], references: [id])
+  user          User?     @relation(fields: [userId], references: [id])
+
+  @@unique([employeeId, date])
+  @@map("timekeeping")
+}
+
+enum TimekeepingStatus {
+  NORMAL
+  LATE
+  EARLY_LEAVE
+  ABSENT
+  OVERTIME
+}
+
+// ============ PAYROLL (Bảng lương) ============
+model Payroll {
+  id              String   @id @default(cuid())
+  employeeId      String
+  userId          String?
+  month           Int
+  year            Int
+  baseSalary      Decimal  @db.Decimal(12, 2)
+  workDays        Int
+  workHours       Float
+  overtimeHours   Float    @default(0)
+  overtimePay     Decimal  @db.Decimal(12, 2) @default(0)
+  allowances      Decimal  @db.Decimal(12, 2) @default(0)
+  deductions      Decimal  @db.Decimal(12, 2) @default(0)
+  grossSalary     Decimal  @db.Decimal(12, 2)
+  tax             Decimal  @db.Decimal(12, 2) @default(0)
+  insurance       Decimal  @db.Decimal(12, 2) @default(0)
+  netSalary       Decimal  @db.Decimal(12, 2)
+  status          PayrollStatus @default(PENDING)
+  paidAt          DateTime?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  employee        Employee @relation(fields: [employeeId], references: [id])
+  user            User?    @relation(fields: [userId], references: [id])
+  department      Department? @relation(fields: [departmentId], references: [id])
+  departmentId    String?
+
+  @@unique([employeeId, month, year])
+  @@map("payrolls")
+}
+
+enum PayrollStatus {
+  PENDING
+  CALCULATED
+  APPROVED
+  PAID
+  CANCELLED
+}
+
