@@ -349,6 +349,62 @@ export class RecruitmentService {
     return campaign;
   }
 
+  async updateCampaign(id: string, updateDto: Partial<CreateCampaignDto>, user: User) {
+    if (user.role !== 'ADMIN' && user.role !== 'HEAD_OF_DEPARTMENT') {
+      throw new ForbiddenException('Only ADMIN and HR can update campaigns');
+    }
+
+    const campaign = await this.prisma.campaign.findUnique({ where: { id } });
+    if (!campaign) {
+      throw new NotFoundException('Campaign not found');
+    }
+
+    const updateData: any = { ...updateDto };
+    if (updateDto.startDate) updateData.startDate = new Date(updateDto.startDate);
+    if (updateDto.endDate) updateData.endDate = new Date(updateDto.endDate);
+
+    return this.prisma.campaign.update({
+      where: { id },
+      data: updateData,
+      include: {
+        form: true,
+      },
+    });
+  }
+
+  async deleteCampaign(id: string, user: User) {
+    if (user.role !== 'ADMIN' && user.role !== 'HEAD_OF_DEPARTMENT') {
+      throw new ForbiddenException('Only ADMIN and HR can delete campaigns');
+    }
+
+    const campaign = await this.prisma.campaign.findUnique({ 
+      where: { id },
+      include: {
+        candidates: true,
+        proposal: true,
+      }
+    });
+
+    if (!campaign) {
+      throw new NotFoundException('Campaign not found');
+    }
+
+    if (campaign.candidates.length > 0) {
+      throw new BadRequestException('Không thể xóa chiến dịch đã có ứng viên');
+    }
+
+    if (campaign.proposal) {
+      await this.prisma.recruitmentProposal.update({
+        where: { id: campaign.proposal.id },
+        data: { campaignId: null }
+      });
+    }
+
+    return this.prisma.campaign.delete({
+      where: { id },
+    });
+  }
+
   async getCampaignByLink(link: string) {
     const campaign = await this.prisma.campaign.findUnique({
       where: { link },
@@ -746,7 +802,16 @@ export class RecruitmentService {
     if (filters?.storeId) where.storeId = filters.storeId;
     if (filters?.brand) where.brand = filters.brand;
 
-    return this.prisma.candidate.findMany({
+    // Pagination
+    const page = filters?.page || 1;
+    const limit = filters?.limit || 10;
+    const skip = (page - 1) * limit;
+
+    // Get total count
+    const total = await this.prisma.candidate.count({ where });
+
+    // Get paginated data
+    const data = await this.prisma.candidate.findMany({
       where,
       include: {
         status: true,
@@ -769,7 +834,17 @@ export class RecruitmentService {
         },
       },
       orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
     });
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async createCandidate(createDto: CreateCandidateDto, user: User) {
@@ -1014,6 +1089,42 @@ export class RecruitmentService {
     });
   }
 
+  async transferCampaign(candidateId: string, newCampaignId: string, user: User) {
+    if (user.role !== 'ADMIN' && user.role !== 'HEAD_OF_DEPARTMENT') {
+      throw new ForbiddenException('Only ADMIN and HEAD_OF_DEPARTMENT can transfer candidates');
+    }
+
+    const newCampaign = await this.prisma.campaign.findUnique({
+      where: { id: newCampaignId }
+    });
+
+    if (!newCampaign) {
+      throw new NotFoundException('Dữ liệu chiến dịch không tồn tại');
+    }
+
+    const candidate = await this.prisma.candidate.findUnique({ where: { id: candidateId } });
+    if (!candidate) {
+      throw new NotFoundException('Không tìm thấy ứng viên');
+    }
+
+    return this.prisma.candidate.update({
+      where: { id: candidateId },
+      data: {
+        campaignId: newCampaignId,
+        picId: newCampaign.picId,
+        departmentId: newCampaign.departmentId,
+        storeId: newCampaign.storeId,
+      },
+      include: {
+        status: true,
+        campaign: true,
+        store: true,
+        pic: true,
+        department: true,
+      }
+    });
+  }
+
   private async autoConvertCandidateToEmployee(candidate: any) {
     try {
       // Check if employee already exists for this candidate (by email or idCard)
@@ -1122,6 +1233,8 @@ export class RecruitmentService {
     const where: any = {};
     if (filters?.candidateId) where.candidateId = filters.candidateId;
     if (filters?.interviewerId) where.interviewerId = filters.interviewerId;
+    if (filters?.typeId) where.typeId = filters.typeId;
+    if (filters?.resultId) where.resultId = filters.resultId;
     if (filters?.startDate && filters?.endDate) {
       where.scheduledAt = {
         gte: new Date(filters.startDate),
@@ -1342,64 +1455,67 @@ export class RecruitmentService {
       approverId: user.id,
     };
 
+    let statusType = null;
     if (updateDto.statusId) {
       updateData.statusId = updateDto.statusId;
       
       // Get status type to check if it's APPROVED or REJECTED
-      const statusType = await this.prisma.type.findUnique({
+      statusType = await this.prisma.type.findUnique({
         where: { id: updateDto.statusId },
       });
       
       if (statusType?.code === 'APPROVED') {
         // Check headcount before approving
-        const currentYear = new Date().getFullYear();
-        const currentMonth = new Date().getMonth() + 1;
-
-        // Find headcount for this proposal
-        const headcountWhere: any = {
-          year: currentYear,
-        };
-
-        if (proposal.storeId) {
-          headcountWhere.storeId = proposal.storeId;
-        }
-        // Note: positionId is now in HeadcountPosition, so we filter via include
-
-        const headcounts = await this.prisma.headcount.findMany({
-          where: headcountWhere,
-          include: {
-            positions: {
-              where: {
-                positionId: proposal.positionId,
-              },
-              include: {
-                position: true,
-              },
-            },
-          },
-        });
-
-        // Check if we can approve based on headcount
-        let canApprove = false;
+        let canApprove = true;
         let headcountMessage = '';
 
-        if (headcounts.length === 0) {
-          // No headcount defined, cannot approve
-          throw new BadRequestException('Không tìm thấy định biên cho đề xuất này. Vui lòng tạo định biên trước khi duyệt.');
-        }
+        if (!(proposal as any).isUnplanned) {
+          canApprove = false;
+          const currentYear = new Date().getFullYear();
+          const currentMonth = new Date().getMonth() + 1;
 
-        for (const headcount of headcounts) {
-          // Check monthly headcount if exists, otherwise check yearly
-          const targetHeadcount = headcount.month ? headcount : headcounts.find(h => !h.month && h.year === currentYear);
-          
-          if (targetHeadcount && targetHeadcount.positions.length > 0) {
-            const headcountPosition = targetHeadcount.positions[0];
-            const availableSlots = headcountPosition.target - headcountPosition.current;
-            if (availableSlots >= proposal.quantity) {
-              canApprove = true;
-              break;
-            } else {
-              headcountMessage = `Định biên chỉ còn ${availableSlots} vị trí, đề xuất yêu cầu ${proposal.quantity} vị trí.`;
+          // Find headcount for this proposal
+          const headcountWhere: any = {
+            year: currentYear,
+          };
+
+          if (proposal.storeId) {
+            headcountWhere.storeId = proposal.storeId;
+          }
+          // Note: positionId is now in HeadcountPosition, so we filter via include
+
+          const headcounts = await this.prisma.headcount.findMany({
+            where: headcountWhere,
+            include: {
+              positions: {
+                where: {
+                  positionId: proposal.positionId,
+                },
+                include: {
+                  position: true,
+                },
+              },
+            },
+          });
+
+          if (headcounts.length === 0) {
+            // No headcount defined, cannot approve
+            throw new BadRequestException('Không tìm thấy định biên cho đề xuất này. Vui lòng tạo định biên trước khi duyệt.');
+          }
+
+          for (const headcount of headcounts) {
+            // Check monthly headcount if exists, otherwise check yearly
+            const targetHeadcount = headcount.month ? headcount : headcounts.find(h => !h.month && h.year === currentYear);
+            
+            if (targetHeadcount && targetHeadcount.positions.length > 0) {
+              const headcountPosition = targetHeadcount.positions[0];
+              const availableSlots = headcountPosition.target - headcountPosition.current;
+              if (availableSlots >= proposal.quantity) {
+                canApprove = true;
+                break;
+              } else {
+                headcountMessage = `Định biên chỉ còn ${availableSlots} vị trí, đề xuất yêu cầu ${proposal.quantity} vị trí.`;
+              }
             }
           }
         }
@@ -1419,7 +1535,7 @@ export class RecruitmentService {
       }
     }
 
-    return this.prisma.recruitmentProposal.update({
+    const updatedProposal = await this.prisma.recruitmentProposal.update({
       where: { id },
       data: updateData,
       include: {
@@ -1430,6 +1546,50 @@ export class RecruitmentService {
         campaign: true,
       },
     });
+
+    if (statusType?.code === 'APPROVED' && !updatedProposal.campaignId) {
+      const defaultForm = await this.prisma.recruitmentForm.findFirst({
+        where: { isActive: true },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (defaultForm) {
+        const linkBase = updatedProposal.title
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^-|-$/g, '');
+        
+        let link = linkBase;
+        let counter = 1;
+        while (await this.prisma.campaign.findUnique({ where: { link } })) {
+          link = `${linkBase}-${counter}`;
+          counter++;
+        }
+
+        const campaign = await this.prisma.campaign.create({
+          data: {
+            name: `${updatedProposal.title} - T${new Date().getMonth() + 1}/${new Date().getFullYear()}`,
+            description: updatedProposal.description,
+            formId: defaultForm.id,
+            link,
+            startDate: new Date(),
+          },
+        });
+
+        await this.prisma.recruitmentProposal.update({
+          where: { id },
+          data: { campaignId: campaign.id },
+        });
+
+        updatedProposal.campaignId = campaign.id;
+        (updatedProposal as any).campaign = campaign;
+      }
+    }
+
+    return updatedProposal;
   }
 
   // ============ Headcount ============

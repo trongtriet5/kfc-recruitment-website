@@ -81,7 +81,18 @@ export default function CandidatesList() {
     position: { x: number; y: number }
   } | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list')
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const [pagination, setPagination] = useState<{ total: number; totalPages: number }>({ total: 0, totalPages: 0 })
   const statusUpdateFormRef = useRef<HTMLDivElement>(null)
+
+  const [transferModal, setTransferModal] = useState<{
+    isOpen: boolean;
+    candidate: Candidate | null;
+    campaigns: any[];
+    selectedCampaignId: string;
+    loading: boolean;
+  }>({ isOpen: false, candidate: null, campaigns: [], selectedCampaignId: '', loading: false });
 
   useClickOutside(statusUpdateFormRef, () => {
     if (selectedCandidate) {
@@ -92,8 +103,15 @@ export default function CandidatesList() {
 
   useEffect(() => {
     loadUser()
-    loadCandidates()
+  }, [])
+
+  useEffect(() => {
+    setPage(1) // Reset to page 1 when filter changes
   }, [statusFilter])
+
+  useEffect(() => {
+    loadCandidates()
+  }, [statusFilter, page, limit, viewMode])
 
   const loadUser = () => {
     api
@@ -103,12 +121,27 @@ export default function CandidatesList() {
   }
 
   const loadCandidates = () => {
-    const url = statusFilter
-      ? `/recruitment/candidates?statusId=${statusFilter}`
-      : '/recruitment/candidates'
+    setLoading(true)
+    const params: any = { page, limit }
+    if (statusFilter) {
+      params.statusId = statusFilter
+    }
+    
     api
-      .get(url)
-      .then((res) => setCandidates(res.data))
+      .get('/recruitment/candidates', { params })
+      .then((res) => {
+        // Handle both old format (array) and new format (paginated)
+        if (Array.isArray(res.data)) {
+          setCandidates(res.data)
+          setPagination({ total: res.data.length, totalPages: 1 })
+        } else {
+          setCandidates(res.data.data || [])
+          setPagination({
+            total: res.data.total || 0,
+            totalPages: res.data.totalPages || 0,
+          })
+        }
+      })
       .catch(console.error)
       .finally(() => setLoading(false))
   }
@@ -166,6 +199,40 @@ export default function CandidatesList() {
     }
   }
 
+  const loadCampaignsForTransfer = async (candidate: Candidate) => {
+    try {
+      setTransferModal((prev) => ({ ...prev, isOpen: true, candidate, loading: true }));
+      const res = await api.get('/recruitment/campaigns');
+      setTransferModal({
+        isOpen: true,
+        candidate,
+        campaigns: res.data.filter((c: any) => c.isActive),
+        selectedCampaignId: '',
+        loading: false,
+      });
+    } catch (err) {
+      console.error(err);
+      alert('Không thể tải danh sách chiến dịch');
+      setTransferModal((prev) => ({ ...prev, isOpen: false, loading: false }));
+    }
+  };
+
+  const submitTransferCampaign = async () => {
+    if (!transferModal.candidate || !transferModal.selectedCampaignId) return;
+    setTransferModal((prev) => ({ ...prev, loading: true }));
+    try {
+      await api.patch(`/recruitment/candidates/${transferModal.candidate.id}/transfer-campaign`, {
+        campaignId: transferModal.selectedCampaignId
+      });
+      alert('Chuyển chiến dịch thành công');
+      setTransferModal({ isOpen: false, candidate: null, campaigns: [], selectedCampaignId: '', loading: false });
+      loadCandidates();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Có lỗi xảy ra');
+      setTransferModal((prev) => ({ ...prev, loading: false }));
+    }
+  };
+
   const getStatusLabel = (status: string | null | undefined | { id: string; name: string; code: string }) => {
     if (!status) {
       return 'Chưa có trạng thái'
@@ -186,22 +253,22 @@ export default function CandidatesList() {
 
   const getStatusColor = (status: string | null | undefined | { id: string; name: string; code: string }) => {
     if (!status) {
-      return 'bg-gray-100 text-gray-800'
+      return 'bg-gray-100 text-gray-700'
     }
     const statusCode = typeof status === 'object' ? status.code : status
     if (!statusCode) {
-      return 'bg-gray-100 text-gray-800'
+      return 'bg-gray-100 text-gray-700'
     }
     if (statusCode.includes('PASSED') || statusCode === 'OFFER_ACCEPTED' || statusCode === 'ONBOARDING_ACCEPTED') {
-      return 'bg-green-100 text-green-800'
+      return 'bg-emerald-50 text-emerald-700 border border-emerald-200'
     }
     if (statusCode.includes('FAILED') || statusCode === 'OFFER_REJECTED' || statusCode === 'ONBOARDING_REJECTED') {
-      return 'bg-red-100 text-red-800'
+      return 'bg-red-50 text-red-700 border border-red-200'
     }
     if (statusCode.includes('WAITING') || statusCode === 'OFFER_SENT') {
-      return 'bg-yellow-100 text-yellow-800'
+      return 'bg-amber-50 text-amber-700 border border-amber-200'
     }
-    return 'bg-blue-100 text-blue-800'
+    return 'bg-blue-50 text-blue-700 border border-blue-200'
   }
 
   if (loading) {
@@ -252,25 +319,27 @@ export default function CandidatesList() {
           }}
           onDelete={handleDeleteCandidate}
           onScheduleInterview={handleScheduleInterview}
+          onTransferCampaign={loadCampaignsForTransfer}
           allowedStatuses={allowedStatuses}
           statusOptions={allStatuses}
         />
       )}
-      <div className="mb-4 flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Danh sách ứng viên</h2>
-        <div className="flex gap-2">
+      <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-2xl font-semibold text-gray-900">Danh sách ứng viên</h2>
+        <div className="flex flex-wrap gap-2">
           <Link
             href="/dashboard/recruitment/candidates/new"
-            className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 text-sm"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium shadow-sm"
           >
-            ➕ Thêm ứng viên
+            <Icon name="plus" size={16} />
+            Thêm ứng viên
           </Link>
-          <div className="flex border border-gray-300 rounded-md overflow-hidden">
+          <div className="flex border border-gray-200 rounded-lg overflow-hidden shadow-sm">
             <button
               onClick={() => setViewMode('list')}
-              className={`px-3 py-2 text-sm ${
+              className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${
                 viewMode === 'list'
-                  ? 'bg-yellow-600 text-white'
+                  ? 'bg-gray-900 text-white'
                   : 'bg-white text-gray-700 hover:bg-gray-50'
               }`}
             >
@@ -279,9 +348,9 @@ export default function CandidatesList() {
             </button>
             <button
               onClick={() => setViewMode('kanban')}
-              className={`px-3 py-2 text-sm border-l border-gray-300 ${
+              className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-l border-gray-200 transition-colors ${
                 viewMode === 'kanban'
-                  ? 'bg-yellow-600 text-white'
+                  ? 'bg-gray-900 text-white'
                   : 'bg-white text-gray-700 hover:bg-gray-50'
               }`}
             >
@@ -290,12 +359,14 @@ export default function CandidatesList() {
             </button>
           </div>
           {viewMode === 'list' && (
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
-            >
-              <option value="">🔍 Tất cả trạng thái</option>
+            <div className="relative">
+              <Icon name="search" size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 bg-white text-gray-700 shadow-sm"
+              >
+                <option value="">Tất cả trạng thái</option>
               {Object.entries(STATUS_GROUPS).map(([key, group]) => {
                 if ('statuses' in group) {
                   return (
@@ -311,6 +382,7 @@ export default function CandidatesList() {
                 return null
               })}
             </select>
+            </div>
           )}
         </div>
       </div>
@@ -318,13 +390,13 @@ export default function CandidatesList() {
       {viewMode === 'list' && (
         <>
           {selectedCandidate && (
-            <div ref={statusUpdateFormRef} className="mb-4 bg-white shadow rounded-lg p-4">
-              <h3 className="font-medium mb-2">Cập nhật trạng thái: {selectedCandidate.fullName}</h3>
-              <div className="flex gap-2">
+            <div ref={statusUpdateFormRef} className="mb-4 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+              <h3 className="font-medium text-gray-900 mb-3">Cập nhật trạng thái: <span className="text-gray-700">{selectedCandidate.fullName}</span></h3>
+              <div className="flex flex-col sm:flex-row gap-2">
                 <select
                   value={newStatus}
                   onChange={(e) => setNewStatus(e.target.value)}
-                  className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm"
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 bg-white text-gray-700"
                 >
                   <option value="">Chọn trạng thái mới</option>
                   {allowedStatuses.map((status) => {
@@ -339,8 +411,9 @@ export default function CandidatesList() {
                 <button
                   onClick={handleStatusChange}
                   disabled={!newStatus}
-                  className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
                 >
+                  <Icon name="check" size={16} />
                   Cập nhật
                 </button>
                 <button
@@ -348,7 +421,7 @@ export default function CandidatesList() {
                     setSelectedCandidate(null)
                     setNewStatus('')
                   }}
-                  className="px-4 py-2 border border-gray-300 rounded-md"
+                  className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700"
                 >
                   Hủy
                 </button>
@@ -356,30 +429,24 @@ export default function CandidatesList() {
             </div>
           )}
 
-          <div className="bg-white shadow overflow-hidden sm:rounded-md">
-            {candidates.length > 0 && (
-              <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-                <p className="text-sm text-gray-600">
-                  Tổng cộng: <span className="font-semibold text-gray-900">{candidates.length}</span> ứng viên
-                </p>
-              </div>
-            )}
-            <ul className="divide-y divide-gray-200">
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+            <ul className="divide-y divide-gray-100">
               {candidates.length === 0 ? (
-                <li className="px-4 py-12 text-center">
-                  <div className="text-gray-400 mb-4">
-                    <Icon name="list" size={48} />
+                <li className="px-6 py-16 text-center">
+                  <div className="text-gray-300 mb-4 flex justify-center">
+                    <Icon name="users" size={56} />
                   </div>
-                  <p className="text-gray-500 font-medium">Chưa có ứng viên nào</p>
-                  <p className="text-gray-400 text-sm mt-1">
+                  <p className="text-gray-600 font-medium text-base">Chưa có ứng viên nào</p>
+                  <p className="text-gray-400 text-sm mt-2">
                     {statusFilter ? 'Thử thay đổi bộ lọc trạng thái' : 'Bắt đầu bằng cách thêm ứng viên mới'}
                   </p>
                   {!statusFilter && (
                     <Link
                       href="/dashboard/recruitment/candidates/new"
-                      className="mt-4 inline-block px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 text-sm"
+                      className="mt-6 inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium shadow-sm"
                     >
-                      ➕ Thêm ứng viên đầu tiên
+                      <Icon name="plus" size={16} />
+                      Thêm ứng viên đầu tiên
                     </Link>
                   )}
                 </li>
@@ -390,40 +457,41 @@ export default function CandidatesList() {
                 onContextMenu={(e) => handleContextMenu(e, candidate)}
                 className="hover:bg-gray-50 transition-colors cursor-pointer"
               >
-                <div className="px-4 py-4 sm:px-6">
-                  <div className="flex items-center justify-between">
+                <div className="px-6 py-4">
+                  <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <Link
                         href={`/dashboard/recruitment/candidates/${candidate.id}`}
-                        className="text-sm font-medium text-yellow-600 hover:text-yellow-700 hover:underline"
+                        className="text-base font-semibold text-gray-900 hover:text-gray-700 transition-colors"
                       >
                         {candidate.fullName}
                       </Link>
-                      <div className="mt-1.5 text-sm text-gray-500 space-y-0.5">
+                      <div className="mt-2 space-y-1.5">
                         {candidate.email && (
-                          <div className="truncate" title={candidate.email}>
-                            📧 {candidate.email}
+                          <div className="flex items-center gap-2 text-sm text-gray-600 truncate" title={candidate.email}>
+                            <Icon name="mail" size={14} className="text-gray-400 flex-shrink-0" />
+                            <span className="truncate">{candidate.email}</span>
                           </div>
                         )}
-                        <div className="truncate flex items-center gap-1" title={candidate.phone}>
-                          <Icon name="clock" size={14} className="text-gray-400" />
-                          {candidate.phone}
+                        <div className="flex items-center gap-2 text-sm text-gray-600" title={candidate.phone}>
+                          <Icon name="phone" size={14} className="text-gray-400 flex-shrink-0" />
+                          <span>{candidate.phone}</span>
                         </div>
-                        <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                        <div className="flex flex-wrap gap-2 mt-2">
                           {candidate.position && (
-                            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded flex items-center gap-1">
+                            <span className="inline-flex items-center gap-1.5 text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded-md font-medium">
                               <Icon name="briefcase" size={12} />
                               {candidate.position}
                             </span>
                           )}
                           {candidate.store && (
-                            <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded flex items-center gap-1">
+                            <span className="inline-flex items-center gap-1.5 text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded-md font-medium">
                               <Icon name="store" size={12} />
                               {candidate.store.name}
                             </span>
                           )}
                           {candidate.brand && (
-                            <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded flex items-center gap-1">
+                            <span className="inline-flex items-center gap-1.5 text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded-md font-medium">
                               <Icon name="tag" size={12} />
                               {getBrandLabel(candidate.brand)}
                             </span>
@@ -431,9 +499,9 @@ export default function CandidatesList() {
                         </div>
                       </div>
                     </div>
-                    <div className="ml-4 flex items-center gap-3 flex-shrink-0">
+                    <div className="flex items-center gap-3 flex-shrink-0">
                       <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
+                        className={`inline-flex items-center px-3 py-1 rounded-md text-xs font-medium ${getStatusColor(
                           candidate.status
                         )}`}
                       >
@@ -445,10 +513,10 @@ export default function CandidatesList() {
                             e.stopPropagation()
                             setSelectedCandidate(candidate)
                           }}
-                          className="text-sm text-yellow-600 hover:text-yellow-700 hover:underline px-2 py-1 rounded hover:bg-yellow-50"
+                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
                           title="Đổi trạng thái"
                         >
-                          🔄
+                          <Icon name="refresh" size={16} />
                         </button>
                       )}
                     </div>
@@ -459,11 +527,114 @@ export default function CandidatesList() {
               )}
             </ul>
           </div>
+          {viewMode === 'list' && (
+            <div className="px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4 bg-gray-50">
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <span>Hiển thị:</span>
+                <select
+                  value={limit}
+                  onChange={(e) => {
+                    setLimit(Number(e.target.value))
+                    setPage(1)
+                  }}
+                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 bg-white text-gray-700"
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+                <span className="text-gray-500">
+                  / Tổng: <span className="font-semibold text-gray-700">{pagination.total}</span> ứng viên
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(page - 1)}
+                  disabled={page === 1 || loading}
+                  className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white transition-colors text-gray-700 bg-white"
+                >
+                  Trước
+                </button>
+                <span className="text-sm text-gray-600 px-2">
+                  Trang <span className="font-semibold text-gray-900">{page}</span> / {pagination.totalPages || 1}
+                </span>
+                <button
+                  onClick={() => setPage(page + 1)}
+                  disabled={page >= (pagination.totalPages || 1) || loading}
+                  className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white transition-colors text-gray-700 bg-white"
+                >
+                  Sau
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
 
       {viewMode === 'kanban' && (
-        <CandidatesKanban candidates={candidates} onStatusChange={loadCandidates} />
+        <CandidatesKanban 
+          candidates={candidates} 
+          onStatusChange={loadCandidates}
+          page={page}
+          limit={limit}
+          total={pagination.total}
+          totalPages={pagination.totalPages}
+          onPageChange={setPage}
+          onLimitChange={(newLimit) => {
+            setLimit(newLimit)
+            setPage(1)
+          }}
+          onTransferCampaign={loadCampaignsForTransfer}
+        />
+      )}
+      {transferModal.isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">Chuyển chiến dịch tuyển dụng</h3>
+              <button onClick={() => setTransferModal(prev => ({ ...prev, isOpen: false }))}>
+                <span className="text-gray-400 hover:text-gray-600 font-bold text-xl">×</span>
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-4">
+                Ứng viên: <span className="font-semibold text-gray-900">{transferModal.candidate?.fullName}</span>
+              </p>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Chọn chiến dịch mới <span className="text-red-500">*</span>
+              </label>
+              <select
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                value={transferModal.selectedCampaignId}
+                onChange={e => setTransferModal(prev => ({ ...prev, selectedCampaignId: e.target.value }))}
+                disabled={transferModal.loading}
+              >
+                <option value="">-- Chọn chiến dịch mới --</option>
+                {transferModal.campaigns.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+              <button 
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 bg-white text-gray-700" 
+                onClick={() => setTransferModal(prev => ({ ...prev, isOpen: false }))}
+                disabled={transferModal.loading}
+              >
+                Hủy
+              </button>
+              <button 
+                className="px-4 py-2 bg-yellow-600 text-white rounded-md text-sm hover:bg-yellow-700 disabled:opacity-50 flex items-center gap-2"
+                onClick={submitTransferCampaign}
+                disabled={!transferModal.selectedCampaignId || transferModal.loading}
+              >
+                {transferModal.loading ? 'Đang chuyển...' : 'Xác nhận chuyển'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

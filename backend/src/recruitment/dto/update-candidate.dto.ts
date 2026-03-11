@@ -36,6 +36,14 @@ export class UpdateCandidateDto {
 
   @IsOptional()
   @IsString()
+  departmentId?: string;
+
+  @IsOptional()
+  @IsString()
+  picId?: string;
+
+  @IsOptional()
+  @IsString()
   notes?: string;
 }
 

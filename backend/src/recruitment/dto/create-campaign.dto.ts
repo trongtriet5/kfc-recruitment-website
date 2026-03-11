@@ -25,5 +25,17 @@ export class CreateCampaignDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  picId?: string;
+
+  @IsOptional()
+  @IsString()
+  departmentId?: string;
+
+  @IsOptional()
+  @IsString()
+  storeId?: string;
 }
 

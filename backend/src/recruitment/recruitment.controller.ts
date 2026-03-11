@@ -88,6 +88,22 @@ export class RecruitmentController {
     return this.recruitmentService.getCampaign(id, user);
   }
 
+  @Patch('campaigns/:id')
+  @UseGuards(JwtAuthGuard)
+  updateCampaign(
+    @Param('id') id: string,
+    @Body() updateDto: Partial<CreateCampaignDto>,
+    @CurrentUser() user: User,
+  ) {
+    return this.recruitmentService.updateCampaign(id, updateDto, user);
+  }
+
+  @Delete('campaigns/:id')
+  @UseGuards(JwtAuthGuard)
+  deleteCampaign(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.recruitmentService.deleteCampaign(id, user);
+  }
+
   @Get('campaigns/statistics')
   @UseGuards(JwtAuthGuard)
   getCampaignStatistics(@Query('campaignId') campaignId?: string) {
@@ -110,6 +126,8 @@ export class RecruitmentController {
     @Query('formId') formId?: string,
     @Query('storeId') storeId?: string,
     @Query('brand') brand?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     return this.recruitmentService.getCandidates(user, {
       statusId,
@@ -117,6 +135,8 @@ export class RecruitmentController {
       formId,
       storeId,
       brand,
+      page: page ? parseInt(page) : undefined,
+      limit: limit ? parseInt(limit) : undefined,
     });
   }
 
@@ -142,6 +162,17 @@ export class RecruitmentController {
     return this.recruitmentService.updateCandidate(id, updateDto, user);
   }
 
+  @Patch('candidates/:id/transfer-campaign')
+  @UseGuards(JwtAuthGuard)
+  transferCandidateCampaign(
+    @Param('id') id: string,
+    @Body('campaignId') newCampaignId: string,
+    @CurrentUser() user: User,
+  ) {
+    if (!newCampaignId) throw new BadRequestException('Chiến dịch chọn chuyển tới bị trống');
+    return this.recruitmentService.transferCampaign(id, newCampaignId, user);
+  }
+
   @Delete('candidates/:id')
   @UseGuards(JwtAuthGuard)
   deleteCandidate(@Param('id') id: string, @CurrentUser() user: User) {
@@ -155,12 +186,16 @@ export class RecruitmentController {
     @CurrentUser() user: User,
     @Query('candidateId') candidateId?: string,
     @Query('interviewerId') interviewerId?: string,
+    @Query('typeId') typeId?: string,
+    @Query('resultId') resultId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
     return this.recruitmentService.getInterviews(user, {
       candidateId,
       interviewerId,
+      typeId,
+      resultId,
       startDate,
       endDate,
     });

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import CandidateContextMenu from './CandidateContextMenu'
+import Icon from '@/components/icons/Icon'
 
 interface Candidate {
   id: string
@@ -68,10 +69,27 @@ const STATUS_GROUPS = {
 interface CandidatesKanbanProps {
   candidates?: Candidate[]
   onStatusChange?: () => void
+  page?: number
+  limit?: number
+  total?: number
+  totalPages?: number
+  onPageChange?: (page: number) => void
+  onLimitChange?: (limit: number) => void
+  onTransferCampaign?: (candidate: any) => void
 }
 
 export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
-  const { candidates: propsCandidates, onStatusChange } = props
+  const { 
+    candidates: propsCandidates, 
+    onStatusChange,
+    page: propsPage,
+    limit: propsLimit,
+    total: propsTotal,
+    totalPages: propsTotalPages,
+    onPageChange,
+    onLimitChange,
+    onTransferCampaign,
+  } = props
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
@@ -81,6 +99,22 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
     candidate: Candidate
     position: { x: number; y: number }
   } | null>(null)
+  
+  // Local pagination state for standalone usage
+  const [localPage, setLocalPage] = useState(1)
+  const [localLimit, setLocalLimit] = useState(10)
+  const [localPagination, setLocalPagination] = useState<{ total: number; totalPages: number }>({ total: 0, totalPages: 0 })
+
+  // Use props pagination if provided, otherwise use local state
+  const page = propsPage !== undefined ? propsPage : localPage
+  const limit = propsLimit !== undefined ? propsLimit : localLimit
+  const total = propsTotal !== undefined ? propsTotal : localPagination.total
+  const totalPages = propsTotalPages !== undefined ? propsTotalPages : localPagination.totalPages
+  const handlePageChange = onPageChange || setLocalPage
+  const handleLimitChange = onLimitChange || ((newLimit: number) => {
+    setLocalLimit(newLimit)
+    setLocalPage(1)
+  })
 
   useEffect(() => {
     loadUser()
@@ -92,6 +126,13 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
     }
   }, [propsCandidates])
 
+  useEffect(() => {
+    if (!propsCandidates) {
+      loadCandidates()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, limit])
+
   const loadUser = () => {
     api
       .get('/auth/me')
@@ -100,9 +141,24 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
   }
 
   const loadCandidates = () => {
+    setLoading(true)
+    const params: any = { page, limit }
+    
     api
-      .get('/recruitment/candidates')
-      .then((res) => setCandidates(res.data))
+      .get('/recruitment/candidates', { params })
+      .then((res) => {
+        // Handle both old format (array) and new format (paginated)
+        if (Array.isArray(res.data)) {
+          setCandidates(res.data)
+          setLocalPagination({ total: res.data.length, totalPages: 1 })
+        } else {
+          setCandidates(res.data.data || [])
+          setLocalPagination({
+            total: res.data.total || 0,
+            totalPages: res.data.totalPages || 0,
+          })
+        }
+      })
       .catch(console.error)
       .finally(() => setLoading(false))
   }
@@ -242,13 +298,13 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
       return 'bg-gray-50 border-gray-200'
     }
     if (statusCode.includes('PASSED') || statusCode === 'OFFER_ACCEPTED' || statusCode === 'ONBOARDING_ACCEPTED') {
-      return 'bg-green-50 border-green-200'
+      return 'bg-emerald-50 border-emerald-200'
     }
     if (statusCode.includes('FAILED') || statusCode === 'OFFER_REJECTED' || statusCode === 'ONBOARDING_REJECTED') {
       return 'bg-red-50 border-red-200'
     }
     if (statusCode.includes('WAITING') || statusCode === 'OFFER_SENT') {
-      return 'bg-yellow-50 border-yellow-200'
+      return 'bg-amber-50 border-amber-200'
     }
     return 'bg-blue-50 border-blue-200'
   }
@@ -284,8 +340,48 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
   }
 
   return (
-    <div className="overflow-x-auto pb-4 relative">
-      {contextMenu && (
+    <div className="relative">
+      {/* Pagination controls */}
+      <div className="mb-4 px-6 py-3 border-b border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white">
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <span>Hiển thị:</span>
+          <select
+            value={limit}
+            onChange={(e) => {
+              handleLimitChange(Number(e.target.value))
+            }}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 bg-white text-gray-700"
+          >
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+          </select>
+          <span className="text-gray-500">
+            / Tổng: <span className="font-semibold text-gray-700">{total}</span> ứng viên
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handlePageChange(page - 1)}
+            disabled={page === 1}
+            className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors text-gray-700 bg-white"
+          >
+            Trước
+          </button>
+          <span className="text-sm text-gray-600 px-2">
+            Trang <span className="font-semibold text-gray-900">{page}</span> / {totalPages || 1}
+          </span>
+          <button
+            onClick={() => handlePageChange(page + 1)}
+            disabled={page >= totalPages}
+            className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors text-gray-700 bg-white"
+          >
+            Sau
+          </button>
+        </div>
+      </div>
+      <div className="overflow-x-auto pb-4 relative">
+        {contextMenu && (
         <CandidateContextMenu
           candidate={contextMenu.candidate}
           position={contextMenu.position}
@@ -317,6 +413,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
           }}
           onDelete={handleDeleteCandidate}
           onScheduleInterview={handleScheduleInterview}
+          onTransferCampaign={onTransferCampaign}
           allowedStatuses={allowedStatuses}
           statusOptions={allStatuses}
         />
@@ -326,25 +423,25 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
           const groupCandidates = getCandidatesByGroup(groupKey)
           return (
             <div key={groupKey} className="flex-shrink-0 w-80">
-              <div className="bg-gray-100 rounded-lg p-4 mb-2">
-                <h3 className="font-semibold text-gray-900">{group.label}</h3>
-                <p className="text-sm text-gray-500">
+              <div className="bg-gray-50 rounded-lg p-4 mb-3 border border-gray-200">
+                <h3 className="font-semibold text-gray-900 text-sm">{group.label}</h3>
+                <p className="text-xs text-gray-500 mt-1">
                   {groupCandidates.length} ứng viên
                 </p>
               </div>
               <div
                 className={`
-                  bg-white rounded-lg border-2 min-h-[400px] p-3 transition-all
+                  bg-white rounded-lg border min-h-[400px] p-3 transition-all shadow-sm
                   ${dragOverGroup === groupKey
-                    ? 'border-yellow-500 bg-yellow-50 border-solid'
-                    : 'border-gray-300'
+                    ? 'border-gray-900 bg-gray-50'
+                    : 'border-gray-200'
                   }
                 `}
                 onDragOver={(e) => handleDragOver(e, groupKey)}
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, groupKey)}
               >
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {groupCandidates.map((candidate) => (
                     <div
                       key={candidate.id}
@@ -356,44 +453,48 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
                       className={`
                         p-3 rounded-lg border cursor-pointer transition-all
                         ${getStatusColor(candidate.status)}
-                        hover:shadow-md
+                        hover:shadow-md hover:border-gray-300
                         ${draggedCandidate?.id === candidate.id ? 'opacity-50' : ''}
                         ${allowedStatuses.length > 0 ? 'cursor-move' : ''}
                       `}
                     >
-                      <div className="font-medium text-sm text-gray-900">
+                      <div className="font-semibold text-sm text-gray-900 mb-2">
                         {candidate.fullName}
                       </div>
-                      <div className="text-xs text-gray-600 mt-1">
-                        {candidate.phone}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                          <Icon name="phone" size={12} className="text-gray-400" />
+                          {candidate.phone}
+                        </div>
+                        {candidate.email && (
+                          <div className="flex items-center gap-1.5 text-xs text-gray-500 truncate">
+                            <Icon name="mail" size={12} className="text-gray-400 flex-shrink-0" />
+                            <span className="truncate">{candidate.email}</span>
+                          </div>
+                        )}
+                        {candidate.position && (
+                          <div className="text-xs text-gray-500 mt-1.5">
+                            <span className="font-medium">Vị trí:</span> {candidate.position}
+                          </div>
+                        )}
+                        {candidate.store && (
+                          <div className="text-xs text-gray-500">
+                            {candidate.store.name}
+                          </div>
+                        )}
                       </div>
-                      {candidate.email && (
-                        <div className="text-xs text-gray-500 truncate mt-1">
-                          {candidate.email}
-                        </div>
-                      )}
-                      {candidate.position && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          Vị trí: {candidate.position}
-                        </div>
-                      )}
-                      {candidate.store && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          {candidate.store.name}
-                        </div>
-                      )}
-                      <div className="mt-2 flex items-center justify-between">
+                      <div className="mt-3 pt-2 border-t border-gray-200 flex items-center justify-between">
                         <div className="text-xs text-gray-400">
                           {new Date(candidate.createdAt).toLocaleDateString('vi-VN')}
                         </div>
-                        <div className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">
+                        <div className="text-xs px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 font-medium">
                           {getStatusLabel(candidate.status)}
                         </div>
                       </div>
                     </div>
                   ))}
                   {groupCandidates.length === 0 && (
-                    <div className="text-sm text-gray-400 text-center py-8">
+                    <div className="text-sm text-gray-400 text-center py-12">
                       Không có ứng viên
                     </div>
                   )}
@@ -402,6 +503,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
             </div>
           )
         })}
+      </div>
       </div>
     </div>
   )

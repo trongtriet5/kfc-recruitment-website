@@ -10,6 +10,7 @@ interface Candidate {
   id: string
   fullName: string
   status: string | { id: string; name: string; code: string } | null
+  [key: string]: any
 }
 
 interface StatusOption {
@@ -93,10 +94,11 @@ interface CandidateContextMenuProps {
   candidate: Candidate | null
   position: { x: number; y: number } | null
   onClose: () => void
-  onStatusChange?: (candidate: Candidate) => void
-  onStatusSelect?: (candidate: Candidate, newStatus: string) => void
+  onStatusChange?: (candidate: any) => void
+  onStatusSelect?: (candidate: any, newStatus: string) => void
   onDelete?: (candidateId: string) => void
-  onScheduleInterview?: (candidate: Candidate) => void
+  onScheduleInterview?: (candidate: any) => void
+  onTransferCampaign?: (candidate: any) => void
   allowedStatuses?: string[]
   statusOptions?: StatusOption[]
 }
@@ -109,6 +111,7 @@ export default function CandidateContextMenu({
   onStatusSelect,
   onDelete,
   onScheduleInterview,
+  onTransferCampaign,
   allowedStatuses = [],
   statusOptions = [],
 }: CandidateContextMenuProps) {
@@ -248,6 +251,18 @@ export default function CandidateContextMenu({
         onClose()
       },
     },
+    ...(onTransferCampaign
+      ? [
+          {
+            label: 'Chuyển chiến dịch',
+            icon: 'refresh',
+            action: () => {
+              onTransferCampaign(candidate)
+              onClose()
+            },
+          },
+        ]
+      : []),
     ...(onStatusChange && allowedStatuses.length > 0
       ? [
           {
