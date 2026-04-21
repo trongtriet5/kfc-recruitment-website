@@ -73,20 +73,20 @@ export const PERMISSIONS = {
 } as const
 
 export function hasPermission(userRole: UserRole, permission: keyof typeof PERMISSIONS): boolean {
-  return PERMISSIONS[permission].includes(userRole)
+  return (PERMISSIONS[permission] as readonly string[]).includes(userRole)
 }
 
 export function hasAnyPermission(
   userRole: UserRole,
   permissions: Array<keyof typeof PERMISSIONS>
 ): boolean {
-  return permissions.some(permission => PERMISSIONS[permission].includes(userRole))
+  return permissions.some(permission => (PERMISSIONS[permission] as readonly string[]).includes(userRole))
 }
 
 export function hasAllPermissions(
   userRole: UserRole,
   permissions: Array<keyof typeof PERMISSIONS>
 ): boolean {
-  return permissions.every(permission => PERMISSIONS[permission].includes(userRole))
+  return permissions.every(permission => (PERMISSIONS[permission] as readonly string[]).includes(userRole))
 }
 

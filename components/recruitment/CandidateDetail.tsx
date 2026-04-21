@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
 import Icon from '@/components/icons/Icon'
-import { getBrandLabel } from '@/lib/brand-utils'
 
 interface CandidateDetail {
   id: string
@@ -14,7 +13,6 @@ interface CandidateDetail {
   phone: string
   cvUrl: string | null
   position: string | null
-  brand: string | null
   notes: string | null
   status: string | { id: string; name: string; code: string } | null
   form: { id: string; title: string } | null
@@ -188,8 +186,6 @@ export default function CandidateDetail({ candidateId }: { candidateId: string }
     if (resultCode === 'FAILED') return 'bg-red-100 text-red-800'
     return 'bg-yellow-100 text-yellow-800'
   }
-
-  // Using getBrandLabel from brand-utils
 
   const getAllowedStatuses = (): string[] => {
     if (!user) return []
@@ -531,10 +527,6 @@ export default function CandidateDetail({ candidateId }: { candidateId: string }
             <div>
               <label className="text-sm font-medium text-gray-500">Vị trí</label>
               <p className="mt-1 text-sm text-gray-900">{candidate.position || 'N/A'}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-500">Brand</label>
-              <p className="mt-1 text-sm text-gray-900">{getBrandLabel(candidate.brand)}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Cửa hàng</label>

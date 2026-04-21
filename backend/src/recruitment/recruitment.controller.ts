@@ -1,306 +1,96 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Patch,
-  Delete,
-  Body,
-  Param,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param } from '@nestjs/common';
 import { RecruitmentService } from './recruitment.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../auth/decorators/user.decorator';
-import { User } from '@prisma/client';
-import { CreateRecruitmentFormDto } from './dto/create-recruitment-form.dto';
-import { CreateCampaignDto } from './dto/create-campaign.dto';
-import { CreateCandidateDto } from './dto/create-candidate.dto';
-import { UpdateCandidateDto } from './dto/update-candidate.dto';
-import { CreateInterviewDto } from './dto/create-interview.dto';
-import { CreateProposalDto } from './dto/create-proposal.dto';
-import { UpdateProposalDto } from './dto/update-proposal.dto';
-import { CreateHeadcountDto } from './dto/create-headcount.dto';
-import { ApplyCandidateDto } from './dto/apply-candidate.dto';
 
 @Controller('recruitment')
 export class RecruitmentController {
-  constructor(private readonly recruitmentService: RecruitmentService) {}
+  constructor(private service: RecruitmentService) {}
 
-  // ============ Recruitment Forms ============
-  @Post('forms')
-  @UseGuards(JwtAuthGuard)
-  createForm(@Body() createDto: CreateRecruitmentFormDto, @CurrentUser() user: User) {
-    return this.recruitmentService.createForm(createDto, user);
-  }
-
+  // Forms
   @Get('forms')
-  @UseGuards(JwtAuthGuard)
-  getForms(@CurrentUser() user: User) {
-    return this.recruitmentService.getForms(user);
-  }
-
+  getForms() { return this.service.getForms(); }
+  
   @Get('forms/:id')
-  @UseGuards(JwtAuthGuard)
-  getForm(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.recruitmentService.getForm(id, user);
-  }
-
+  getForm(@Param('id') id: string) { return this.service.getForm(id); }
+  
+  @Post('forms')
+  createForm(@Body() data: any) { return this.service.createForm(data); }
+  
   @Patch('forms/:id')
-  @UseGuards(JwtAuthGuard)
-  updateForm(
-    @Param('id') id: string,
-    @Body() updateDto: Partial<CreateRecruitmentFormDto>,
-    @CurrentUser() user: User,
-  ) {
-    return this.recruitmentService.updateForm(id, updateDto, user);
-  }
-
+  updateForm(@Param('id') id: string, @Body() data: any) { return this.service.updateForm(id, data); }
+  
   @Delete('forms/:id')
-  @UseGuards(JwtAuthGuard)
-  deleteForm(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.recruitmentService.deleteForm(id, user);
-  }
+  deleteForm(@Param('id') id: string) { return this.service.deleteForm(id); }
 
-  // ============ Campaigns ============
-  @Post('campaigns')
-  @UseGuards(JwtAuthGuard)
-  createCampaign(@Body() createDto: CreateCampaignDto, @CurrentUser() user: User) {
-    return this.recruitmentService.createCampaign(createDto, user);
-  }
-
+  // Campaigns
   @Get('campaigns')
-  @UseGuards(JwtAuthGuard)
-  getCampaigns(
-    @CurrentUser() user: User,
-    @Query('formId') formId?: string,
-    @Query('isActive') isActive?: string,
-  ) {
-    return this.recruitmentService.getCampaigns(user, {
-      formId,
-      isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
-    });
-  }
-
+  getCampaigns() { return this.service.getCampaigns(); }
+  
   @Get('campaigns/:id')
-  @UseGuards(JwtAuthGuard)
-  getCampaign(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.recruitmentService.getCampaign(id, user);
-  }
-
+  getCampaign(@Param('id') id: string) { return this.service.getCampaign(id); }
+  
+  @Post('campaigns')
+  createCampaign(@Body() data: any) { return this.service.createCampaign(data); }
+  
   @Patch('campaigns/:id')
-  @UseGuards(JwtAuthGuard)
-  updateCampaign(
-    @Param('id') id: string,
-    @Body() updateDto: Partial<CreateCampaignDto>,
-    @CurrentUser() user: User,
-  ) {
-    return this.recruitmentService.updateCampaign(id, updateDto, user);
-  }
-
+  updateCampaign(@Param('id') id: string, @Body() data: any) { return this.service.updateCampaign(id, data); }
+  
   @Delete('campaigns/:id')
-  @UseGuards(JwtAuthGuard)
-  deleteCampaign(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.recruitmentService.deleteCampaign(id, user);
-  }
+  deleteCampaign(@Param('id') id: string) { return this.service.deleteCampaign(id); }
 
-  @Get('campaigns/statistics')
-  @UseGuards(JwtAuthGuard)
-  getCampaignStatistics(@Query('campaignId') campaignId?: string) {
-    return this.recruitmentService.getCampaignStatistics(campaignId);
-  }
-
-  @Get('dashboard')
-  @UseGuards(JwtAuthGuard)
-  getDashboard(@CurrentUser() user: User) {
-    return this.recruitmentService.getDashboard(user);
-  }
-
-  // ============ Candidates ============
+  // Candidates
   @Get('candidates')
-  @UseGuards(JwtAuthGuard)
-  getCandidates(
-    @CurrentUser() user: User,
-    @Query('statusId') statusId?: string,
-    @Query('campaignId') campaignId?: string,
-    @Query('formId') formId?: string,
-    @Query('storeId') storeId?: string,
-    @Query('brand') brand?: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-  ) {
-    return this.recruitmentService.getCandidates(user, {
-      statusId,
-      campaignId,
-      formId,
-      storeId,
-      brand,
-      page: page ? parseInt(page) : undefined,
-      limit: limit ? parseInt(limit) : undefined,
-    });
-  }
-
-  @Post('candidates')
-  @UseGuards(JwtAuthGuard)
-  createCandidate(@Body() createDto: CreateCandidateDto, @CurrentUser() user: User) {
-    return this.recruitmentService.createCandidate(createDto, user);
-  }
-
+  getCandidates() { return this.service.getCandidates(); }
+  
   @Get('candidates/:id')
-  @UseGuards(JwtAuthGuard)
-  getCandidate(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.recruitmentService.getCandidate(id, user);
-  }
-
+  getCandidate(@Param('id') id: string) { return this.service.getCandidate(id); }
+  
+  @Post('candidates')
+  createCandidate(@Body() data: any) { return this.service.createCandidate(data); }
+  
   @Patch('candidates/:id')
-  @UseGuards(JwtAuthGuard)
-  updateCandidate(
-    @Param('id') id: string,
-    @Body() updateDto: UpdateCandidateDto,
-    @CurrentUser() user: User,
-  ) {
-    return this.recruitmentService.updateCandidate(id, updateDto, user);
-  }
-
-  @Patch('candidates/:id/transfer-campaign')
-  @UseGuards(JwtAuthGuard)
-  transferCandidateCampaign(
-    @Param('id') id: string,
-    @Body('campaignId') newCampaignId: string,
-    @CurrentUser() user: User,
-  ) {
-    if (!newCampaignId) throw new BadRequestException('Chiến dịch chọn chuyển tới bị trống');
-    return this.recruitmentService.transferCampaign(id, newCampaignId, user);
-  }
-
+  updateCandidate(@Param('id') id: string, @Body() data: any) { return this.service.updateCandidate(id, data); }
+  
   @Delete('candidates/:id')
-  @UseGuards(JwtAuthGuard)
-  deleteCandidate(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.recruitmentService.deleteCandidate(id, user);
-  }
+  deleteCandidate(@Param('id') id: string) { return this.service.deleteCandidate(id); }
 
-  // ============ Interviews ============
+  // Interviews
   @Get('interviews')
-  @UseGuards(JwtAuthGuard)
-  getInterviews(
-    @CurrentUser() user: User,
-    @Query('candidateId') candidateId?: string,
-    @Query('interviewerId') interviewerId?: string,
-    @Query('typeId') typeId?: string,
-    @Query('resultId') resultId?: string,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ) {
-    return this.recruitmentService.getInterviews(user, {
-      candidateId,
-      interviewerId,
-      typeId,
-      resultId,
-      startDate,
-      endDate,
-    });
-  }
-
+  getInterviews() { return this.service.getInterviews(); }
+  
   @Post('interviews')
-  @UseGuards(JwtAuthGuard)
-  createInterview(@Body() createDto: CreateInterviewDto, @CurrentUser() user: User) {
-    return this.recruitmentService.createInterview(createDto, user);
-  }
-
+  createInterview(@Body() data: any) { return this.service.createInterview(data); }
+  
   @Patch('interviews/:id')
-  @UseGuards(JwtAuthGuard)
-  updateInterview(
-    @Param('id') id: string,
-    @Body() updateDto: Partial<CreateInterviewDto>,
-    @CurrentUser() user: User,
-  ) {
-    return this.recruitmentService.updateInterview(id, updateDto, user);
-  }
+  updateInterview(@Param('id') id: string, @Body() data: any) { return this.service.updateInterview(id, data); }
 
-  // ============ Proposals ============
-  @Post('proposals')
-  @UseGuards(JwtAuthGuard)
-  createProposal(@Body() createDto: CreateProposalDto, @CurrentUser() user: User) {
-    return this.recruitmentService.createProposal(createDto, user);
-  }
-
+  // Proposals
   @Get('proposals')
-  @UseGuards(JwtAuthGuard)
-  getProposals(
-    @CurrentUser() user: User,
-    @Query('statusId') statusId?: string,
-    @Query('storeId') storeId?: string,
-  ) {
-    return this.recruitmentService.getProposals(user, { statusId, storeId });
-  }
-
+  getProposals() { return this.service.getProposals(); }
+  
   @Get('proposals/:id')
-  @UseGuards(JwtAuthGuard)
-  getProposal(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.recruitmentService.getProposal(id, user);
-  }
-
+  getProposal(@Param('id') id: string) { return this.service.getProposal(id); }
+  
+  @Post('proposals')
+  createProposal(@Body() data: any) { return this.service.createProposal(data); }
+  
   @Patch('proposals/:id')
-  @UseGuards(JwtAuthGuard)
-  updateProposal(
-    @Param('id') id: string,
-    @Body() updateDto: UpdateProposalDto,
-    @CurrentUser() user: User,
-  ) {
-    return this.recruitmentService.updateProposal(id, updateDto, user);
-  }
+  updateProposal(@Param('id') id: string, @Body() data: any) { return this.service.updateProposal(id, data); }
 
-  // ============ Headcount ============
-  @Post('headcounts')
-  @UseGuards(JwtAuthGuard)
-  createHeadcount(@Body() createDto: CreateHeadcountDto, @CurrentUser() user: User) {
-    return this.recruitmentService.createHeadcount(createDto, user);
-  }
-
+  // Headcounts
   @Get('headcounts')
-  @UseGuards(JwtAuthGuard)
-  getHeadcounts(
-    @CurrentUser() user: User,
-    @Query('year') year?: string,
-    @Query('departmentId') departmentId?: string,
-    @Query('storeId') storeId?: string,
-  ) {
-    return this.recruitmentService.getHeadcounts(user, {
-      year: year ? parseInt(year) : undefined,
-      departmentId,
-      storeId,
-    });
-  }
+  getHeadcounts() { return this.service.getHeadcounts(); }
+  
+  @Post('headcounts')
+  createHeadcount(@Body() data: any) { return this.service.createHeadcount(data); }
 
-  @Patch('headcounts/:id')
-  @UseGuards(JwtAuthGuard)
-  updateHeadcount(
-    @Param('id') id: string,
-    @Body() updateDto: Partial<CreateHeadcountDto>,
-    @CurrentUser() user: User,
-  ) {
-    return this.recruitmentService.updateHeadcount(id, updateDto, user);
-  }
+  // Requests
+  @Get('requests')
+  getRequests() { return this.service.getRequests(); }
+  
+  @Post('requests')
+  createRequest(@Body() data: any) { return this.service.createRequest(data); }
 
-  @Delete('headcounts/:id')
-  @UseGuards(JwtAuthGuard)
-  deleteHeadcount(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.recruitmentService.deleteHeadcount(id, user);
-  }
-
-  // ============ Public Application Form ============
-  @Post('apply')
-  apply(@Body() applyDto: ApplyCandidateDto) {
-    return this.recruitmentService.applyCandidate(applyDto);
-  }
-
-  @Get('forms/link/:link')
-  getFormByLink(@Param('link') link: string) {
-    return this.recruitmentService.getFormByLink(link);
-  }
-
-  @Get('campaigns/link/:link')
-  getCampaignByLink(@Param('link') link: string) {
-    return this.recruitmentService.getCampaignByLink(link);
-  }
+  // Dashboard
+  @Get('dashboard')
+  getDashboard() { return this.service.getDashboard(); }
 }

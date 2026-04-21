@@ -22,7 +22,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const token = localStorage.getItem('token')
-    
+
     if (!token) {
       router.push('/login')
       setLoading(false)
@@ -56,40 +56,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const menuItems = [
     {
-      name: 'Đơn từ',
-      href: '/dashboard/requests',
-      icon: 'clipboard',
-    },
-    {
       name: 'Tuyển dụng',
       href: '/dashboard/recruitment',
       icon: 'users',
     },
-    {
-      name: 'Nhân sự',
-      href: '/dashboard/employees',
-      icon: 'users',
-    },
-    {
-      name: 'Chấm công',
-      href: '/dashboard/timekeeping',
-      icon: 'clock',
-    },
-    {
-      name: 'Bảng lương',
-      href: '/dashboard/payroll',
-      icon: 'document',
-    },
     ...(user?.role === 'ADMIN'
       ? [
-          {
-            name: 'Quản lý người dùng',
-            href: '/dashboard/users',
-            icon: 'users',
-          },
-        ]
+        {
+          name: 'Cửa hàng',
+          href: '/dashboard/settings/stores',
+          icon: 'store',
+        },
+      ]
       : []),
   ]
+
+  const showProfile = user?.role === 'ADMIN' || user?.role === 'TA' || user?.role === 'AM' || user?.role === 'SM'
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -101,15 +83,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {!logoError && (
               <div className="flex-shrink-0">
                 <img
-                  src="/images/logo.png"
-                  alt="Tịnh Thế Vinh Hoa Logo"
+                  src="/images/logo.svg"
+                  alt="KFC Logo"
                   className="h-10 w-auto object-contain"
                   onError={() => setLogoError(true)}
                 />
               </div>
             )}
-            <h1 className="text-l font-bold text-yellow-600">
-              Tịnh Thế Vinh Hoa
+            <h1 className="text-l font-bold text-kfc-red">
+              KFC
             </h1>
           </div>
         </div>
@@ -118,11 +100,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                pathname?.startsWith(item.href)
-                  ? 'bg-yellow-50 text-yellow-700 border-l-4 border-yellow-500'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
+              className={`flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors ${pathname?.startsWith(item.href)
+                ? 'bg-kfc-red text-white border-l-4 border-white'
+                : 'text-gray-700 hover:bg-gray-100'
+                }`}
             >
               <span className="mr-3">
                 <Icon name={item.icon} size={20} />
@@ -131,33 +112,35 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </Link>
           ))}
         </nav>
-        <div className="p-4 border-t bg-white">
-          <Link
-            href="/dashboard/profile"
-            className="block mb-3 p-2 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-yellow-600 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
-                {user?.fullName?.charAt(0).toUpperCase() || 'U'}
+        {showProfile && (
+          <div className="p-4 border-t bg-white">
+            <Link
+              href="/dashboard/profile"
+              className="block mb-3 p-2 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-kfc-red rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
+                  {user?.fullName?.charAt(0).toUpperCase() || 'U'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-700 truncate">
+                    {user?.fullName}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">
+                    {user?.role}
+                  </p>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-700 truncate">
-                  {user?.fullName}
-                </p>
-                <p className="text-xs text-gray-500 truncate">
-                  {user?.role}
-                </p>
-              </div>
-            </div>
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="w-full text-left px-4 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors flex items-center gap-2"
-          >
-            <Icon name="x" size={16} />
-            Đăng xuất
-          </button>
-        </div>
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="w-full text-left px-4 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors flex items-center gap-2"
+            >
+              <Icon name="x" size={16} />
+              Đăng xuất
+            </button>
+          </div>
+        )}
       </aside>
 
       {/* Main Content */}

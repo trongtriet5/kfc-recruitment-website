@@ -13,7 +13,6 @@ interface Candidate {
   phone: string
   status: string | { id: string; name: string; code: string } | null
   position: string | null
-  brand: string | null
   store: { name: string } | null
   createdAt: string
 }

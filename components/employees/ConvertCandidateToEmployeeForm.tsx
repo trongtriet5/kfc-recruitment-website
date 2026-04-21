@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { Education, Brand } from '@prisma/client'
+type Education = 'HIGH_SCHOOL' | 'VOCATIONAL' | 'COLLEGE' | 'UNIVERSITY' | 'POSTGRADUATE'
+type Brand = 'MAYCHA' | 'TAM_HAO' | 'BOTH'
 import { useClickOutside } from '@/hooks/useClickOutside'
 
 interface Candidate {
@@ -332,9 +333,9 @@ export default function ConvertCandidateToEmployeeForm({
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
               >
                 <option value="">Chọn Brand</option>
-                <option value={Brand.MAYCHA}>Maycha</option>
-                <option value={Brand.TAM_HAO}>Tam Hảo</option>
-                <option value={Brand.BOTH}>Cả hai</option>
+                <option value="MAYCHA">Maycha</option>
+                <option value="TAM_HAO">Tam Hảo</option>
+                <option value="BOTH">Cả hai</option>
               </select>
             </div>
 

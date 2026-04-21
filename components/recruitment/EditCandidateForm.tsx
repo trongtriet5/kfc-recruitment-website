@@ -11,7 +11,6 @@ interface Candidate {
   phone: string
   cvUrl: string | null
   position: string | null
-  brand: string | null
   notes: string | null
   status: { id: string; name: string; code: string } | null
   store: { id: string; name: string } | null
@@ -37,7 +36,7 @@ export default function EditCandidateForm({ candidateId }: { candidateId: string
     phone: '',
     cvUrl: '',
     position: '',
-    brand: '' as 'MAYCHA' | 'TAM_HAO' | 'BOTH' | '',
+    storeId: '',
     storeId: '',
     statusId: '',
     notes: '',
@@ -60,7 +59,6 @@ export default function EditCandidateForm({ candidateId }: { candidateId: string
         phone: candidateData.phone || '',
         cvUrl: candidateData.cvUrl || '',
         position: candidateData.position || '',
-        brand: (candidateData.brand as any) || '',
         storeId: candidateData.store?.id || '',
         statusId: candidateData.status?.id || '',
         notes: candidateData.notes || '',
@@ -211,22 +209,6 @@ export default function EditCandidateForm({ candidateId }: { candidateId: string
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Brand
-            </label>
-            <select
-              value={formData.brand}
-              onChange={(e) => setFormData({ ...formData, brand: e.target.value as any })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
-            >
-              <option value="">Chọn brand</option>
-              <option value="MAYCHA">Maycha</option>
-              <option value="TAM_HAO">Tam Hảo</option>
-              <option value="BOTH">Cả hai</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
               Cửa hàng
             </label>
             <select
@@ -237,7 +219,7 @@ export default function EditCandidateForm({ candidateId }: { candidateId: string
               <option value="">Chọn cửa hàng</option>
               {stores.map((store) => (
                 <option key={store.id} value={store.id}>
-                  {store.name}
+                  {store.code} - {store.name}
                 </option>
               ))}
             </select>

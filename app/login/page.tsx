@@ -26,7 +26,7 @@ export default function LoginPage() {
       if (response.data.access_token) {
         // Save token to localStorage
         localStorage.setItem('token', response.data.access_token)
-        router.push('/dashboard/requests')
+        router.push('/dashboard/recruitment')
         router.refresh()
       }
     } catch (err: any) {
@@ -44,8 +44,8 @@ export default function LoginPage() {
           {!logoError && (
             <div className="mb-6 flex justify-center">
               <img
-                src="/images/logo.png"
-                alt="Tịnh Thế Vinh Hoa Logo"
+                src="/images/logo.svg"
+                alt="KFC Logo"
                 className="h-20 w-auto object-contain"
                 onError={() => setLogoError(true)}
               />
@@ -72,7 +72,7 @@ export default function LoginPage() {
                 type="email"
                 autoComplete="email"
                 required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-yellow-500 focus:border-yellow-500 focus:z-10 sm:text-sm"
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-kfc-red focus:border-kfc-red focus:z-10 sm:text-sm"
                 placeholder="Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -88,7 +88,7 @@ export default function LoginPage() {
                 type="password"
                 autoComplete="current-password"
                 required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-yellow-500 focus:border-yellow-500 focus:z-10 sm:text-sm"
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-kfc-red focus:border-kfc-red focus:z-10 sm:text-sm"
                 placeholder="Mật khẩu"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -100,7 +100,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 disabled:opacity-50"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-kfc-red hover:bg-kfc-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-kfc-red disabled:opacity-50"
             >
               {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
             </button>

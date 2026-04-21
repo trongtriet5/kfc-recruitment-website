@@ -249,7 +249,7 @@ export default function HeadcountList() {
             {/* Company Total */}
             <tr className="bg-gray-50">
               <td className="px-4 py-3 text-sm font-medium text-gray-900 sticky left-0 bg-gray-50 z-10">
-                A. Công Ty Cổ Phần Maycha
+                A. KFC Việt Nam
               </td>
               <td className="px-2 py-3 text-sm text-gray-900 text-center">{yearSummary.current}</td>
               <td className="px-2 py-3 text-sm text-gray-900 text-center">{yearSummary.target}</td>

@@ -4,7 +4,6 @@ import { useEffect, useState, useRef } from 'react'
 import api from '@/lib/api'
 import { useClickOutside } from '@/hooks/useClickOutside'
 import Icon from '@/components/icons/Icon'
-import { getBrandLabel } from '@/lib/brand-utils'
 
 interface Campaign {
   id: string
@@ -21,6 +20,7 @@ interface Campaign {
 export default function CampaignsList() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState<any>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [forms, setForms] = useState<any[]>([])
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('')
@@ -50,6 +50,7 @@ export default function CampaignsList() {
   }, showCreateForm)
 
   useEffect(() => {
+    loadUser()
     loadCampaigns()
     loadForms()
     loadStatistics()
@@ -58,6 +59,13 @@ export default function CampaignsList() {
   useEffect(() => {
     loadStatistics(selectedCampaignId || undefined)
   }, [selectedCampaignId])
+
+  const loadUser = () => {
+    api
+      .get('/auth/me')
+      .then((res) => setUser(res.data))
+      .catch(console.error)
+  }
 
   const loadForms = () => {
     api
@@ -118,9 +126,31 @@ export default function CampaignsList() {
     }
   }
 
+  const handleToggleActive = async (id: string, currentStatus: boolean) => {
+    if (!confirm(currentStatus ? 'Bạn muốn tạm dừng chiến dịch này?' : 'Bạn muốn mở lại chiến dịch này?')) return
+    try {
+      await api.patch(`/recruitment/campaigns/${id}`, { isActive: !currentStatus })
+      loadCampaigns()
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Có lỗi xảy ra')
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa chiến dịch này?')) return
+    try {
+      await api.delete(`/recruitment/campaigns/${id}`)
+      loadCampaigns()
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Có lỗi xảy ra')
+    }
+  }
+
   if (loading) {
     return <div className="text-center py-4">Đang tải...</div>
   }
+
+  const canManage = user && (user.role === 'ADMIN' || user.role === 'HEAD_OF_DEPARTMENT');
 
   return (
     <div>
@@ -227,7 +257,7 @@ export default function CampaignsList() {
                   <option value="">Chọn form</option>
                   {forms.map((form) => (
                     <option key={form.id} value={form.id}>
-                      {form.title} ({getBrandLabel(form.brand)})
+                      {form.title}
                     </option>
                   ))}
                 </select>
@@ -317,7 +347,7 @@ export default function CampaignsList() {
                         {campaign.endDate &&
                           ` - ${new Date(campaign.endDate).toLocaleDateString('vi-VN')}`}
                       </span>
-                      <span>Ứng viên: {campaign._count.candidates}</span>
+                      <span>Ứng viên: {campaign._count?.candidates || 0}</span>
                       <span>Link: {campaign.link}</span>
                     </div>
                   </div>
@@ -336,6 +366,28 @@ export default function CampaignsList() {
                       <Icon name="eye" size={16} />
                       Mở form
                     </button>
+                    {canManage && (
+                      <>
+                        <button
+                          onClick={() => handleToggleActive(campaign.id, campaign.isActive)}
+                          className={`text-sm px-3 py-1 border rounded-md flex items-center gap-1 ${
+                            campaign.isActive 
+                              ? 'text-yellow-600 hover:text-yellow-700 border-yellow-300 hover:bg-yellow-50' 
+                              : 'text-green-600 hover:text-green-700 border-green-300 hover:bg-green-50'
+                          }`}
+                        >
+                          {campaign.isActive ? 'Tạm dừng' : 'Mở lại'}
+                        </button>
+                        {campaign._count?.candidates === 0 && (
+                          <button
+                            onClick={() => handleDelete(campaign.id)}
+                            className="text-sm text-red-600 hover:text-red-700 px-3 py-1 border border-red-300 rounded-md hover:bg-red-50 flex items-center gap-1"
+                          >
+                            Xóa
+                          </button>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
               </li>

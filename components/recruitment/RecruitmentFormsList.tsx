@@ -1,16 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import Link from 'next/link'
-import { getBrandLabel } from '@/lib/brand-utils'
 
 interface RecruitmentForm {
   id: string
   title: string
   description: string | null
-  brand: string
   source: string
   link: string
   isActive: boolean
@@ -29,7 +26,6 @@ export default function RecruitmentFormsList() {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    brand: 'MAYCHA' as 'MAYCHA' | 'TAM_HAO' | 'BOTH',
     source: '',
     link: '',
     isActive: true,
@@ -55,7 +51,6 @@ export default function RecruitmentFormsList() {
       setFormData({
         title: '',
         description: '',
-        brand: 'MAYCHA',
         source: '',
         link: '',
         isActive: true,
@@ -117,37 +112,18 @@ export default function RecruitmentFormsList() {
                 rows={3}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Brand <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.brand}
-                  onChange={(e) =>
-                    setFormData({ ...formData, brand: e.target.value as any })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  required
-                >
-                  <option value="MAYCHA">Maycha</option>
-                  <option value="TAM_HAO">Tam Hảo</option>
-                  <option value="BOTH">Cả hai</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nguồn <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.source}
-                  onChange={(e) => setFormData({ ...formData, source: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  placeholder="Ví dụ: Facebook, Website..."
-                  required
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Nguồn <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.source}
+                onChange={(e) => setFormData({ ...formData, source: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                placeholder="Ví dụ: Facebook, Website..."
+                required
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -216,7 +192,6 @@ export default function RecruitmentFormsList() {
                     </div>
                     <p className="mt-1 text-sm text-gray-500">{form.description}</p>
                     <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
-                      <span>Brand: {getBrandLabel(form.brand)}</span>
                       <span>Nguồn: {form.source}</span>
                       {form._count && (
                         <>
@@ -251,4 +226,3 @@ export default function RecruitmentFormsList() {
     </div>
   )
 }
-

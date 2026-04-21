@@ -37,7 +37,7 @@ export default function CreateContractForm() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [contractTypes, setContractTypes] = useState<Type[]>([])
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
-  const formRef = React.useRef<HTMLDivElement>(null)
+  const formRef = React.useRef<HTMLFormElement>(null)
 
   useClickOutside(formRef, () => {
     if (!submitting) {

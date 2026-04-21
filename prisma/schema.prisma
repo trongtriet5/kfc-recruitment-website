@@ -14,36 +14,35 @@ datasource db {
 model User {
   id            String   @id @default(cuid())
   email         String   @unique
-  password      String
-  fullName      String
-  phone         String?
-  role          UserRole @default(USER)
-  departmentId  String?
-  positionId    String?
-  employeeId    String?  @unique
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  password     String
+  fullName     String
+  phone        String?
+  role         UserRole @default(USER)
+  departmentId String?
+  positionId   String?
+  employeeId   String?  @unique
+  isActive     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   department    Department? @relation(fields: [departmentId], references: [id])
-  position      Position?    @relation(fields: [positionId], references: [id])
-  employee      Employee?    @relation("EmployeeUser", fields: [employeeId], references: [id])
+  position      Position?   @relation(fields: [positionId], references: [id])
+  employee     Employee?   @relation("EmployeeUser", fields: [employeeId], references: [id])
 
-  requests      Request[]
-  timekeeping   Timekeeping[]
-  interviews    Interview[]
-  contracts     Contract[]
-  decisions     Decision[]
-  payrolls      Payroll[]
+  interviews   Interview[]
+  proposalCreator RecruitmentProposal[] @relation("ProposalCreator")
+  approver    RecruitmentProposal[] @relation("ProposalApprover")
+  payrolls    Payroll[]
+  timekeeping Timekeeping[]
 
   @@map("users")
 }
 
 enum UserRole {
   ADMIN
-  HEAD_OF_DEPARTMENT
-  MANAGER
-  SUPERVISOR
+  TA
+  AM
+  SM
   USER
 }
 
@@ -59,9 +58,6 @@ model Department {
 
   users       User[]
   employees   Employee[]
-  requests    Request[]
-  headcounts  Headcount[]
-  headcountPositions HeadcountPosition[]
   payrolls    Payroll[]
 
   @@map("departments")
@@ -78,8 +74,8 @@ model Position {
 
   users       User[]
   employees   Employee[]
-  headcounts  Headcount[]
   headcountPositions HeadcountPosition[]
+  proposals   RecruitmentProposal[]
 
   @@map("positions")
 }
@@ -88,8 +84,17 @@ model Store {
   id          String   @id @default(cuid())
   name        String
   code        String   @unique
-  address     String
-  brand       Brand
+  address     String?
+  phone       String?
+  district   String?
+  city       String?
+  am          String?
+  om          String?
+  od          String?
+  zone       String?
+  area       String?
+  taIncharge  String?
+  group      StoreGroup?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -97,16 +102,17 @@ model Store {
   employees   Employee[]
   proposals   RecruitmentProposal[]
   headcounts  Headcount[]
-  headcountPositions HeadcountPosition[]
+  candidates Candidate[]
 
   @@map("stores")
 }
 
-enum Brand {
-  TAM_HAO
-  MAYCHA
-  BOTH
+enum StoreGroup {
+  OPS_SOUTH
+  OPS_NORTH
 }
+
+
 
 // ============ EMPLOYEE ============
 model Employee {
@@ -118,13 +124,13 @@ model Employee {
   gender          Gender
   dateOfBirth     DateTime?
   address         String?
-  idCard          String?         @unique
+  idCard          String?
   education       Education
   status          EmployeeStatus  @default(PENDING)
   departmentId    String?
   positionId      String?
   storeId         String?
-  brand           Brand?
+  
   contractType    ContractType?
   startDate       DateTime?
   endDate         DateTime?
@@ -137,11 +143,8 @@ model Employee {
   position        Position?       @relation(fields: [positionId], references: [id])
   store           Store?          @relation(fields: [storeId], references: [id])
   user            User?            @relation("EmployeeUser")
-  contracts       Contract[]
-  requests        Request[]
-  timekeeping     Timekeeping[]
-  payrolls        Payroll[]
-  decisions       Decision[]
+  payrolls       Payroll[]
+  timekeeping    Timekeeping[]
 
   @@map("employees")
 }
@@ -184,87 +187,11 @@ enum ContractType {
   FIXED_36_MONTHS_2
 }
 
-// ============ REQUESTS (Đơn từ) ============
-model Request {
-  id            String        @id @default(cuid())
-  type          RequestType
-  status        RequestStatus @default(PENDING)
-  employeeId    String
-  departmentId  String?
-  startDate     DateTime?
-  endDate       DateTime?
-  reason        String?
-  description   String?
-  attachments   String[]      @default([])
-  approverId    String?
-  approvedAt    DateTime?
-  rejectedAt    DateTime?
-  rejectionReason String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-
-  employee      Employee      @relation(fields: [employeeId], references: [id])
-  department    Department?   @relation(fields: [departmentId], references: [id])
-  approver      User?         @relation("RequestApprover", fields: [approverId], references: [id])
-
-  // Leave specific
-  leaveType     LeaveType?
-  leaveDays     Float?
-
-  // Overtime specific
-  overtimeHours Float?
-  overtimeDate  DateTime?
-
-  // Check-in/out confirmation
-  checkInTime   DateTime?
-  checkOutTime  DateTime?
-  actualCheckIn DateTime?
-  actualCheckOut DateTime?
-
-  // Shift change
-  fromShift     String?
-  toShift       String?
-  shiftDate     DateTime?
-
-  // Business trip
-  tripLocation  String?
-  tripPurpose  String?
-
-  @@map("requests")
-}
-
-enum RequestType {
-  LEAVE
-  ABSENCE
-  OVERTIME
-  CHECKIN_CONFIRMATION
-  SHIFT_CHANGE
-  BUSINESS_TRIP
-  WORK_SCHEDULE
-  RESIGNATION
-}
-
-enum RequestStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  CANCELLED
-}
-
-enum LeaveType {
-  PAID_LEAVE
-  UNPAID_LEAVE
-  SICK_LEAVE
-  MATERNITY_LEAVE
-  OTHER
-}
-
-// ============ RECRUITMENT (Tuyển dụng) ============
+// ============ RECRUITMENT ============
 model RecruitmentForm {
   id          String   @id @default(cuid())
   title       String
   description String?
-  brand       Brand
   source      String
   link        String   @unique
   isActive    Boolean  @default(true)
@@ -302,34 +229,30 @@ model Candidate {
   phone           String
   cvUrl           String?
   formId          String?
-  campaignId      String?
-  status          CandidateStatus
-  brand           Brand?
-  position        String?
-  storeId         String?
-  notes           String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  campaignId     String?
+  status         CandidateStatus
+  position       String?
+  storeId        String?
+  notes          String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   form            RecruitmentForm?  @relation(fields: [formId], references: [id])
   campaign        Campaign?         @relation(fields: [campaignId], references: [id])
   store           Store?            @relation(fields: [storeId], references: [id])
   interviews     Interview[]
-  proposals       RecruitmentProposal[]
+  proposals      RecruitmentProposal[]
 
   @@map("candidates")
 }
 
 enum CandidateStatus {
-  // Ứng tuyển
   CV_FILTERING
   CV_PASSED
   CV_FAILED
   BLACKLIST
   CANNOT_CONTACT
   AREA_NOT_RECRUITING
-
-  // Phỏng vấn
   WAITING_INTERVIEW
   HR_INTERVIEW_PASSED
   HR_INTERVIEW_FAILED
@@ -339,23 +262,19 @@ enum CandidateStatus {
   OM_PV_INTERVIEW_PASSED
   OM_PV_INTERVIEW_FAILED
   OM_PV_INTERVIEW_NO_SHOW
-
-  // Thư mời
   OFFER_SENT
   OFFER_ACCEPTED
   OFFER_REJECTED
-
-  // Trúng tuyển
   WAITING_ONBOARDING
   ONBOARDING_ACCEPTED
   ONBOARDING_REJECTED
 }
 
 model Interview {
-  id          String   @id @default(cuid())
-  candidateId String
+  id           String   @id @default(cuid())
+  candidateId  String
   interviewerId String
-  type        InterviewType
+  type         InterviewType
   scheduledAt DateTime
   location    String?
   notes       String?
@@ -387,19 +306,21 @@ model RecruitmentProposal {
   description String?
   storeId     String?
   positionId  String?
-  quantity    Int
-  reason      String?
-  status      ProposalStatus    @default(PENDING)
+  quantity   Int
+  reason     String?
+  status     ProposalStatus    @default(PENDING)
   approverId  String?
-  approvedAt  DateTime?
-  rejectedAt  DateTime?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  approvedAt DateTime?
+  rejectedAt DateTime?
+  creatorId  String
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
 
-  store       Store?            @relation(fields: [storeId], references: [id])
-  position    Position?         @relation(fields: [positionId], references: [id])
-  approver    User?             @relation("ProposalApprover", fields: [approverId], references: [id])
-  candidates  Candidate[]
+  store      Store?            @relation(fields: [storeId], references: [id])
+  position   Position?         @relation(fields: [positionId], references: [id])
+  approver   User?             @relation("ProposalApprover", fields: [approverId], references: [id])
+  creator   User?             @relation("ProposalCreator", fields: [creatorId], references: [id])
+  candidates Candidate[]
 
   @@map("recruitment_proposals")
 }
@@ -410,6 +331,7 @@ enum ProposalStatus {
   REJECTED
 }
 
+// ============ HEADCOUNT ============
 enum HeadcountPeriod {
   MONTH
   QUARTER
@@ -418,21 +340,19 @@ enum HeadcountPeriod {
 }
 
 model Headcount {
-  id          String   @id @default(cuid())
-  code        String   @unique
-  name        String
-  period      HeadcountPeriod
-  departmentId String?
-  storeId     String?
-  current     Int      @default(0)
-  target      Int
-  year        Int
-  month       Int?
+  id           String   @id @default(cuid())
+  code         String   @unique
+  name         String
+  period       HeadcountPeriod
+  storeId      String?
+  current      Int      @default(0)
+  target       Int
+  year         Int
+  month        Int?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  department  Department? @relation(fields: [departmentId], references: [id])
-  store       Store?      @relation(fields: [storeId], references: [id])
+  store       Store?            @relation(fields: [storeId], references: [id])
   positions   HeadcountPosition[]
 
   @@map("headcounts")
@@ -446,114 +366,16 @@ model HeadcountPosition {
   updatedAt   DateTime @updatedAt
 
   headcount   Headcount @relation(fields: [headcountId], references: [id], onDelete: Cascade)
-  position    Position  @relation(fields: [positionId], references: [id])
+  position   Position @relation(fields: [positionId], references: [id])
 
   @@unique([headcountId, positionId])
   @@map("headcount_positions")
 }
 
-// ============ CONTRACTS ============
-model Contract {
-  id          String        @id @default(cuid())
-  employeeId  String
-  type        ContractType
-  startDate   DateTime
-  endDate     DateTime?
-  salary      Decimal       @db.Decimal(12, 2)
-  position    String?
-  department  String?
-  fileUrl     String?
-  status      ContractStatus @default(ACTIVE)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  employee    Employee      @relation(fields: [employeeId], references: [id])
-  createdBy   User          @relation("ContractCreator", fields: [createdById], references: [id])
-  createdById String
-
-  @@map("contracts")
-}
-
-enum ContractStatus {
-  ACTIVE
-  EXPIRED
-  TERMINATED
-}
-
-// ============ DECISIONS ============
-model Decision {
-  id          String        @id @default(cuid())
-  type        DecisionType
-  employeeId  String
-  title       String
-  content     String
-  effectiveDate DateTime
-  fileUrl     String?
-  status      DecisionStatus @default(ACTIVE)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  employee    Employee      @relation(fields: [employeeId], references: [id])
-  createdBy   User          @relation("DecisionCreator", fields: [createdById], references: [id])
-  createdById String
-
-  @@map("decisions")
-}
-
-enum DecisionType {
-  REWARD
-  TRANSFER
-  DISCIPLINARY
-  DISMISSAL
-  APPOINTMENT
-  RECEPTION
-  SALARY_ADJUSTMENT
-  CONTRACT_TERMINATION
-}
-
-enum DecisionStatus {
-  ACTIVE
-  CANCELLED
-}
-
-// ============ TIMEKEEPING (Chấm công) ============
-model Timekeeping {
-  id            String    @id @default(cuid())
-  employeeId    String
-  userId        String?
-  date          DateTime  @db.Date
-  checkInTime   DateTime?
-  checkOutTime  DateTime?
-  checkInLat    Float?
-  checkInLng    Float?
-  checkOutLat   Float?
-  checkOutLng   Float?
-  workHours     Float?
-  overtimeHours Float?
-  status        TimekeepingStatus @default(NORMAL)
-  notes         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  employee      Employee  @relation(fields: [employeeId], references: [id])
-  user          User?     @relation(fields: [userId], references: [id])
-
-  @@unique([employeeId, date])
-  @@map("timekeeping")
-}
-
-enum TimekeepingStatus {
-  NORMAL
-  LATE
-  EARLY_LEAVE
-  ABSENT
-  OVERTIME
-}
-
-// ============ PAYROLL (Bảng lương) ============
+// ============ TIMEKEEPING & PAYROLL ============
 model Payroll {
   id              String   @id @default(cuid())
-  employeeId      String
+  employeeId       String
   userId          String?
   month           Int
   year            Int
@@ -561,23 +383,23 @@ model Payroll {
   workDays        Int
   workHours       Float
   overtimeHours   Float    @default(0)
-  overtimePay     Decimal  @db.Decimal(12, 2) @default(0)
-  allowances      Decimal  @db.Decimal(12, 2) @default(0)
-  deductions      Decimal  @db.Decimal(12, 2) @default(0)
-  grossSalary     Decimal  @db.Decimal(12, 2)
-  tax             Decimal  @db.Decimal(12, 2) @default(0)
-  insurance       Decimal  @db.Decimal(12, 2) @default(0)
-  netSalary       Decimal  @db.Decimal(12, 2)
-  status          PayrollStatus @default(PENDING)
-  paidAt          DateTime?
-  notes           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  overtimePay    Decimal  @db.Decimal(12, 2) @default(0)
+  allowances    Decimal  @db.Decimal(12, 2) @default(0)
+  deductions    Decimal  @db.Decimal(12, 2) @default(0)
+  grossSalary   Decimal  @db.Decimal(12, 2)
+  tax           Decimal  @db.Decimal(12, 2) @default(0)
+  insurance     Decimal  @db.Decimal(12, 2) @default(0)
+  netSalary    Decimal  @db.Decimal(12, 2)
+  status        PayrollStatus @default(PENDING)
+  paidAt       DateTime?
+  notes         String?
+  createdAt    DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  employee        Employee @relation(fields: [employeeId], references: [id])
-  user            User?    @relation(fields: [userId], references: [id])
-  department      Department? @relation(fields: [departmentId], references: [id])
-  departmentId    String?
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  user       User?    @relation(fields: [userId], references: [id])
+  department Department? @relation(fields: [departmentId], references: [id])
+  departmentId String?
 
   @@unique([employeeId, month, year])
   @@map("payrolls")
@@ -591,3 +413,35 @@ enum PayrollStatus {
   CANCELLED
 }
 
+model Timekeeping {
+  id             String    @id @default(cuid())
+  employeeId     String
+  userId         String?
+  date          DateTime  @db.Date
+  checkInTime   DateTime?
+  checkOutTime  DateTime?
+  checkInLat    Float?
+  checkInLng    Float?
+  checkOutLat   Float?
+  checkOutLng   Float?
+  workHours    Float?
+  overtimeHours Float?
+  status       TimekeepingStatus @default(NORMAL)
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@unique([employeeId, date])
+  @@map("timekeeping")
+}
+
+enum TimekeepingStatus {
+  NORMAL
+  LATE
+  EARLY_LEAVE
+  ABSENT
+  OVERTIME
+}

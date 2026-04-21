@@ -7,8 +7,6 @@ import CandidateContextMenu from './CandidateContextMenu'
 import CandidatesKanban from './CandidatesKanban'
 import { useClickOutside } from '@/hooks/useClickOutside'
 import Icon from '@/components/icons/Icon'
-import { getBrandLabel } from '@/lib/brand-utils'
-
 interface Candidate {
   id: string
   fullName: string
@@ -16,7 +14,6 @@ interface Candidate {
   phone: string
   status: string | { id: string; name: string; code: string } | null
   position: string | null
-  brand: string | null
   store: { name: string } | null
   createdAt: string
 }
@@ -488,12 +485,6 @@ export default function CandidatesList() {
                             <span className="inline-flex items-center gap-1.5 text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded-md font-medium">
                               <Icon name="store" size={12} />
                               {candidate.store.name}
-                            </span>
-                          )}
-                          {candidate.brand && (
-                            <span className="inline-flex items-center gap-1.5 text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded-md font-medium">
-                              <Icon name="tag" size={12} />
-                              {getBrandLabel(candidate.brand)}
                             </span>
                           )}
                         </div>

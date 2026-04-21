@@ -3,7 +3,6 @@
 import { useEffect, useState, useRef } from 'react'
 import api from '@/lib/api'
 import { useClickOutside } from '@/hooks/useClickOutside'
-import { getBrandLabel } from '@/lib/brand-utils'
 
 interface Proposal {
   id: string
@@ -20,6 +19,7 @@ interface Proposal {
   rejectionReason?: string | null
   campaign: { id: string; name: string; form: { title: string } } | null
   createdAt: string
+  isUnplanned: boolean
   _count: { candidates: number }
 }
 
@@ -41,6 +41,7 @@ export default function ProposalsList() {
     positionId: '',
     quantity: 1,
     reason: '',
+    isUnplanned: false,
   })
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null)
   const [action, setAction] = useState<'approve' | 'reject' | 'create-campaign' | null>(null)
@@ -69,6 +70,7 @@ export default function ProposalsList() {
         positionId: '',
         quantity: 1,
         reason: '',
+        isUnplanned: false,
       })
     }
   }, showCreateForm)
@@ -147,6 +149,7 @@ export default function ProposalsList() {
         positionId: '',
         quantity: 1,
         reason: '',
+        isUnplanned: false,
       })
       loadProposals()
     } catch (err: any) {
@@ -327,6 +330,18 @@ export default function ProposalsList() {
                 rows={2}
               />
             </div>
+            <div className="flex items-center mt-2">
+              <input
+                type="checkbox"
+                id="isUnplanned"
+                checked={formData.isUnplanned}
+                onChange={(e) => setFormData({ ...formData, isUnplanned: e.target.checked })}
+                className="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded"
+              />
+              <label htmlFor="isUnplanned" className="ml-2 block text-sm text-gray-900">
+                Tuyển dụng không theo định biên (đột xuất)
+              </label>
+            </div>
             <div className="flex justify-end space-x-3">
               <button
                 type="button"
@@ -432,9 +447,9 @@ export default function ProposalsList() {
               >
                 <option value="">Chọn form</option>
                 {forms.map((form) => (
-                  <option key={form.id} value={form.id}>
-                    {form.title} ({getBrandLabel(form.brand)})
-                  </option>
+<option key={form.id} value={form.id}>
+                      {form.title}
+                    </option>
                 ))}
               </select>
             </div>
@@ -494,7 +509,14 @@ export default function ProposalsList() {
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className="flex items-center">
-                      <h3 className="text-sm font-medium text-gray-900">{proposal.title}</h3>
+                      <h3 className="text-sm font-medium text-gray-900">
+                        {proposal.title}
+                        {proposal.isUnplanned && (
+                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                            Đột xuất
+                          </span>
+                        )}
+                      </h3>
                       <span
                         className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           (typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'APPROVED'
@@ -518,7 +540,7 @@ export default function ProposalsList() {
                       {proposal.store && <span>Cửa hàng: {proposal.store.name}</span>}
                       {proposal.position && <span>Vị trí: {proposal.position.name}</span>}
                       <span>Số lượng: {proposal.quantity}</span>
-                      <span>Ứng viên: {proposal._count.candidates}</span>
+                      <span>Ứng viên: {proposal._count?.candidates || 0}</span>
                     </div>
                     {proposal.approver && (
                       <div className="mt-1 text-xs text-gray-500">

@@ -6,13 +6,12 @@ import api from '@/lib/api'
 import { useClickOutside } from '@/hooks/useClickOutside'
 import FormDesigner from './FormDesigner'
 import Icon from '@/components/icons/Icon'
-import { getBrandLabel } from '@/lib/brand-utils'
 
 interface FormField {
   id?: string
   name: string
   label: string
-  type: string
+  type: "TEXT" | "EMAIL" | "PHONE" | "NUMBER" | "DATE" | "SELECT" | "MULTISELECT" | "TEXTAREA" | "CHECKBOX" | "RADIO" | "FILE"
   placeholder?: string
   required: boolean
   order: number
@@ -29,7 +28,6 @@ interface RecruitmentForm {
   id: string
   title: string
   description: string | null
-  brand: string
   source: string
   link: string
   formTitle: string | null
@@ -62,11 +60,14 @@ export default function FormsAndLinksManager() {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    brand: 'MAYCHA' as 'MAYCHA' | 'TAM_HAO' | 'BOTH',
     source: '',
     formTitle: '',
     formContent: '',
     bannerUrl: '',
+    primaryColor: '#F59E0B',
+    secondaryColor: '#FCD34D',
+    backgroundColor: '#FFFFFF',
+    textColor: '#111827',
     isActive: true,
   })
   const createFormRef = useRef<HTMLDivElement>(null)
@@ -78,11 +79,14 @@ export default function FormsAndLinksManager() {
       setFormData({
         title: '',
         description: '',
-        brand: 'MAYCHA' as 'MAYCHA' | 'TAM_HAO' | 'BOTH',
         source: '',
         formTitle: '',
         formContent: '',
         bannerUrl: '',
+        primaryColor: '#F59E0B',
+        secondaryColor: '#FCD34D',
+        backgroundColor: '#FFFFFF',
+        textColor: '#111827',
         isActive: true,
       })
     }
@@ -120,7 +124,6 @@ export default function FormsAndLinksManager() {
       setFormData({
         title: '',
         description: '',
-        brand: 'MAYCHA',
         source: '',
         formTitle: '',
         formContent: '',
@@ -179,11 +182,14 @@ export default function FormsAndLinksManager() {
     setFormData({
       title: form.title,
       description: form.description || '',
-      brand: form.brand as 'MAYCHA' | 'TAM_HAO' | 'BOTH',
       source: form.source,
       formTitle: form.formTitle || '',
       formContent: form.formContent || '',
       bannerUrl: form.bannerUrl || '',
+      primaryColor: form.primaryColor || '#F59E0B',
+      secondaryColor: form.secondaryColor || '#FCD34D',
+      backgroundColor: form.backgroundColor || '#FFFFFF',
+      textColor: form.textColor || '#111827',
       isActive: form.isActive,
     })
     setShowCreateForm(true)
@@ -223,11 +229,14 @@ export default function FormsAndLinksManager() {
             setFormData({
               title: '',
               description: '',
-              brand: 'MAYCHA',
               source: '',
               formTitle: '',
               formContent: '',
               bannerUrl: '',
+              primaryColor: '#F59E0B',
+              secondaryColor: '#FCD34D',
+              backgroundColor: '#FFFFFF',
+              textColor: '#111827',
               isActive: true,
             })
             setShowCreateForm(true)
@@ -282,25 +291,7 @@ export default function FormsAndLinksManager() {
                       rows={3}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Brand <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        value={formData.brand}
-                        onChange={(e) =>
-                          setFormData({ ...formData, brand: e.target.value as any })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        required
-                      >
-                        <option value="MAYCHA">Maycha</option>
-                        <option value="TAM_HAO">Tam Hảo</option>
-                        <option value="BOTH">Cả hai</option>
-                      </select>
-                    </div>
-                    <div>
+                  <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Nguồn <span className="text-red-500">*</span>
                       </label>
@@ -313,7 +304,6 @@ export default function FormsAndLinksManager() {
                         required
                       />
                     </div>
-                  </div>
                 </div>
               </div>
 
@@ -500,7 +490,6 @@ export default function FormsAndLinksManager() {
                       <p className="mt-1 text-sm text-gray-500">{form.description}</p>
                     )}
                     <div className="mt-2 flex items-center space-x-4 text-xs text-gray-500">
-                      <span>Brand: {getBrandLabel(form.brand)}</span>
                       <span>Nguồn: {form.source}</span>
                       {form._count && (
                         <>

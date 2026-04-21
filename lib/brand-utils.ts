@@ -1,12 +1,10 @@
-export function getBrandLabel(brand: string | null | undefined): string {
-  if (!brand) return 'N/A'
+export function getStoreGroupLabel(group: string | null | undefined): string {
+  if (!group) return 'N/A'
   
   const labels: Record<string, string> = {
-    MAYCHA: 'Maycha',
-    TAM_HAO: 'Tam hảo',
-    BOTH: 'Cả hai',
+    OPS_SOUTH: 'OPS-South',
+    OPS_NORTH: 'OPS-North',
   }
   
-  return labels[brand] || brand
+  return labels[group] || group
 }
-

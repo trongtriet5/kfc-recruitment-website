@@ -3,8 +3,6 @@
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import api from '@/lib/api'
-import { getBrandLabel } from '@/lib/brand-utils'
-
 // Dynamically import ApexCharts to avoid SSR issues
 const Chart = dynamic(() => import('react-apexcharts'), { ssr: false })
 
@@ -30,10 +28,6 @@ interface DashboardData {
   }>
   monthlyData: Array<{
     month: string
-    count: number
-  }>
-  candidatesByBrand: Array<{
-    brand: string
     count: number
   }>
   candidatesByStore: Array<{
@@ -95,14 +89,19 @@ export default function RecruitmentDashboard() {
   // Using getBrandLabel from brand-utils
 
   // Prepare chart data
+  const candidatesByStatus = data.candidatesByStatus || []
+  const monthlyData = data.monthlyData || []
+  const candidatesByCampaign = data.candidatesByCampaign || []
+  const candidatesByStore = data.candidatesByStore || []
+  const funnelData = data.funnelData || []
   const statusChartData = {
-    series: data.candidatesByStatus
+    series: candidatesByStatus
       .filter((s) => s.count > 0)
       .map((s) => s.count),
-    labels: data.candidatesByStatus
+    labels: candidatesByStatus
       .filter((s) => s.count > 0)
       .map((s) => s.statusName),
-    colors: data.candidatesByStatus
+    colors: candidatesByStatus
       .filter((s) => s.count > 0)
       .map((s) => s.statusColor || '#6B7280'),
   }
@@ -130,7 +129,7 @@ export default function RecruitmentDashboard() {
       },
     },
     xaxis: {
-      categories: data.monthlyData.map((d) => d.month),
+      categories: monthlyData.map((d) => d.month),
       labels: {
         style: {
           fontFamily: 'Lexend, sans-serif',
@@ -138,7 +137,7 @@ export default function RecruitmentDashboard() {
       },
     },
     yaxis: {
-      title: { 
+      title: {
         text: 'Số lượng ứng viên',
         style: {
           fontFamily: 'Lexend, sans-serif',
@@ -164,7 +163,7 @@ export default function RecruitmentDashboard() {
   const monthlyChartSeries = [
     {
       name: 'Ứng viên mới',
-      data: data.monthlyData.map((d) => d.count),
+      data: monthlyData.map((d) => d.count),
     },
   ]
 
@@ -195,7 +194,7 @@ export default function RecruitmentDashboard() {
       },
     },
     xaxis: {
-      categories: data.candidatesByCampaign
+      categories: candidatesByCampaign
         .sort((a, b) => b.count - a.count)
         .slice(0, 10)
         .map((c) => c.campaignName),
@@ -206,7 +205,7 @@ export default function RecruitmentDashboard() {
       },
     },
     yaxis: {
-      title: { 
+      title: {
         text: 'Số lượng ứng viên',
         style: {
           fontFamily: 'Lexend, sans-serif',
@@ -232,43 +231,12 @@ export default function RecruitmentDashboard() {
   const campaignChartSeries = [
     {
       name: 'Ứng viên',
-      data: data.candidatesByCampaign
+      data: candidatesByCampaign
         .sort((a, b) => b.count - a.count)
         .slice(0, 10)
         .map((c) => c.count),
     },
   ]
-
-  const brandChartOptions = {
-    chart: {
-      type: 'donut' as const,
-      height: 350,
-      fontFamily: 'Lexend, sans-serif',
-    },
-    labels: data.candidatesByBrand.map((b) => getBrandLabel(b.brand)),
-    colors: ['#F59E0B', '#3B82F6', '#8B5CF6'],
-    legend: {
-      position: 'bottom' as const,
-      fontFamily: 'Lexend, sans-serif',
-    },
-    dataLabels: {
-      enabled: true,
-      formatter: (val: number) => `${val.toFixed(1)}%`,
-      style: {
-        fontFamily: 'Lexend, sans-serif',
-      },
-    },
-    tooltip: {
-      y: {
-        formatter: (val: number) => `${val} ứng viên`,
-      },
-      style: {
-        fontFamily: 'Lexend, sans-serif',
-      },
-    },
-  }
-
-  const brandChartSeries = data.candidatesByBrand.map((b) => b.count)
 
   const storeChartOptions = {
     chart: {
@@ -297,7 +265,7 @@ export default function RecruitmentDashboard() {
       },
     },
     xaxis: {
-      categories: data.candidatesByStore
+      categories: candidatesByStore
         .sort((a, b) => b.count - a.count)
         .slice(0, 10)
         .map((s) => s.storeName),
@@ -308,7 +276,7 @@ export default function RecruitmentDashboard() {
       },
     },
     yaxis: {
-      title: { 
+      title: {
         text: 'Số lượng ứng viên',
         style: {
           fontFamily: 'Lexend, sans-serif',
@@ -334,7 +302,7 @@ export default function RecruitmentDashboard() {
   const storeChartSeries = [
     {
       name: 'Ứng viên',
-      data: data.candidatesByStore
+      data: candidatesByStore
         .sort((a, b) => b.count - a.count)
         .slice(0, 10)
         .map((s) => s.count),
@@ -413,7 +381,7 @@ export default function RecruitmentDashboard() {
             <div>
               <p className="text-sm font-medium text-gray-600">CV đạt</p>
               <p className="text-3xl font-bold text-emerald-600 mt-2">
-                {data.candidatesByStatus.find((s) => s.statusCode === 'CV_PASSED')?.count || 0}
+                {candidatesByStatus.find((s) => s.statusCode === 'CV_PASSED')?.count || 0}
               </p>
             </div>
             <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
@@ -429,7 +397,7 @@ export default function RecruitmentDashboard() {
             <div>
               <p className="text-sm font-medium text-gray-600">Trúng tuyển</p>
               <p className="text-3xl font-bold text-indigo-600 mt-2">
-                {data.candidatesByStatus.find((s) => s.statusCode === 'ONBOARDING_ACCEPTED')?.count || 0}
+                {candidatesByStatus.find((s) => s.statusCode === 'ONBOARDING_ACCEPTED')?.count || 0}
               </p>
             </div>
             <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
@@ -465,27 +433,27 @@ export default function RecruitmentDashboard() {
               // Lấy số lượng thực tế của ứng viên (tổng số CV nhận vào)
               // Ưu tiên: trạng thái đầu tiên "Lọc CV" (CV_FILTERING) trong group "application"
               // Nếu không có, dùng totalCandidates
-              const applicationGroupIndex = data.funnelData.findIndex(
+              const applicationGroupIndex = funnelData.findIndex(
                 (x) => x.type === 'group' && x.groupKey === 'application'
               )
               let applicationTotal = 0
               if (applicationGroupIndex !== -1) {
                 // Tìm trạng thái đầu tiên trong group "application" (CV_FILTERING - "Lọc CV")
-                const nextGroupIndex = data.funnelData.findIndex(
+                const nextGroupIndex = funnelData.findIndex(
                   (x, idx) => idx > applicationGroupIndex && x.type === 'group'
                 )
-                const endIndex = nextGroupIndex === -1 ? data.funnelData.length : nextGroupIndex
-                const firstApplicationStatus = data.funnelData
+                const endIndex = nextGroupIndex === -1 ? funnelData.length : nextGroupIndex
+                const firstApplicationStatus = funnelData
                   .slice(applicationGroupIndex + 1, endIndex)
                   .find((i) => i.type === 'status' && i.statusCode === 'CV_FILTERING')
-                
+
                 // Số lượng thực tế = số lượng của trạng thái "Lọc CV" (tổng số CV nhận vào)
                 applicationTotal = firstApplicationStatus?.count || 0
               }
               // Nếu không tìm thấy, dùng totalCandidates (tổng số ứng viên thực tế)
               const totalForConversion = applicationTotal > 0 ? applicationTotal : data.totalCandidates
 
-              return data.funnelData.map((item, index) => {
+              return funnelData.map((item, index) => {
                 if (item.type === 'group') {
                   // Nếu là group "Ứng tuyển", hiển thị số lượng thực tế (tổng số CV nhận vào)
                   // Các group khác: tính tổng các status trong group (cumulative count)
@@ -495,28 +463,28 @@ export default function RecruitmentDashboard() {
                     groupTotal = totalForConversion
                   } else {
                     // Các group khác: tính tổng các status trong group
-                    const nextGroupIndex = data.funnelData.findIndex(
+                    const nextGroupIndex = funnelData.findIndex(
                       (x, idx) => idx > index && x.type === 'group'
                     )
-                    const endIndex = nextGroupIndex === -1 ? data.funnelData.length : nextGroupIndex
-                    const groupItems = data.funnelData
+                    const endIndex = nextGroupIndex === -1 ? funnelData.length : nextGroupIndex
+                    const groupItems = funnelData
                       .slice(index + 1, endIndex)
                       .filter((i) => i.type === 'status')
-                    
+
                     // Lấy số lượng của trạng thái đầu tiên trong group (cumulative count)
                     // Vì đây là cumulative, nên trạng thái đầu tiên đã bao gồm tất cả các trạng thái sau
                     const firstStatus = groupItems[0]
                     groupTotal = firstStatus?.count || 0
                   }
-                  
+
                   // Nếu là group "Ứng tuyển", chuyển đổi = 100%
                   // Các group khác: chuyển đổi = groupTotal / totalForConversion
                   const groupConversionRate = item.groupKey === 'application'
                     ? '100.0'
                     : totalForConversion > 0
-                    ? ((groupTotal / totalForConversion) * 100).toFixed(1)
-                    : '0.0'
-                  
+                      ? ((groupTotal / totalForConversion) * 100).toFixed(1)
+                      : '0.0'
+
                   return (
                     <tr key={`group-${item.groupKey}`} className="bg-gray-100 hover:bg-gray-100">
                       <td className="px-4 py-3 text-sm font-semibold text-gray-900 sticky left-0 bg-gray-100 z-10">
@@ -533,15 +501,15 @@ export default function RecruitmentDashboard() {
                 } else {
                   // Status row
                   // Lấy số lượng thực tế của trạng thái từ candidatesByStatus (không phải cumulative)
-                  const actualStatusCount = data.candidatesByStatus.find(
+                  const actualStatusCount = candidatesByStatus.find(
                     (s) => s.statusId === item.statusId
                   )?.count || 0
-                  
+
                   // Chuyển đổi (%) = số lượng thực tế / số lượng "Ứng tuyển"
                   const conversionRate = totalForConversion > 0 && actualStatusCount
                     ? ((actualStatusCount / totalForConversion) * 100).toFixed(1)
                     : '0.0'
-                  
+
                   return (
                     <tr key={item.statusId} className="hover:bg-gray-50">
                       <td className="px-4 py-2 text-sm text-gray-700 sticky left-0 bg-white z-10">
@@ -571,19 +539,19 @@ export default function RecruitmentDashboard() {
             {(() => {
               // Lấy số lượng thực tế của ứng viên để hiển thị trong footer
               // Ưu tiên: trạng thái đầu tiên "Lọc CV" (CV_FILTERING) trong group "application"
-              const applicationGroupIndex = data.funnelData.findIndex(
+              const applicationGroupIndex = funnelData.findIndex(
                 (x) => x.type === 'group' && x.groupKey === 'application'
               )
               let applicationTotal = 0
               if (applicationGroupIndex !== -1) {
-                const nextGroupIndex = data.funnelData.findIndex(
+                const nextGroupIndex = funnelData.findIndex(
                   (x, idx) => idx > applicationGroupIndex && x.type === 'group'
                 )
-                const endIndex = nextGroupIndex === -1 ? data.funnelData.length : nextGroupIndex
-                const firstApplicationStatus = data.funnelData
+                const endIndex = nextGroupIndex === -1 ? funnelData.length : nextGroupIndex
+                const firstApplicationStatus = funnelData
                   .slice(applicationGroupIndex + 1, endIndex)
                   .find((i) => i.type === 'status' && i.statusCode === 'CV_FILTERING')
-                
+
                 // Số lượng thực tế = số lượng của trạng thái "Lọc CV"
                 applicationTotal = firstApplicationStatus?.count || 0
               }
@@ -670,35 +638,21 @@ export default function RecruitmentDashboard() {
           )}
         </div>
 
-        {/* Brand Distribution */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Phân bố theo Brand</h3>
-          {typeof window !== 'undefined' && (
-            <Chart
-              options={brandChartOptions}
-              series={brandChartSeries}
-              type="donut"
-              height={350}
-            />
-          )}
+        {/* Charts Row 4: Store Distribution */}
+        <div className="grid grid-cols-1 gap-6">
+          {/* Store Distribution */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Ứng viên theo cửa hàng (Top 10)</h3>
+            {typeof window !== 'undefined' && (
+              <Chart
+                options={storeChartOptions}
+                series={storeChartSeries}
+                type="bar"
+                height={400}
+              />
+            )}
+          </div>
         </div>
       </div>
-
-      {/* Charts Row 4: Store Distribution */}
-      <div className="grid grid-cols-1 gap-6">
-        {/* Store Distribution */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Ứng viên theo cửa hàng (Top 10)</h3>
-          {typeof window !== 'undefined' && (
-            <Chart
-              options={storeChartOptions}
-              series={storeChartSeries}
-              type="bar"
-              height={400}
-            />
-          )}
-        </div>
-      </div>
-    </div>
-  )
+      )
 }

@@ -1,7 +1,7 @@
 {
-  "name": "tinh-the-vinh-hoa-hris-backend",
+  "name": "kfc-recruitment-backend",
   "version": "1.0.0",
-  "description": "Tịnh Thế Vinh Hoa HRIS Backend API",
+  "description": "KFC Recruitment Backend API",
   "author": "",
   "private": true,
   "license": "UNLICENSED",
@@ -90,4 +90,3 @@
     "testEnvironment": "node"
   }
 }
-

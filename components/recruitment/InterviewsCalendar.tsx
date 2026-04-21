@@ -29,10 +29,28 @@ export default function InterviewsCalendar() {
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('week')
+  
+  const [typeId, setTypeId] = useState<string>('')
+  const [resultId, setResultId] = useState<string>('')
+  const [types, setTypes] = useState<any[]>([])
+  const [results, setResults] = useState<any[]>([])
+
+  useEffect(() => {
+    loadTypes()
+    loadResults()
+  }, [])
 
   useEffect(() => {
     loadInterviews()
-  }, [selectedDate, viewMode])
+  }, [selectedDate, viewMode, typeId, resultId])
+
+  const loadTypes = () => {
+    api.get('/types/by-category/INTERVIEW_TYPE').then(res => setTypes(res.data)).catch(console.error)
+  }
+
+  const loadResults = () => {
+    api.get('/types/by-category/INTERVIEW_RESULT').then(res => setResults(res.data)).catch(console.error)
+  }
 
   const loadInterviews = () => {
     const startDate = new Date(selectedDate)
@@ -48,7 +66,7 @@ export default function InterviewsCalendar() {
 
     api
       .get(
-        `/recruitment/interviews?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`
+        `/recruitment/interviews?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}${typeId ? `&typeId=${typeId}` : ''}${resultId ? `&resultId=${resultId}` : ''}`
       )
       .then((res) => setInterviews(res.data))
       .catch(console.error)
@@ -108,7 +126,23 @@ export default function InterviewsCalendar() {
     <div>
       <div className="mb-4 flex justify-between items-center">
         <h2 className="text-xl font-semibold">Lịch phỏng vấn</h2>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={typeId}
+            onChange={(e) => setTypeId(e.target.value)}
+            className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+          >
+            <option value="">Tất cả vòng PV</option>
+            {types.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          <select
+            value={resultId}
+            onChange={(e) => setResultId(e.target.value)}
+            className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+          >
+            <option value="">Tất cả kết quả</option>
+            {results.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
           <select
             value={viewMode}
             onChange={(e) => setViewMode(e.target.value as any)}
