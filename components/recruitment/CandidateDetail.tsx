@@ -38,77 +38,22 @@ interface CandidateDetail {
   }>
   createdAt: string
   updatedAt: string
+  pic?: { id: string; fullName: string; email: string } | null
 }
 
 interface User {
   role: string
 }
 
-const STATUS_GROUPS = {
-  application: {
-    label: 'Ứng tuyển',
-    statuses: [
-      { value: 'CV_FILTERING', label: 'Lọc CV' },
-      { value: 'CV_PASSED', label: 'Ứng viên đạt' },
-      { value: 'CV_FAILED', label: 'Ứng viên loại' },
-      { value: 'BLACKLIST', label: 'Blacklist' },
-      { value: 'CANNOT_CONTACT', label: 'Không liên hệ được' },
-      { value: 'AREA_NOT_RECRUITING', label: 'Khu vực chưa tuyển dụng' },
-    ],
-  },
-  interview: {
-    label: 'Phỏng vấn',
-    subgroups: {
-      waiting: {
-        label: 'Chờ phỏng vấn',
-        statuses: [
-          { value: 'WAITING_INTERVIEW', label: 'Chờ phỏng vấn' },
-        ],
-      },
-      hr: {
-        label: 'HR sơ vấn',
-        statuses: [
-          { value: 'HR_INTERVIEW_PASSED', label: 'HR sơ vấn đạt' },
-          { value: 'HR_INTERVIEW_FAILED', label: 'HR sơ vấn loại' },
-        ],
-      },
-      sm_am: {
-        label: 'SM/AM PV',
-        statuses: [
-          { value: 'SM_AM_INTERVIEW_PASSED', label: 'SM/AM PV Đạt' },
-          { value: 'SM_AM_INTERVIEW_FAILED', label: 'SM/AM PV Loại' },
-          { value: 'SM_AM_INTERVIEW_NO_SHOW', label: 'SM/AM PV Không đến PV' },
-        ],
-      },
-      om_pv: {
-        label: 'OM PV',
-        statuses: [
-          { value: 'OM_PV_INTERVIEW_PASSED', label: 'OM PV Đạt' },
-          { value: 'OM_PV_INTERVIEW_FAILED', label: 'OM PV Loại' },
-          { value: 'OM_PV_INTERVIEW_NO_SHOW', label: 'OM PV Không đến PV' },
-        ],
-      },
-    },
-  },
-  offer: {
-    label: 'Thư mời',
-    statuses: [
-      { value: 'OFFER_SENT', label: 'Đã gửi offer letter' },
-      { value: 'OFFER_ACCEPTED', label: 'Đồng ý offer letter' },
-      { value: 'OFFER_REJECTED', label: 'Từ chối offer letter' },
-    ],
-  },
-  onboarding: {
-    label: 'Trúng tuyển',
-    statuses: [
-      { value: 'WAITING_ONBOARDING', label: 'Chờ nhận việc' },
-      { value: 'ONBOARDING_ACCEPTED', label: 'Đồng ý nhận việc' },
-      { value: 'ONBOARDING_REJECTED', label: 'Từ chối nhận việc' },
-    ],
-  },
-}
+import { useCandidateStatuses } from '@/lib/useCandidateStatuses'
 
-export default function CandidateDetail({ candidateId }: { candidateId: string }) {
+export default function CandidateDetail({ 
+  candidateId, 
+  isModal = false 
+}: { 
+  candidateId: string, 
+  isModal?: boolean 
+}) {
   const router = useRouter()
   const [candidate, setCandidate] = useState<CandidateDetail | null>(null)
   const [user, setUser] = useState<User | null>(null)
@@ -117,6 +62,7 @@ export default function CandidateDetail({ candidateId }: { candidateId: string }
   const [showStatusChange, setShowStatusChange] = useState(false)
   const [newStatus, setNewStatus] = useState('')
   const [statusChangeLoading, setStatusChangeLoading] = useState(false)
+  const { dbStatuses, dynamicGroups } = useCandidateStatuses()
 
   useEffect(() => {
     // Get user info
@@ -135,26 +81,44 @@ export default function CandidateDetail({ candidateId }: { candidateId: string }
       .finally(() => setLoading(false))
   }, [candidateId])
 
-  const getStatusLabel = (status: string | { id: string; name: string; code: string } | null | undefined) => {
-    if (!status) return 'Chưa có trạng thái'
-    if (typeof status === 'object') return status.name
-    return status
+  const getStatusLabel = (status: unknown) => {
+    if (!status || typeof status !== 'string' && typeof status !== 'object') return 'Chưa có trạng thái'
+    
+    // If it's an object from the new relational backend
+    if (typeof status === 'object' && status !== null && 'name' in status) return (status as { name: string }).name
+    
+    const statusCode = typeof status === 'string' ? status : (status as any)?.code
+    if (!statusCode) return 'Chưa có trạng thái'
+
+    const dbObj = dbStatuses.find(s => s.code === statusCode)
+    if (dbObj) return dbObj.name
+
+    return statusCode
   }
 
-  const getStatusColor = (status: string | { id: string; name: string; code: string } | null | undefined) => {
-    if (!status) return 'bg-gray-100 text-gray-800'
+  const getStatusColor = (status: unknown) => {
+    if (!status || typeof status !== 'string' && typeof status !== 'object') return 'bg-gray-100 text-gray-800'
     const statusCode = typeof status === 'object' ? status.code : status
     if (!statusCode) return 'bg-gray-100 text-gray-800'
-    if (statusCode.includes('PASSED') || statusCode === 'OFFER_ACCEPTED' || statusCode === 'ONBOARDING_ACCEPTED') {
-      return 'bg-green-100 text-green-800'
+    if (statusCode === 'CV_FILTERING') {
+      return 'bg-sky-50 text-sky-700 border border-sky-200'
     }
-    if (statusCode.includes('FAILED') || statusCode === 'OFFER_REJECTED' || statusCode === 'ONBOARDING_REJECTED') {
-      return 'bg-red-100 text-red-800'
+    if (statusCode === 'CV_PASSED' || statusCode === 'HR_INTERVIEW_PASSED' || statusCode === 'SM_AM_INTERVIEW_PASSED' || statusCode === 'OM_PV_INTERVIEW_PASSED') {
+      return 'bg-emerald-50 text-emerald-700 border border-emerald-200'
     }
-    if (statusCode.includes('WAITING') || statusCode === 'OFFER_SENT') {
-      return 'bg-yellow-100 text-yellow-800'
+    if (statusCode === 'CV_FAILED' || statusCode === 'HR_INTERVIEW_FAILED' || statusCode === 'SM_AM_INTERVIEW_FAILED' || statusCode === 'OM_PV_INTERVIEW_FAILED' || statusCode === 'BLACKLIST') {
+      return 'bg-rose-50 text-rose-700 border border-rose-200'
     }
-    return 'bg-blue-100 text-blue-800'
+    if (statusCode === 'WAITING_INTERVIEW' || statusCode === 'WAITING_ONBOARDING' || statusCode === 'OFFER_SENT') {
+      return 'bg-amber-50 text-amber-700 border border-amber-200'
+    }
+    if (statusCode === 'OFFER_ACCEPTED' || statusCode === 'ONBOARDING_ACCEPTED') {
+      return 'bg-green-50 text-green-700 border border-green-200 font-bold'
+    }
+    if (statusCode === 'CANNOT_CONTACT' || statusCode === 'AREA_NOT_RECRUITING') {
+      return 'bg-slate-50 text-slate-700 border border-slate-200'
+    }
+    return 'bg-blue-50 text-blue-700 border border-blue-200'
   }
 
   const getTypeLabel = (type: string | { id: string; name: string; code: string } | null | undefined) => {
@@ -190,19 +154,7 @@ export default function CandidateDetail({ candidateId }: { candidateId: string }
   const getAllowedStatuses = (): string[] => {
     if (!user) return []
     if (user.role === 'ADMIN' || user.role === 'HEAD_OF_DEPARTMENT') {
-      return Object.values(STATUS_GROUPS).flatMap((group) => {
-        // Handle groups with statuses
-        if ('statuses' in group && group.statuses) {
-          return group.statuses.map((s) => s.value)
-        }
-        // Handle groups with subgroups (like interview)
-        if ('subgroups' in group && group.subgroups) {
-          return Object.values(group.subgroups).flatMap((subgroup) =>
-            subgroup.statuses.map((s) => s.value)
-          )
-        }
-        return []
-      })
+      return dbStatuses.map(s => s.code)
     }
     if (user.role === 'MANAGER') {
       return [
@@ -274,7 +226,7 @@ export default function CandidateDetail({ candidateId }: { candidateId: string }
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            {candidate.fullName}
+            {typeof candidate === 'object' && candidate !== null && 'fullName' in candidate ? candidate.fullName : 'Unknown'}
           </h1>
           <p className="mt-2 text-sm text-gray-600">
             Chi tiết ứng viên
@@ -305,12 +257,14 @@ export default function CandidateDetail({ candidateId }: { candidateId: string }
               {showStatusChange ? 'Hủy' : 'Chuyển trạng thái'}
             </button>
           )}
-          <Link
-            href="/dashboard/recruitment"
-            className="text-sm text-gray-600 hover:text-gray-900"
-          >
-            ← Quay lại
-          </Link>
+          {!isModal && (
+            <Link
+              href="/dashboard/recruitment"
+              className="text-sm text-gray-600 hover:text-gray-900"
+            >
+              ← Quay lại
+            </Link>
+          )}
         </div>
       </div>
 
@@ -356,67 +310,18 @@ export default function CandidateDetail({ candidateId }: { candidateId: string }
               </div>
             )}
 
-            {/* Phỏng vấn - với các nhóm con */}
-            {STATUS_GROUPS.interview.subgroups && Object.values(STATUS_GROUPS.interview.subgroups).some(subgroup => 
-              subgroup.statuses.some(s => allowedStatuses.includes(s.value))
-            ) && (
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-3">
-                  {STATUS_GROUPS.interview.label}
-                </label>
-                <div className="space-y-4">
-                  {Object.entries(STATUS_GROUPS.interview.subgroups).map(([subKey, subgroup]) => {
-                    const allowedSubStatuses = subgroup.statuses.filter(s => allowedStatuses.includes(s.value))
-                    if (allowedSubStatuses.length === 0) return null
-                    
-                    return (
-                      <div key={subKey} className="ml-4">
-                        <label className="block text-xs font-medium text-gray-500 mb-2">
-                          {subgroup.label}
-                        </label>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                          {allowedSubStatuses.map((status) => {
-                            const currentStatusCode = typeof candidate.status === 'object' 
-                              ? candidate.status?.code 
-                              : candidate.status
-                            const isSelected = currentStatusCode === status.value
-                            
-                            return (
-                              <button
-                                key={status.value}
-                                onClick={() => setNewStatus(status.value)}
-                                className={`
-                                  px-3 py-2 text-sm rounded-md border transition-all
-                                  ${isSelected 
-                                    ? 'bg-yellow-50 border-yellow-500 text-yellow-700 font-medium' 
-                                    : newStatus === status.value
-                                    ? 'bg-blue-50 border-blue-500 text-blue-700'
-                                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                                  }
-                                `}
-                              >
-                                {status.label}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
+          <div className="space-y-6">
+            {Object.entries(dynamicGroups).map(([groupKey, group]) => {
+              const availableStatuses = group.statuses.filter((s) => allowedStatuses.includes(s.value))
+              if (availableStatuses.length === 0) return null
 
-            {/* Thư mời */}
-            {STATUS_GROUPS.offer.statuses.some(s => allowedStatuses.includes(s.value)) && (
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-3">
-                  {STATUS_GROUPS.offer.label}
-                </label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {STATUS_GROUPS.offer.statuses
-                    .filter((s) => allowedStatuses.includes(s.value))
-                    .map((status) => {
+              return (
+                <div key={groupKey}>
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">
+                    {group.label}
+                  </label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {availableStatuses.map((status) => {
                       const currentStatusCode = typeof candidate.status === 'object' 
                         ? candidate.status?.code 
                         : candidate.status
@@ -440,46 +345,11 @@ export default function CandidateDetail({ candidateId }: { candidateId: string }
                         </button>
                       )
                     })}
+                  </div>
                 </div>
-              </div>
-            )}
-
-            {/* Trúng tuyển */}
-            {STATUS_GROUPS.onboarding.statuses.some(s => allowedStatuses.includes(s.value)) && (
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-3">
-                  {STATUS_GROUPS.onboarding.label}
-                </label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {STATUS_GROUPS.onboarding.statuses
-                    .filter((s) => allowedStatuses.includes(s.value))
-                    .map((status) => {
-                      const currentStatusCode = typeof candidate.status === 'object' 
-                        ? candidate.status?.code 
-                        : candidate.status
-                      const isSelected = currentStatusCode === status.value
-                      
-                      return (
-                        <button
-                          key={status.value}
-                          onClick={() => setNewStatus(status.value)}
-                          className={`
-                            px-3 py-2 text-sm rounded-md border transition-all
-                            ${isSelected 
-                              ? 'bg-yellow-50 border-yellow-500 text-yellow-700 font-medium' 
-                              : newStatus === status.value
-                              ? 'bg-blue-50 border-blue-500 text-blue-700'
-                              : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                            }
-                          `}
-                        >
-                          {status.label}
-                        </button>
-                      )
-                    })}
-                </div>
-              </div>
-            )}
+              )
+            })}
+          </div>
 
             {newStatus && (
               <div className="flex justify-end space-x-3 pt-4 border-t">
@@ -514,7 +384,7 @@ export default function CandidateDetail({ candidateId }: { candidateId: string }
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-500">Họ và tên</label>
-              <p className="mt-1 text-sm text-gray-900">{candidate.fullName}</p>
+              <p className="mt-1 text-sm text-gray-900">{typeof candidate === 'object' && candidate !== null && 'fullName' in candidate ? candidate.fullName : 'Unknown'}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Email</label>
@@ -530,20 +400,26 @@ export default function CandidateDetail({ candidateId }: { candidateId: string }
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Cửa hàng</label>
-              <p className="mt-1 text-sm text-gray-900">{candidate.store?.name || 'N/A'}</p>
+              <p className="mt-1 text-sm text-gray-900">{typeof candidate.store === 'object' && candidate.store !== null && 'name' in candidate.store ? candidate.store.name : 'N/A'}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Form tuyển dụng</label>
-              <p className="mt-1 text-sm text-gray-900">{candidate.form?.title || 'N/A'}</p>
+              <p className="mt-1 text-sm text-gray-900">{typeof candidate.form === 'object' && candidate.form !== null && 'title' in candidate.form ? candidate.form.title : 'N/A'}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Chiến dịch</label>
-              <p className="mt-1 text-sm text-gray-900">{candidate.campaign?.name || 'N/A'}</p>
+              <p className="mt-1 text-sm text-gray-900">{typeof candidate.campaign === 'object' && candidate.campaign !== null && 'name' in candidate.campaign ? candidate.campaign.name : 'N/A'}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Ngày tạo</label>
               <p className="mt-1 text-sm text-gray-900">
                 {new Date(candidate.createdAt).toLocaleString('vi-VN')}
+              </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Người phụ trách (TA)</label>
+              <p className="mt-1 text-sm font-semibold text-purple-700">
+                {candidate.pic && typeof candidate.pic === 'object' && 'fullName' in candidate.pic ? (candidate.pic as { fullName: string }).fullName : 'Chưa phân công'}
               </p>
             </div>
             <div>
@@ -580,7 +456,7 @@ export default function CandidateDetail({ candidateId }: { candidateId: string }
       </div>
 
       {/* Interviews */}
-      {candidate.interviews.length > 0 && (
+      {candidate.interviews && candidate.interviews.length > 0 && (
         <div className="bg-white shadow rounded-lg overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-medium text-gray-900">Lịch sử phỏng vấn</h2>
@@ -605,7 +481,7 @@ export default function CandidateDetail({ candidateId }: { candidateId: string }
                     </div>
                   </div>
                   <div className="text-sm text-gray-600">
-                    <p>Người phỏng vấn: {interview.interviewer.fullName} ({interview.interviewer.email})</p>
+                    <p>Người phỏng vấn: {typeof interview.interviewer === 'object' && 'fullName' in interview.interviewer ? interview.interviewer.fullName : 'N/A'} ({typeof interview.interviewer === 'object' && 'email' in interview.interviewer ? interview.interviewer.email : ''})</p>
                     {interview.location && <p>Địa điểm: {interview.location}</p>}
                     {interview.notes && <p className="mt-1">Ghi chú: {interview.notes}</p>}
                   </div>
@@ -617,7 +493,7 @@ export default function CandidateDetail({ candidateId }: { candidateId: string }
       )}
 
       {/* Proposals */}
-      {candidate.proposals.length > 0 && (
+      {candidate.proposals && candidate.proposals.length > 0 && (
         <div className="bg-white shadow rounded-lg overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-medium text-gray-900">Đề xuất tuyển dụng</h2>

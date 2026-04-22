@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import toast from 'react-hot-toast'
 
 interface Store {
   id: string
@@ -10,11 +11,17 @@ interface Store {
   code: string
 }
 
-export default function CreateCandidateForm() {
+interface CreateCandidateFormProps {
+  onSuccess?: () => void
+  onCancel?: () => void
+}
+
+export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandidateFormProps) {
   const router = useRouter()
   const [stores, setStores] = useState<Store[]>([])
   const [statuses, setStatuses] = useState<any[]>([])
   const [campaigns, setCampaigns] = useState<any[]>([])
+  const [users, setUsers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -27,7 +34,8 @@ export default function CreateCandidateForm() {
     position: '',
     storeId: '',
     campaignId: '',
-    statusId: '',
+    status: '',
+    picId: '',
     notes: '',
   })
 
@@ -37,19 +45,21 @@ export default function CreateCandidateForm() {
 
   const loadData = async () => {
     try {
-      const [storesRes, statusesRes, campaignsRes] = await Promise.all([
+      const [storesRes, statusesRes, campaignsRes, usersRes] = await Promise.all([
         api.get('/stores').catch(() => ({ data: [] })),
         api.get('/types/by-category/CANDIDATE_STATUS').catch(() => ({ data: [] })),
         api.get('/recruitment/campaigns').catch(() => ({ data: [] })),
+        api.get('/users/select').catch(() => ({ data: [] })),
       ])
 
       setStores(storesRes.data)
       setStatuses(statusesRes.data)
       setCampaigns(campaignsRes.data)
+      setUsers(usersRes.data)
 
       const defaultStatus = statusesRes.data.find((s: any) => s.code === 'CV_FILTERING')
       if (defaultStatus) {
-        setFormData((prev) => ({ ...prev, statusId: defaultStatus.id }))
+        setFormData((prev) => ({ ...prev, status: defaultStatus.code }))
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Không thể tải dữ liệu')
@@ -62,7 +72,7 @@ export default function CreateCandidateForm() {
     e.preventDefault()
     setError(null)
 
-    if (!formData.statusId) {
+    if (!formData.status) {
       setError('Vui lòng chọn trạng thái')
       return
     }
@@ -73,7 +83,7 @@ export default function CreateCandidateForm() {
       const payload: any = {
         fullName: formData.fullName,
         phone: formData.phone,
-        statusId: formData.statusId,
+        status: formData.status,
       }
 
       if (formData.email) payload.email = formData.email
@@ -84,9 +94,16 @@ export default function CreateCandidateForm() {
       if (formData.notes) payload.notes = formData.notes
 
       const res = await api.post('/recruitment/candidates', payload)
-      router.push(`/dashboard/recruitment/candidates/${res.data.id}`)
+      toast.success('Thêm ứng viên thành công')
+      if (onSuccess) {
+        onSuccess()
+      } else {
+        router.push(`/dashboard/recruitment/candidates/${res.data.id}`)
+      }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Có lỗi xảy ra khi tạo ứng viên')
+      const errorMsg = err.response?.data?.message || 'Có lỗi xảy ra khi tạo ứng viên'
+      toast.error(errorMsg)
+      setError(errorMsg)
     } finally {
       setSubmitting(false)
     }
@@ -205,15 +222,33 @@ export default function CreateCandidateForm() {
               Trạng thái <span className="text-red-500">*</span>
             </label>
             <select
-              value={formData.statusId}
-              onChange={(e) => setFormData({ ...formData, statusId: e.target.value })}
+              value={formData.status}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
               required
             >
               <option value="">Chọn trạng thái</option>
               {statuses.map((status) => (
-                <option key={status.id} value={status.id}>
+                <option key={status.id} value={status.code}>
                   {status.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Người phụ trách (TA)
+            </label>
+            <select
+              value={formData.picId}
+              onChange={(e) => setFormData({ ...formData, picId: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            >
+              <option value="">-- Chọn TA phụ trách --</option>
+              {users.map((user) => (
+                <option key={typeof user === 'object' && user !== null && 'id' in user ? user.id : ''} value={typeof user === 'object' && user !== null && 'id' in user ? user.id : ''}>
+                  {typeof user === 'object' && user !== null && 'fullName' in user ? user.fullName : 'Unknown'}
                 </option>
               ))}
             </select>
@@ -247,7 +282,7 @@ export default function CreateCandidateForm() {
           <div className="flex justify-end space-x-3 pt-4">
             <button
               type="button"
-              onClick={() => router.back()}
+              onClick={() => onCancel ? onCancel() : router.back()}
               className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
             >
               Hủy

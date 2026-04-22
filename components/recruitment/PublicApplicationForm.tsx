@@ -62,6 +62,7 @@ export default function PublicApplicationForm() {
   const searchParams = useSearchParams()
   const campaignLink = searchParams.get('campaignId') || ''
   const legacyLink = searchParams.get('link') || searchParams.get('formId') || '' // For backward compatibility
+  const sourceFromUrl = searchParams.get('source') || '' // Source tracking from URL parameter
 
   const [formInfo, setFormInfo] = useState<any>(null)
   const [campaignInfo, setCampaignInfo] = useState<any>(null)
@@ -260,6 +261,7 @@ export default function PublicApplicationForm() {
         dateOfBirth: dateOfBirthISO,
         formId: formInfo?.id || '',
         campaignId: campaignInfo?.id || undefined,
+        sourceCode: sourceFromUrl || undefined,
       })
 
       setSuccess(true)

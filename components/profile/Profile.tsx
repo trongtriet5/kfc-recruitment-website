@@ -144,10 +144,10 @@ export default function Profile() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 bg-yellow-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
-                {user.fullName.charAt(0).toUpperCase()}
+                {user.fullName ? user.fullName.charAt(0).toUpperCase() : '?'}
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">{user.fullName}</h1>
+                <h1 className="text-2xl font-bold text-gray-900">{user.fullName || 'Unknown'}</h1>
                 <p className="text-sm text-gray-600">{getRoleLabel(user.role)}</p>
               </div>
             </div>
@@ -212,7 +212,7 @@ export default function Profile() {
                   required
                 />
               ) : (
-                <p className="px-3 py-2 text-gray-900 bg-gray-50 rounded-md">{user.email}</p>
+                <p className="px-3 py-2 text-gray-900 bg-gray-50 rounded-md">{user.email || 'N/A'}</p>
               )}
             </div>
 

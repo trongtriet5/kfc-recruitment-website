@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import api from '@/lib/api'
 import { useClickOutside } from '@/hooks/useClickOutside'
+import toast from 'react-hot-toast'
 
 interface Proposal {
   id: string
@@ -152,8 +153,9 @@ export default function ProposalsList() {
         isUnplanned: false,
       })
       loadProposals()
+      toast.success('Tạo đề xuất thành công')
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Có lỗi xảy ra')
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra')
     }
   }
 
@@ -168,13 +170,14 @@ export default function ProposalsList() {
         return
       }
       await api.patch(`/recruitment/proposals/${selectedProposal.id}`, {
-        statusId: approvedStatus.id,
+        status: approvedStatus.code,
       })
       setSelectedProposal(null)
       setAction(null)
+      toast.success('Đã duyệt đề xuất')
       loadProposals()
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Có lỗi xảy ra')
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra')
     }
   }
 
@@ -192,15 +195,16 @@ export default function ProposalsList() {
         return
       }
       await api.patch(`/recruitment/proposals/${selectedProposal.id}`, {
-        statusId: rejectedStatus.id,
+        status: rejectedStatus.code,
         rejectionReason: rejectionReason,
       })
       setSelectedProposal(null)
       setAction(null)
       setRejectionReason('')
+      toast.success('Đã từ chối đề xuất')
       loadProposals()
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Có lỗi xảy ra')
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra')
     }
   }
 
@@ -229,9 +233,9 @@ export default function ProposalsList() {
         isActive: true,
       })
       loadProposals()
-      alert('Tạo chiến dịch thành công!')
+      toast.success('Tạo chiến dịch thành công!')
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Có lỗi xảy ra khi tạo chiến dịch')
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi tạo chiến dịch')
     }
   }
 
@@ -537,23 +541,23 @@ export default function ProposalsList() {
                     </div>
                     <p className="mt-1 text-sm text-gray-500">{proposal.description}</p>
                     <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
-                      {proposal.store && <span>Cửa hàng: {proposal.store.name}</span>}
-                      {proposal.position && <span>Vị trí: {proposal.position.name}</span>}
+                      {proposal.store && typeof proposal.store === 'object' && proposal.store !== null && 'name' in proposal.store && <span>Cửa hàng: {(proposal.store as { name: string }).name}</span>}
+                      {proposal.position && typeof proposal.position === 'object' && proposal.position !== null && 'name' in proposal.position && <span>Vị trí: {(proposal.position as { name: string }).name}</span>}
                       <span>Số lượng: {proposal.quantity}</span>
                       <span>Ứng viên: {proposal._count?.candidates || 0}</span>
                     </div>
-                    {proposal.approver && (
+                    {proposal.approver && typeof proposal.approver === 'object' && proposal.approver !== null && 'fullName' in proposal.approver && (
                       <div className="mt-1 text-xs text-gray-500">
                         {(typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'APPROVED'
-                          ? `Đã duyệt bởi ${proposal.approver.fullName}`
+                          ? `Đã duyệt bởi ${(proposal.approver as { fullName: string }).fullName}`
                           : (typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'REJECTED'
-                          ? `Từ chối bởi ${proposal.approver.fullName}`
+                          ? `Từ chối bởi ${(proposal.approver as { fullName: string }).fullName}`
                           : ''}
                       </div>
                     )}
-                    {proposal.campaign && (
+                    {proposal.campaign && typeof proposal.campaign === 'object' && proposal.campaign !== null && 'name' in proposal.campaign && (
                       <div className="mt-1 text-xs text-blue-600">
-                        ✓ Đã có chiến dịch: {proposal.campaign.name} (Form: {proposal.campaign.form.title})
+                        ✓ Đã có chiến dịch: {(proposal.campaign as { name: string }).name} (Form: {proposal.campaign.form && typeof proposal.campaign.form === 'object' && 'title' in proposal.campaign ? (proposal.campaign.form as { title: string }).title : 'N/A'})
                       </div>
                     )}
                   </div>

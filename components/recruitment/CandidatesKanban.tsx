@@ -14,6 +14,7 @@ interface Candidate {
   status: string | { id: string; name: string; code: string } | null
   position: string | null
   store: { name: string } | null
+  campaign: { name: string } | null
   createdAt: string
 }
 
@@ -21,50 +22,7 @@ interface User {
   role: string
 }
 
-const STATUS_GROUPS = {
-  application: {
-    label: 'Ứng tuyển',
-    statuses: [
-      { value: 'CV_FILTERING', label: 'Lọc CV' },
-      { value: 'CV_PASSED', label: 'Ứng viên đạt' },
-      { value: 'CV_FAILED', label: 'Ứng viên loại' },
-      { value: 'BLACKLIST', label: 'Blacklist' },
-      { value: 'CANNOT_CONTACT', label: 'Không liên hệ được' },
-      { value: 'AREA_NOT_RECRUITING', label: 'Khu vực chưa tuyển dụng' },
-    ],
-  },
-  interview: {
-    label: 'Phỏng vấn',
-    statuses: [
-      { value: 'WAITING_INTERVIEW', label: 'Chờ phỏng vấn' },
-      { value: 'HR_INTERVIEW_PASSED', label: 'HR sơ vấn đạt' },
-      { value: 'HR_INTERVIEW_FAILED', label: 'HR sơ vấn loại' },
-      { value: 'SM_AM_INTERVIEW_PASSED', label: 'SM/AM PV Đạt' },
-      { value: 'SM_AM_INTERVIEW_FAILED', label: 'SM/AM PV Loại' },
-      { value: 'SM_AM_INTERVIEW_NO_SHOW', label: 'SM/AM PV Không đến PV' },
-      { value: 'OM_PV_INTERVIEW_PASSED', label: 'OM PV Đạt' },
-      { value: 'OM_PV_INTERVIEW_FAILED', label: 'OM PV Loại' },
-      { value: 'OM_PV_INTERVIEW_NO_SHOW', label: 'OM PV Không đến PV' },
-    ],
-  },
-  offer: {
-    label: 'Thư mời',
-    statuses: [
-      { value: 'OFFER_SENT', label: 'Đã gửi offer letter' },
-      { value: 'OFFER_ACCEPTED', label: 'Đồng ý offer letter' },
-      { value: 'OFFER_REJECTED', label: 'Từ chối offer letter' },
-    ],
-  },
-  onboarding: {
-    label: 'Trúng tuyển',
-    statuses: [
-      { value: 'WAITING_ONBOARDING', label: 'Chờ nhận việc' },
-      { value: 'ONBOARDING_ACCEPTED', label: 'Đồng ý nhận việc' },
-      { value: 'ONBOARDING_REJECTED', label: 'Từ chối nhận việc' },
-    ],
-  },
-}
-
+import { useCandidateStatuses } from '@/lib/useCandidateStatuses'
 interface CandidatesKanbanProps {
   candidates?: Candidate[]
   onStatusChange?: () => void
@@ -75,6 +33,7 @@ interface CandidatesKanbanProps {
   onPageChange?: (page: number) => void
   onLimitChange?: (limit: number) => void
   onTransferCampaign?: (candidate: any) => void
+  onViewDetail?: (candidateId: string) => void
 }
 
 export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
@@ -88,6 +47,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
     onPageChange,
     onLimitChange,
     onTransferCampaign,
+    onViewDetail,
   } = props
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [user, setUser] = useState<User | null>(null)
@@ -98,6 +58,8 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
     candidate: Candidate
     position: { x: number; y: number }
   } | null>(null)
+  
+  const { dbStatuses, dynamicGroups, loading: dbLoading } = useCandidateStatuses()
   
   // Local pagination state for standalone usage
   const [localPage, setLocalPage] = useState(1)
@@ -165,9 +127,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
   const getAllowedStatuses = (): string[] => {
     if (!user) return []
     if (user.role === 'ADMIN' || user.role === 'HEAD_OF_DEPARTMENT') {
-      return Object.values(STATUS_GROUPS).flatMap((group) =>
-        group.statuses.map((s) => s.value)
-      )
+      return dbStatuses.map((s) => s.code)
     }
     if (user.role === 'MANAGER') {
       return [
@@ -209,7 +169,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
 
     if (!draggedCandidate) return
 
-    const targetGroup = STATUS_GROUPS[targetGroupKey as keyof typeof STATUS_GROUPS]
+    const targetGroup = dynamicGroups[targetGroupKey]
     if (!targetGroup || targetGroup.statuses.length === 0) return
 
     // Get first status of target group
@@ -224,16 +184,15 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
     }
 
     try {
-      // Fetch status ID from backend
-      const statuses = await api.get('/types/by-category/CANDIDATE_STATUS')
-      const targetStatus = statuses.data.find((s: any) => s.code === firstStatus.value)
+      // Fetch status ID from backend not needed, we have targetStatus code
+      const targetStatus = dbStatuses.find((s: any) => s.code === firstStatus.value)
       if (!targetStatus) {
         alert('Không tìm thấy trạng thái')
         setDraggedCandidate(null)
         return
       }
       await api.patch(`/recruitment/candidates/${draggedCandidate.id}`, {
-        statusId: targetStatus.id,
+        status: targetStatus.code,
       })
       if (propsCandidates && onStatusChange) {
         onStatusChange()
@@ -275,41 +234,48 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
   }
 
   const getStatusLabel = (status: string | { id: string; name: string; code: string } | null | undefined) => {
-    if (!status) {
-      return 'Chưa có trạng thái'
-    }
-    if (typeof status === 'object') {
+    if (!status) return 'Chưa có trạng thái'
+    if (typeof status === 'object' && status.name) {
       return status.name
     }
+    const statusCode = typeof status === 'string' ? status : (status as any)?.code
+    if (!statusCode) return 'Chưa có trạng thái'
+    
     for (const group of Object.values(STATUS_GROUPS)) {
-      const found = group.statuses.find((s) => s.value === status)
+      const found = group.statuses.find((s) => s.value === statusCode)
       if (found) return found.label
     }
-    return status
+    return statusCode
   }
 
   const getStatusColor = (status: string | { id: string; name: string; code: string } | null | undefined) => {
-    if (!status) {
-      return 'bg-gray-50 border-gray-200'
-    }
+    if (!status) return 'bg-gray-50 border-gray-200'
     const statusCode = typeof status === 'object' ? status.code : status
-    if (!statusCode) {
-      return 'bg-gray-50 border-gray-200'
+    if (!statusCode) return 'bg-gray-50 border-gray-200'
+
+    if (statusCode === 'CV_FILTERING') {
+      return 'bg-sky-50 border-sky-200 shadow-sm'
     }
-    if (statusCode.includes('PASSED') || statusCode === 'OFFER_ACCEPTED' || statusCode === 'ONBOARDING_ACCEPTED') {
-      return 'bg-emerald-50 border-emerald-200'
+    if (statusCode === 'CV_PASSED' || statusCode === 'HR_INTERVIEW_PASSED' || statusCode === 'SM_AM_INTERVIEW_PASSED' || statusCode === 'OM_PV_INTERVIEW_PASSED') {
+      return 'bg-emerald-50 border-emerald-200 shadow-sm'
     }
-    if (statusCode.includes('FAILED') || statusCode === 'OFFER_REJECTED' || statusCode === 'ONBOARDING_REJECTED') {
-      return 'bg-red-50 border-red-200'
+    if (statusCode === 'CV_FAILED' || statusCode === 'HR_INTERVIEW_FAILED' || statusCode === 'SM_AM_INTERVIEW_FAILED' || statusCode === 'OM_PV_INTERVIEW_FAILED' || statusCode === 'BLACKLIST') {
+      return 'bg-rose-50 border-rose-200 shadow-sm'
     }
-    if (statusCode.includes('WAITING') || statusCode === 'OFFER_SENT') {
-      return 'bg-amber-50 border-amber-200'
+    if (statusCode === 'WAITING_INTERVIEW' || statusCode === 'WAITING_ONBOARDING' || statusCode === 'OFFER_SENT') {
+      return 'bg-amber-50 border-amber-200 shadow-sm'
     }
-    return 'bg-blue-50 border-blue-200'
+    if (statusCode === 'OFFER_ACCEPTED' || statusCode === 'ONBOARDING_ACCEPTED') {
+      return 'bg-green-50 border-green-200 shadow-sm font-semibold'
+    }
+    if (statusCode === 'CANNOT_CONTACT' || statusCode === 'AREA_NOT_RECRUITING') {
+      return 'bg-slate-50 border-slate-200 shadow-sm'
+    }
+    return 'bg-white border-gray-200 shadow-sm'
   }
 
   const getCandidatesByGroup = (groupKey: string) => {
-    const group = STATUS_GROUPS[groupKey as keyof typeof STATUS_GROUPS]
+    const group = dynamicGroups[groupKey]
     if (!group) return []
     
     return candidates.filter((c) => {
@@ -328,11 +294,15 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
     }
     e.preventDefault()
     e.stopPropagation()
-    window.location.href = `/dashboard/recruitment/candidates/${candidate.id}`
+    if (onViewDetail) {
+      onViewDetail(candidate.id)
+    } else {
+      window.location.href = `/dashboard/recruitment/candidates/${candidate.id}`
+    }
   }
 
   const allowedStatuses = getAllowedStatuses()
-  const allStatuses = Object.values(STATUS_GROUPS).flatMap((group) => group.statuses)
+  const allStatuses = dbStatuses.map((s) => ({ value: s.code, label: s.name }))
 
   if (loading) {
     return <div className="text-center py-4">Đang tải...</div>
@@ -398,7 +368,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
                 return
               }
               await api.patch(`/recruitment/candidates/${candidate.id}`, {
-                statusId: targetStatus.id,
+                status: targetStatus.code,
               })
               if (propsCandidates && onStatusChange) {
                 onStatusChange()
@@ -418,7 +388,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
         />
       )}
       <div className="flex gap-4 min-w-max">
-        {Object.entries(STATUS_GROUPS).map(([groupKey, group]) => {
+        {Object.entries(dynamicGroups).map(([groupKey, group]) => {
           const groupCandidates = getCandidatesByGroup(groupKey)
           return (
             <div key={groupKey} className="flex-shrink-0 w-80">
@@ -476,9 +446,9 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
                             <span className="font-medium">Vị trí:</span> {candidate.position}
                           </div>
                         )}
-                        {candidate.store && (
+                        {candidate.store && typeof candidate.store === 'object' && candidate.store !== null && 'name' in candidate.store && (
                           <div className="text-xs text-gray-500">
-                            {candidate.store.name}
+                            {(candidate.store as { name: string }).name}
                           </div>
                         )}
                       </div>
@@ -489,6 +459,12 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
                         <div className="text-xs px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 font-medium">
                           {getStatusLabel(candidate.status)}
                         </div>
+                      </div>
+                      <div className="flex items-center gap-1 text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+                        <Icon name="campaign" size={10} />
+                        <span className="truncate">
+                          {typeof candidate.campaign === 'object' && candidate.campaign !== null && 'name' in candidate.campaign ? candidate.campaign.name : 'Chiến dịch tuyển dụng tổng'}
+                        </span>
                       </div>
                     </div>
                   ))}

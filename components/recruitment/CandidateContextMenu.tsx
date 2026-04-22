@@ -26,69 +26,6 @@ interface DynamicStatus {
   color?: string
 }
 
-const STATUS_GROUPS = {
-  application: {
-    label: 'Ứng tuyển',
-    statuses: [
-      { value: 'CV_FILTERING', label: 'Lọc CV' },
-      { value: 'CV_PASSED', label: 'Ứng viên đạt' },
-      { value: 'CV_FAILED', label: 'Ứng viên loại' },
-      { value: 'BLACKLIST', label: 'Blacklist' },
-      { value: 'CANNOT_CONTACT', label: 'Không liên hệ được' },
-      { value: 'AREA_NOT_RECRUITING', label: 'Khu vực chưa tuyển dụng' },
-    ],
-  },
-  interview: {
-    label: 'Phỏng vấn',
-    subgroups: {
-      waiting: {
-        label: 'Chờ phỏng vấn',
-        statuses: [
-          { value: 'WAITING_INTERVIEW', label: 'Chờ phỏng vấn' },
-        ],
-      },
-      hr: {
-        label: 'HR sơ vấn',
-        statuses: [
-          { value: 'HR_INTERVIEW_PASSED', label: 'HR sơ vấn đạt' },
-          { value: 'HR_INTERVIEW_FAILED', label: 'HR sơ vấn loại' },
-        ],
-      },
-      sm_am: {
-        label: 'SM/AM PV',
-        statuses: [
-          { value: 'SM_AM_INTERVIEW_PASSED', label: 'SM/AM PV Đạt' },
-          { value: 'SM_AM_INTERVIEW_FAILED', label: 'SM/AM PV Loại' },
-          { value: 'SM_AM_INTERVIEW_NO_SHOW', label: 'SM/AM PV Không đến PV' },
-        ],
-      },
-      om_pv: {
-        label: 'OM PV',
-        statuses: [
-          { value: 'OM_PV_INTERVIEW_PASSED', label: 'OM PV Đạt' },
-          { value: 'OM_PV_INTERVIEW_FAILED', label: 'OM PV Loại' },
-          { value: 'OM_PV_INTERVIEW_NO_SHOW', label: 'OM PV Không đến PV' },
-        ],
-      },
-    },
-  },
-  offer: {
-    label: 'Thư mời',
-    statuses: [
-      { value: 'OFFER_SENT', label: 'Đã gửi offer letter' },
-      { value: 'OFFER_ACCEPTED', label: 'Đồng ý offer letter' },
-      { value: 'OFFER_REJECTED', label: 'Từ chối offer letter' },
-    ],
-  },
-  onboarding: {
-    label: 'Trúng tuyển',
-    statuses: [
-      { value: 'WAITING_ONBOARDING', label: 'Chờ nhận việc' },
-      { value: 'ONBOARDING_ACCEPTED', label: 'Đồng ý nhận việc' },
-      { value: 'ONBOARDING_REJECTED', label: 'Từ chối nhận việc' },
-    ],
-  },
-}
 
 interface CandidateContextMenuProps {
   candidate: Candidate | null
@@ -99,6 +36,7 @@ interface CandidateContextMenuProps {
   onDelete?: (candidateId: string) => void
   onScheduleInterview?: (candidate: any) => void
   onTransferCampaign?: (candidate: any) => void
+  onViewDetail?: (candidateId: string) => void
   allowedStatuses?: string[]
   statusOptions?: StatusOption[]
 }
@@ -112,6 +50,7 @@ export default function CandidateContextMenu({
   onDelete,
   onScheduleInterview,
   onTransferCampaign,
+  onViewDetail,
   allowedStatuses = [],
   statusOptions = [],
 }: CandidateContextMenuProps) {
@@ -125,9 +64,19 @@ export default function CandidateContextMenu({
 
   useEffect(() => {
     if (showStatusSubmenu && dynamicStatuses.length === 0) {
+      if (statusOptions && statusOptions.length > 0) {
+        // Fallback to hardcoded status options if dynamic ones aren't loaded yet
+        const mappedStatuses: DynamicStatus[] = statusOptions.map((s, index) => ({
+          id: s.value,
+          code: s.value,
+          name: s.label,
+          order: index,
+        }))
+        setDynamicStatuses(mappedStatuses)
+      }
       loadStatuses()
     }
-  }, [showStatusSubmenu])
+  }, [showStatusSubmenu, dynamicStatuses.length, statusOptions])
 
   useEffect(() => {
     if (!candidate || !position) return
@@ -189,9 +138,22 @@ export default function CandidateContextMenu({
       const statuses = res.data
         .filter((s: any) => s.isActive)
         .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
-      setDynamicStatuses(statuses)
+      
+      if (statuses.length > 0) {
+        setDynamicStatuses(statuses)
+      }
     } catch (err) {
-      console.error('Error loading statuses:', err)
+      console.warn('Could not load dynamic statuses, using static options fallback:', err)
+      // If failed and we don't have dynamic ones, ensure we at least have static ones
+      if (dynamicStatuses.length === 0 && statusOptions && statusOptions.length > 0) {
+        const mappedStatuses: DynamicStatus[] = statusOptions.map((s, index) => ({
+          id: s.value,
+          code: s.value,
+          name: s.label,
+          order: index,
+        }))
+        setDynamicStatuses(mappedStatuses)
+      }
     } finally {
       setLoadingStatuses(false)
     }
@@ -239,7 +201,11 @@ export default function CandidateContextMenu({
       label: 'Xem chi tiết',
       icon: 'eye',
       action: () => {
-        router.push(`/dashboard/recruitment/candidates/${candidate.id}`)
+        if (onViewDetail) {
+          onViewDetail(candidate.id)
+        } else {
+          router.push(`/dashboard/recruitment/candidates/${candidate.id}`)
+        }
         onClose()
       },
     },

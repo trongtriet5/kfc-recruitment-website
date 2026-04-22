@@ -50,15 +50,44 @@ export class OrganizationService {
   }
 
   // Stores
-  async getStores() {
+  async getStores(user?: any) {
+    const where: any = { isActive: true };
+    
+    // Filter by user access for SM/AM
+    if (user && user.role !== 'ADMIN') {
+      const userWithStore = await this.prisma.user.findUnique({
+        where: { id: user.id },
+        include: { 
+          managedStore: { select: { id: true } },
+          managedStores: { select: { id: true } }
+        }
+      });
+      
+      if (user.role === 'USER' && userWithStore?.managedStore) {
+        where.id = userWithStore.managedStore.id;
+      } else if (user.role === 'MANAGER' && userWithStore?.managedStores?.length > 0) {
+        where.id = { in: userWithStore.managedStores.map(s => s.id) };
+      }
+    }
+
     return this.prisma.store.findMany({
-      where: { isActive: true },
+      where,
+      include: {
+        sm: { select: { id: true, fullName: true, email: true } },
+        am: { select: { id: true, fullName: true, email: true } }
+      },
       orderBy: { name: 'asc' },
     });
   }
 
-  async getStore(id: string) {
-    const store = await this.prisma.store.findUnique({ where: { id } });
+  async getStore(id: string, user?: any) {
+    const store = await this.prisma.store.findUnique({ 
+      where: { id },
+      include: {
+        sm: { select: { id: true, fullName: true, email: true } },
+        am: { select: { id: true, fullName: true, email: true } }
+      }
+    });
     if (!store) throw new NotFoundException('Store not found');
     return store;
   }
@@ -75,5 +104,92 @@ export class OrganizationService {
 
   async deleteStore(id: string) {
     return this.prisma.store.update({ where: { id }, data: { isActive: false } });
+  }
+
+// Helper to convert BigInt values to numbers for JSON serialization
+  private convertBigInt(obj: any): any {
+    if (obj === null || obj === undefined) return obj;
+    if (Array.isArray(obj)) return obj.map(item => this.convertBigInt(item));
+    if (typeof obj === 'bigint') return Number(obj);
+    
+    const result: any = {};
+    for (const key of Object.keys(obj)) {
+      const value = obj[key];
+      result[key] = typeof value === 'bigint' ? Number(value) : value;
+    }
+    return result;
+  }
+
+  // Administrative Regions (Vùng)
+  async getRegions() {
+    const results: any[] = await this.prisma.$queryRaw`SELECT * FROM administrative_regions ORDER BY name`;
+    return results.map((r: any) => this.convertBigInt(r));
+  }
+
+  // Provinces (Tỉnh/Thành)
+  async getProvinces(regionId?: number) {
+    let results: any[];
+    if (regionId) {
+      results = await this.prisma.$queryRaw`SELECT * FROM provinces WHERE administrative_region_id = ${regionId} ORDER BY name`;
+    } else {
+      results = await this.prisma.$queryRaw`SELECT * FROM provinces ORDER BY name`;
+    }
+    return results.map((r: any) => this.convertBigInt(r));
+  }
+
+  async getProvince(code: bigint) {
+    const results: any[] = await this.prisma.$queryRaw`SELECT * FROM provinces WHERE code = ${code}`;
+    return results[0] ? this.convertBigInt(results[0]) : null;
+  }
+
+  // Administrative Units (Cấp hành chính)
+  async getAdministrativeUnits() {
+    const results: any[] = await this.prisma.$queryRaw`SELECT * FROM administrative_units ORDER BY short_name`;
+    return results.map((r: any) => this.convertBigInt(r));
+  }
+
+  // Wards (Phường/Xã)
+  async getWards(provinceCode?: bigint, unitId?: number) {
+    let results: any[];
+    if (provinceCode && unitId) {
+      results = await this.prisma.$queryRaw`SELECT * FROM wards WHERE province_code = ${provinceCode} AND administrative_unit_id = ${unitId} ORDER BY name`;
+    } else if (provinceCode) {
+      results = await this.prisma.$queryRaw`SELECT * FROM wards WHERE province_code = ${provinceCode} ORDER BY name`;
+    } else {
+      results = await this.prisma.$queryRaw`SELECT * FROM wards ORDER BY name`;
+    }
+    return results.map((r: any) => this.convertBigInt(r));
+  }
+
+  async getWard(code: bigint) {
+    const results: any[] = await this.prisma.$queryRaw`SELECT * FROM wards WHERE code = ${code}`;
+    return results[0] ? this.convertBigInt(results[0]) : null;
+  }
+
+  // Get full address hierarchy
+  async getAddressHierarchy(provinceCode: bigint, wardCode: bigint) {
+    const province = await this.getProvince(provinceCode);
+    const ward = await this.getWard(wardCode);
+    const unit = province?.administrative_unit_id 
+      ? await this.prisma.$queryRaw`SELECT * FROM administrative_units WHERE id = ${province.administrative_unit_id}`
+      : null;
+    
+    return {
+      province: province ? {
+        code: province.code,
+        name: province.full_name || province.name,
+        unit: unit?.[0]?.short_name || null
+      } : null,
+      ward: ward ? {
+        code: ward.code,
+        name: ward.full_name || ward.name,
+        unit: ward.administrative_unit_id ? await this.getAdministrativeUnitName(ward.administrative_unit_id) : null
+      } : null
+    };
+  }
+
+  private async getAdministrativeUnitName(id: number) {
+    const results = await this.prisma.$queryRaw`SELECT short_name FROM administrative_units WHERE id = ${id}`;
+    return results[0]?.short_name || null;
   }
 }

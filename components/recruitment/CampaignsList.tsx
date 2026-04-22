@@ -13,7 +13,8 @@ interface Campaign {
   startDate: string
   endDate: string | null
   isActive: boolean
-  form: { title: string; brand: string }
+  form: { id: string; title: string; brand: string }
+  store?: { id: string; name: string; code: string }
   _count: { candidates: number }
 }
 
@@ -22,18 +23,24 @@ export default function CampaignsList() {
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null)
   const [forms, setForms] = useState<any[]>([])
+  const [stores, setStores] = useState<any[]>([])
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('')
   const [statistics, setStatistics] = useState<any>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; campaign: Campaign } | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     formId: '',
+    storeId: '',
     startDate: '',
     endDate: '',
     isActive: true,
   })
   const createFormRef = useRef<HTMLDivElement>(null)
+  const editModalRef = useRef<HTMLDivElement>(null)
 
   useClickOutside(createFormRef, () => {
     if (showCreateForm) {
@@ -42,6 +49,7 @@ export default function CampaignsList() {
         name: '',
         description: '',
         formId: '',
+        storeId: '',
         startDate: '',
         endDate: '',
         isActive: true,
@@ -49,11 +57,23 @@ export default function CampaignsList() {
     }
   }, showCreateForm)
 
+  useClickOutside(editModalRef, () => {
+    setShowEditModal(false)
+    setEditingCampaign(null)
+  }, showEditModal)
+
   useEffect(() => {
     loadUser()
     loadCampaigns()
     loadForms()
+    loadStores()
     loadStatistics()
+  }, [])
+
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null)
+    window.addEventListener('click', handleClick)
+    return () => window.removeEventListener('click', handleClick)
   }, [])
 
   useEffect(() => {
@@ -72,6 +92,57 @@ export default function CampaignsList() {
       .get('/recruitment/forms')
       .then((res) => setForms(res.data))
       .catch(console.error)
+  }
+
+  const loadStores = () => {
+    api
+      .get('/stores')
+      .then((res) => setStores(res.data))
+      .catch(console.error)
+  }
+
+  const handleContextMenu = (e: React.MouseEvent, campaign: Campaign) => {
+    e.preventDefault()
+    setContextMenu({ x: e.clientX, y: e.clientY, campaign })
+  }
+
+  const handleEdit = (campaign: Campaign) => {
+    setEditingCampaign(campaign)
+    setFormData({
+      name: campaign.name,
+      description: campaign.description || '',
+      formId: campaign.form?.id || '',
+      storeId: campaign.store?.id || '',
+      startDate: campaign.startDate?.split('T')[0] || '',
+      endDate: campaign.endDate?.split('T')[0] || '',
+      isActive: campaign.isActive,
+    })
+    setShowEditModal(true)
+    setContextMenu(null)
+  }
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingCampaign) return
+    try {
+      await api.patch(`/recruitment/campaigns/${editingCampaign.id}`, formData)
+      setShowEditModal(false)
+      setEditingCampaign(null)
+      loadCampaigns()
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Có lỗi xảy ra')
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    setContextMenu(null)
+    if (!confirm('Bạn có chắc chắn muốn xóa chiến dịch này?')) return
+    try {
+      await api.delete(`/recruitment/campaigns/${id}`)
+      loadCampaigns()
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Có lỗi xảy ra')
+    }
   }
 
   const loadCampaigns = () => {
@@ -115,6 +186,7 @@ export default function CampaignsList() {
         name: '',
         description: '',
         formId: '',
+        storeId: '',
         startDate: '',
         endDate: '',
         isActive: true,
@@ -127,19 +199,10 @@ export default function CampaignsList() {
   }
 
   const handleToggleActive = async (id: string, currentStatus: boolean) => {
+    setContextMenu(null)
     if (!confirm(currentStatus ? 'Bạn muốn tạm dừng chiến dịch này?' : 'Bạn muốn mở lại chiến dịch này?')) return
     try {
       await api.patch(`/recruitment/campaigns/${id}`, { isActive: !currentStatus })
-      loadCampaigns()
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Có lỗi xảy ra')
-    }
-  }
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa chiến dịch này?')) return
-    try {
-      await api.delete(`/recruitment/campaigns/${id}`)
       loadCampaigns()
     } catch (err: any) {
       alert(err.response?.data?.message || 'Có lỗi xảy ra')
@@ -264,6 +327,25 @@ export default function CampaignsList() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Cửa hàng
+                </label>
+                <select
+                  value={formData.storeId}
+                  onChange={(e) => setFormData({ ...formData, storeId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                >
+                  <option value="">Chọn cửa hàng</option>
+                  {stores.map((store) => (
+                    <option key={store.id} value={store.id}>
+                      {store.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Ngày bắt đầu <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -324,7 +406,11 @@ export default function CampaignsList() {
             campaigns
               .filter((campaign) => !selectedCampaignId || campaign.id === selectedCampaignId)
               .map((campaign) => (
-              <li key={campaign.id} className="px-4 py-4 sm:px-6">
+              <li 
+                  key={campaign.id} 
+                  className="px-4 py-4 sm:px-6 hover:bg-gray-50 cursor-context-menu"
+                  onContextMenu={(e) => handleContextMenu(e, campaign)}
+                >
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className="flex items-center">
@@ -338,10 +424,15 @@ export default function CampaignsList() {
                       >
                         {campaign.isActive ? 'Đang hoạt động' : 'Tạm dừng'}
                       </span>
+                      {campaign.store && (
+                        <span className="ml-2 text-xs text-gray-500">
+                          Cửa hàng: {campaign.store.name}
+                        </span>
+                      )}
                     </div>
                     <p className="mt-1 text-sm text-gray-500">{campaign.description}</p>
                     <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
-                      <span>Form: {campaign.form.title}</span>
+                      <span>Form: {campaign.form?.title}</span>
                       <span>
                         {new Date(campaign.startDate).toLocaleDateString('vi-VN')}
                         {campaign.endDate &&
@@ -395,6 +486,135 @@ export default function CampaignsList() {
           )}
         </ul>
       </div>
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div 
+          className="fixed bg-white shadow-lg rounded-md border py-1 z-50"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button
+            onClick={() => handleEdit(contextMenu.campaign)}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+          >
+            <Icon name="edit" size={16} /> Chỉnh sửa
+          </button>
+          <button
+            onClick={() => handleToggleActive(contextMenu.campaign.id, contextMenu.campaign.isActive)}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+          >
+            <Icon name={contextMenu.campaign.isActive ? 'pause' : 'play'} size={16} />
+            {contextMenu.campaign.isActive ? 'Tạm dừng' : 'Mở lại'}
+          </button>
+          {contextMenu.campaign._count?.candidates === 0 && (
+            <button
+              onClick={() => handleDelete(contextMenu.campaign.id)}
+              className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 text-red-600 flex items-center gap-2"
+            >
+              <Icon name="trash" size={16} /> Xóa
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && editingCampaign && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div ref={editModalRef} className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium mb-4">Chỉnh sửa chiến dịch</h3>
+            <form onSubmit={handleUpdate} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tên chiến dịch <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  rows={3}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Cửa hàng
+                </label>
+                <select
+                  value={formData.storeId}
+                  onChange={(e) => setFormData({ ...formData, storeId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                >
+                  <option value="">Chọn cửa hàng</option>
+                  {stores.map((store) => (
+                    <option key={store.id} value={store.id}>
+                      {store.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Ngày bắt đầu <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.startDate}
+                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ngày kết thúc</label>
+                  <input
+                    type="date"
+                    value={formData.endDate}
+                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="editIsActive"
+                  checked={formData.isActive}
+                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                  className="mr-2"
+                />
+                <label htmlFor="editIsActive" className="text-sm text-gray-700">
+                  Kích hoạt
+                </label>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => { setShowEditModal(false); setEditingCampaign(null) }}
+                  className="px-4 py-2 border border-gray-300 rounded-md"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+                >
+                  Lưu
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

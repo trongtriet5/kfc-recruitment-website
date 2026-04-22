@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
+import toast from 'react-hot-toast'
 
 interface Candidate {
   id: string
@@ -28,10 +29,18 @@ interface TypeOption {
   name: string
 }
 
-export default function CreateInterviewForm() {
+export default function CreateInterviewForm({
+  candidateId: initialCandidateId,
+  onSuccess,
+  onCancel,
+}: {
+  candidateId?: string
+  onSuccess?: () => void
+  onCancel?: () => void
+}) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const candidateIdParam = searchParams.get('candidateId')
+  const candidateIdParam = initialCandidateId || searchParams.get('candidateId')
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -129,14 +138,17 @@ export default function CreateInterviewForm() {
       if (resultId) payload.resultId = resultId
 
       await api.post('/recruitment/interviews', payload)
-      router.push('/dashboard/recruitment')
-      router.refresh()
+      toast.success('Tạo lịch phỏng vấn thành công')
+      if (onSuccess) {
+        onSuccess()
+      } else {
+        router.push('/dashboard/recruitment')
+        router.refresh()
+      }
     } catch (err: any) {
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          'Có lỗi xảy ra khi tạo lịch phỏng vấn. Vui lòng thử lại.'
-      )
+      const errorMsg = err.response?.data?.message || err.message || 'Có lỗi xảy ra khi tạo lịch phỏng vấn'
+      toast.error(errorMsg)
+      setError(errorMsg)
     } finally {
       setLoading(false)
     }
@@ -155,8 +167,8 @@ export default function CreateInterviewForm() {
   }
 
   return (
-    <div className="bg-white shadow rounded-lg p-6">
-      <h2 className="text-xl font-semibold mb-6">Tạo lịch phỏng vấn</h2>
+    <div className={onSuccess ? "" : "bg-white shadow rounded-lg p-6"}>
+      {!onSuccess && <h2 className="text-xl font-semibold mb-6">Tạo lịch phỏng vấn</h2>}
 
       {error && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md text-red-700">
@@ -170,7 +182,7 @@ export default function CreateInterviewForm() {
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Ứng viên <span className="text-red-500">*</span>
           </label>
-          {candidateIdParam && candidate ? (
+          {(candidateIdParam || initialCandidateId) && candidate ? (
             <div className="p-3 bg-gray-50 border border-gray-300 rounded-md">
               <div className="font-medium text-gray-900">{candidate.fullName}</div>
               <div className="text-sm text-gray-600">{candidate.phone}</div>
@@ -187,8 +199,8 @@ export default function CreateInterviewForm() {
             >
               <option value="">Chọn ứng viên</option>
               {candidates.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {candidate.fullName} - {candidate.phone}
+                <option key={typeof candidate === 'object' && candidate !== null && 'id' in candidate ? candidate.id : ''} value={typeof candidate === 'object' && candidate !== null && 'id' in candidate ? candidate.id : ''}>
+                  {typeof candidate === 'object' && candidate !== null && 'fullName' in candidate ? candidate.fullName : 'Unknown'} - {typeof candidate === 'object' && candidate !== null && 'phone' in candidate ? candidate.phone : ''}
                 </option>
               ))}
             </select>
@@ -207,11 +219,14 @@ export default function CreateInterviewForm() {
             required
           >
             <option value="">Chọn người phỏng vấn</option>
-            {employees.map((employee) => (
-              <option key={employee.user!.id} value={employee.user!.id}>
-                {employee.fullName} ({employee.user!.email})
-              </option>
-            ))}
+            {employees.map((employee) => {
+              const empUser = employee.user && typeof employee.user === 'object' && employee.user !== null ? employee.user : null
+              return (
+                <option key={empUser && 'id' in empUser ? empUser.id : ''} value={empUser && 'id' in empUser ? empUser.id : ''}>
+                  {typeof employee === 'object' && employee !== null && 'fullName' in employee ? employee.fullName : 'Unknown'} ({empUser && 'email' in empUser ? empUser.email : ''})
+                </option>
+              )
+            })}
           </select>
         </div>
 
@@ -228,8 +243,8 @@ export default function CreateInterviewForm() {
           >
             <option value="">Chọn loại phỏng vấn</option>
             {interviewTypes.map((type) => (
-              <option key={type.id} value={type.id}>
-                {type.name}
+              <option key={typeof type === 'object' && type !== null && 'id' in type ? type.id : ''} value={typeof type === 'object' && type !== null && 'id' in type ? type.id : ''}>
+                {typeof type === 'object' && type !== null && 'name' in type ? type.name : 'Unknown'}
               </option>
             ))}
           </select>
@@ -289,8 +304,8 @@ export default function CreateInterviewForm() {
           >
             <option value="">Chưa có kết quả</option>
             {interviewResults.map((result) => (
-              <option key={result.id} value={result.id}>
-                {result.name}
+              <option key={typeof result === 'object' && result !== null && 'id' in result ? result.id : ''} value={typeof result === 'object' && result !== null && 'id' in result ? result.id : ''}>
+                {typeof result === 'object' && result !== null && 'name' in result ? result.name : 'Unknown'}
               </option>
             ))}
           </select>
@@ -303,7 +318,7 @@ export default function CreateInterviewForm() {
         <div className="flex justify-end space-x-3 pt-4 border-t">
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={onCancel || (() => router.back())}
             className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
           >
             Hủy

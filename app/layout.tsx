@@ -6,8 +6,8 @@ import { Providers } from './providers'
 const lexend = Lexend({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Tịnh Thế Vinh Hoa HRIS',
-  description: 'Hệ thống quản lý nhân sự Tịnh Thế Vinh Hoa',
+  title: 'KFC Recruitment',
+  description: 'Hệ thống tuyển dụng nhân sự KFC',
 }
 
 export default function RootLayout({

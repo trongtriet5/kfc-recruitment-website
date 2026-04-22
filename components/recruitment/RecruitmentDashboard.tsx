@@ -94,6 +94,20 @@ export default function RecruitmentDashboard() {
   const candidatesByCampaign = data.candidatesByCampaign || []
   const candidatesByStore = data.candidatesByStore || []
   const funnelData = data.funnelData || []
+  
+  const cvPassedCount = candidatesByStatus
+    .filter((s) => [
+      'SM_AM_INTERVIEW_PASSED',
+      'OM_PV_INTERVIEW_PASSED',
+      'OFFER_SENT',
+      'OFFER_ACCEPTED',
+      'OFFER_REJECTED',
+      'WAITING_ONBOARDING',
+      'ONBOARDING_ACCEPTED',
+      'ONBOARDING_REJECTED'
+    ].includes(s.statusCode))
+    .reduce((sum, s) => sum + (s.count || 0), 0);
+
   const statusChartData = {
     series: candidatesByStatus
       .filter((s) => s.count > 0)
@@ -149,7 +163,7 @@ export default function RecruitmentDashboard() {
         },
       },
     },
-    colors: ['#F59E0B'],
+    colors: ['#E31837'],
     tooltip: {
       y: {
         formatter: (val: number) => `${val} ứng viên`,
@@ -308,8 +322,6 @@ export default function RecruitmentDashboard() {
         .map((s) => s.count),
     },
   ]
-
-
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
@@ -381,7 +393,7 @@ export default function RecruitmentDashboard() {
             <div>
               <p className="text-sm font-medium text-gray-600">CV đạt</p>
               <p className="text-3xl font-bold text-emerald-600 mt-2">
-                {candidatesByStatus.find((s) => s.statusCode === 'CV_PASSED')?.count || 0}
+                {cvPassedCount}
               </p>
             </div>
             <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
@@ -654,5 +666,6 @@ export default function RecruitmentDashboard() {
           </div>
         </div>
       </div>
-      )
+    </div>
+  )
 }

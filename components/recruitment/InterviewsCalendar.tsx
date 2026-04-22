@@ -133,7 +133,7 @@ export default function InterviewsCalendar() {
             className="border border-gray-300 rounded-md px-3 py-2 text-sm"
           >
             <option value="">Tất cả vòng PV</option>
-            {types.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            {types.map(t => <option key={typeof t === 'object' && t !== null && 'id' in t ? t.id : ''} value={typeof t === 'object' && t !== null && 'id' in t ? t.id : ''}>{typeof t === 'object' && t !== null && 'name' in t ? t.name : 'Unknown'}</option>)}
           </select>
           <select
             value={resultId}
@@ -141,7 +141,7 @@ export default function InterviewsCalendar() {
             className="border border-gray-300 rounded-md px-3 py-2 text-sm"
           >
             <option value="">Tất cả kết quả</option>
-            {results.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+            {results.map(r => <option key={typeof r === 'object' && r !== null && 'id' in r ? r.id : ''} value={typeof r === 'object' && r !== null && 'id' in r ? r.id : ''}>{typeof r === 'object' && r !== null && 'name' in r ? r.name : 'Unknown'}</option>)}
           </select>
           <select
             value={viewMode}
@@ -202,11 +202,11 @@ export default function InterviewsCalendar() {
                           </div>
                           <div className="text-sm">
                             <p className="font-medium text-gray-900">
-                              Ứng viên: {interview.candidate.fullName}
+                              Ứng viên: {typeof interview.candidate === 'object' && interview.candidate !== null && 'fullName' in interview.candidate ? interview.candidate.fullName : 'N/A'}
                             </p>
-                            <p className="text-gray-500">{interview.candidate.phone}</p>
+                            <p className="text-gray-500">{typeof interview.candidate === 'object' && interview.candidate !== null && 'phone' in interview.candidate ? interview.candidate.phone : ''}</p>
                             <p className="text-gray-500">
-                              Người phỏng vấn: {interview.interviewer.fullName}
+                              Người phỏng vấn: {typeof interview.interviewer === 'object' && interview.interviewer !== null && 'fullName' in interview.interviewer ? interview.interviewer.fullName : 'N/A'}
                             </p>
                             {interview.location && (
                               <p className="text-gray-500">Địa điểm: {interview.location}</p>

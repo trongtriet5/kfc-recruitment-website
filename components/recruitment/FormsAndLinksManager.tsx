@@ -50,6 +50,7 @@ interface RecruitmentForm {
 export default function FormsAndLinksManager() {
   const router = useRouter()
   const [forms, setForms] = useState<RecruitmentForm[]>([])
+  const [sources, setSources] = useState<{id: string, name: string}[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [editingForm, setEditingForm] = useState<RecruitmentForm | null>(null)
@@ -64,8 +65,8 @@ export default function FormsAndLinksManager() {
     formTitle: '',
     formContent: '',
     bannerUrl: '',
-    primaryColor: '#F59E0B',
-    secondaryColor: '#FCD34D',
+    primaryColor: '#E31837',
+    secondaryColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     textColor: '#111827',
     isActive: true,
@@ -83,8 +84,8 @@ export default function FormsAndLinksManager() {
         formTitle: '',
         formContent: '',
         bannerUrl: '',
-        primaryColor: '#F59E0B',
-        secondaryColor: '#FCD34D',
+        primaryColor: '#E31837',
+        secondaryColor: '#FFFFFF',
         backgroundColor: '#FFFFFF',
         textColor: '#111827',
         isActive: true,
@@ -101,6 +102,7 @@ export default function FormsAndLinksManager() {
 
   useEffect(() => {
     loadForms()
+    loadSources()
   }, [])
 
   const loadForms = () => {
@@ -109,6 +111,13 @@ export default function FormsAndLinksManager() {
       .then((res) => setForms(res.data))
       .catch(console.error)
       .finally(() => setLoading(false))
+  }
+
+  const loadSources = () => {
+    api
+      .get('/recruitment/sources')
+      .then((res) => setSources(res.data))
+      .catch(console.error)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -128,8 +137,8 @@ export default function FormsAndLinksManager() {
         formTitle: '',
         formContent: '',
         bannerUrl: '',
-        primaryColor: '#F59E0B',
-        secondaryColor: '#FCD34D',
+        primaryColor: '#E31837',
+        secondaryColor: '#FFFFFF',
         backgroundColor: '#FFFFFF',
         textColor: '#111827',
         isActive: true,
@@ -186,8 +195,8 @@ export default function FormsAndLinksManager() {
       formTitle: form.formTitle || '',
       formContent: form.formContent || '',
       bannerUrl: form.bannerUrl || '',
-      primaryColor: form.primaryColor || '#F59E0B',
-      secondaryColor: form.secondaryColor || '#FCD34D',
+      primaryColor: form.primaryColor || '#E31837',
+      secondaryColor: form.secondaryColor || '#FFFFFF',
       backgroundColor: form.backgroundColor || '#FFFFFF',
       textColor: form.textColor || '#111827',
       isActive: form.isActive,
@@ -233,8 +242,8 @@ export default function FormsAndLinksManager() {
               formTitle: '',
               formContent: '',
               bannerUrl: '',
-              primaryColor: '#F59E0B',
-              secondaryColor: '#FCD34D',
+              primaryColor: '#E31837',
+              secondaryColor: '#FFFFFF',
               backgroundColor: '#FFFFFF',
               textColor: '#111827',
               isActive: true,
@@ -295,14 +304,19 @@ export default function FormsAndLinksManager() {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Nguồn <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        type="text"
+                      <select
                         value={formData.source}
                         onChange={(e) => setFormData({ ...formData, source: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        placeholder="Ví dụ: Facebook, Website..."
                         required
-                      />
+                      >
+                        <option value="">Chọn nguồn...</option>
+                        {sources.map((source) => (
+                          <option key={source.id} value={source.name}>
+                            {source.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                 </div>
               </div>
@@ -407,8 +421,8 @@ export default function FormsAndLinksManager() {
                 formTitle: designingForm.formTitle || '',
                 formContent: designingForm.formContent || '',
                 bannerUrl: designingForm.bannerUrl || '',
-                primaryColor: designingForm.primaryColor || '#F59E0B',
-                secondaryColor: designingForm.secondaryColor || '#FCD34D',
+                primaryColor: designingForm.primaryColor || '#E31837',
+                secondaryColor: designingForm.secondaryColor || '#FFFFFF',
                 backgroundColor: designingForm.backgroundColor || '#FFFFFF',
                 textColor: designingForm.textColor || '#111827',
               }}
@@ -444,8 +458,25 @@ export default function FormsAndLinksManager() {
             </div>
             <div className="p-6">
               <p className="text-gray-600 text-sm mb-4">
-                Form này được dùng chung cho các chiến dịch. Để xem form, vui lòng truy cập qua link chiến dịch.
+                Form này được dùng chung cho các chiến dịch. Dưới đây là link để ứng viên điền thông tin:
               </p>
+              <div className="flex items-center gap-2">
+                <input
+                  readOnly
+                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/apply?link=${selectedForm?.link}`}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-50"
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/apply?link=${selectedForm?.link}`)
+                    alert('Đã copy link!')
+                  }}
+                  className="px-3 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 flex items-center gap-1"
+                >
+                  <Icon name="copy" size={16} />
+                  Copy link
+                </button>
+              </div>
             </div>
             <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex items-center justify-end">
               <button

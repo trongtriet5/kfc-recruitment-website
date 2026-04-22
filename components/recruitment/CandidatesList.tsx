@@ -3,10 +3,18 @@
 import { useEffect, useState, useRef } from 'react'
 import api from '@/lib/api'
 import Link from 'next/link'
+import toast from 'react-hot-toast'
 import CandidateContextMenu from './CandidateContextMenu'
 import CandidatesKanban from './CandidatesKanban'
 import { useClickOutside } from '@/hooks/useClickOutside'
 import Icon from '@/components/icons/Icon'
+import { useCandidateStatuses } from '@/lib/useCandidateStatuses'
+import Modal from '@/components/common/Modal'
+import CreateCandidateForm from './CreateCandidateForm'
+import EditCandidateForm from './EditCandidateForm'
+import CreateInterviewForm from './CreateInterviewForm'
+import CandidateDetail from './CandidateDetail'
+
 interface Candidate {
   id: string
   fullName: string
@@ -15,6 +23,8 @@ interface Candidate {
   status: string | { id: string; name: string; code: string } | null
   position: string | null
   store: { name: string } | null
+  campaign: { name: string } | null
+  pic?: { id: string; fullName: string; email: string } | null
   createdAt: string
 }
 
@@ -22,51 +32,9 @@ interface User {
   role: string
 }
 
-const STATUS_GROUPS = {
-  application: {
-    label: 'Ứng tuyển',
-    statuses: [
-      { value: 'CV_FILTERING', label: 'Lọc CV' },
-      { value: 'CV_PASSED', label: 'Ứng viên đạt' },
-      { value: 'CV_FAILED', label: 'Ứng viên loại' },
-      { value: 'BLACKLIST', label: 'Blacklist' },
-      { value: 'CANNOT_CONTACT', label: 'Không liên hệ được' },
-      { value: 'AREA_NOT_RECRUITING', label: 'Khu vực chưa tuyển dụng' },
-    ],
-  },
-  interview: {
-    label: 'Phỏng vấn',
-    statuses: [
-      { value: 'WAITING_INTERVIEW', label: 'Chờ phỏng vấn' },
-      { value: 'HR_INTERVIEW_PASSED', label: 'HR sơ vấn đạt' },
-      { value: 'HR_INTERVIEW_FAILED', label: 'HR sơ vấn loại' },
-      { value: 'SM_AM_INTERVIEW_PASSED', label: 'SM/AM PV Đạt' },
-      { value: 'SM_AM_INTERVIEW_FAILED', label: 'SM/AM PV Loại' },
-      { value: 'SM_AM_INTERVIEW_NO_SHOW', label: 'SM/AM PV Không đến PV' },
-      { value: 'OM_PV_INTERVIEW_PASSED', label: 'OM PV Đạt' },
-      { value: 'OM_PV_INTERVIEW_FAILED', label: 'OM PV Loại' },
-      { value: 'OM_PV_INTERVIEW_NO_SHOW', label: 'OM PV Không đến PV' },
-    ],
-  },
-  offer: {
-    label: 'Thư mời',
-    statuses: [
-      { value: 'OFFER_SENT', label: 'Đã gửi offer letter' },
-      { value: 'OFFER_ACCEPTED', label: 'Đồng ý offer letter' },
-      { value: 'OFFER_REJECTED', label: 'Từ chối offer letter' },
-    ],
-  },
-  onboarding: {
-    label: 'Trúng tuyển',
-    statuses: [
-      { value: 'WAITING_ONBOARDING', label: 'Chờ nhận việc' },
-      { value: 'ONBOARDING_ACCEPTED', label: 'Đồng ý nhận việc' },
-      { value: 'ONBOARDING_REJECTED', label: 'Từ chối nhận việc' },
-    ],
-  },
-}
 
 export default function CandidatesList() {
+  const { dbStatuses, dynamicGroups } = useCandidateStatuses()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
@@ -81,6 +49,10 @@ export default function CandidatesList() {
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
   const [pagination, setPagination] = useState<{ total: number; totalPages: number }>({ total: 0, totalPages: 0 })
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [viewCandidateId, setViewCandidateId] = useState<string | null>(null)
+  const [editCandidateId, setEditCandidateId] = useState<string | null>(null)
+  const [interviewCandidateId, setInterviewCandidateId] = useState<string | null>(null)
   const statusUpdateFormRef = useRef<HTMLDivElement>(null)
 
   const [transferModal, setTransferModal] = useState<{
@@ -146,9 +118,7 @@ export default function CandidatesList() {
   const getAllowedStatuses = (): string[] => {
     if (!user) return []
     if (user.role === 'ADMIN' || user.role === 'HEAD_OF_DEPARTMENT') {
-      return Object.values(STATUS_GROUPS).flatMap((group) =>
-        group.statuses.map((s) => s.value)
-      )
+      return dbStatuses.map((s) => s.code)
     }
     if (user.role === 'MANAGER') {
       return [
@@ -165,13 +135,14 @@ export default function CandidatesList() {
 
     try {
       await api.patch(`/recruitment/candidates/${selectedCandidate.id}`, {
-        statusId: newStatus,
+        status: newStatus,
       })
       setSelectedCandidate(null)
       setNewStatus('')
+      toast.success('Cập nhật trạng thái thành công')
       loadCandidates()
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Có lỗi xảy ra khi cập nhật trạng thái')
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi cập nhật trạng thái')
     }
   }
 
@@ -183,16 +154,13 @@ export default function CandidatesList() {
     })
   }
 
-  const handleScheduleInterview = (candidate: Candidate) => {
-    window.location.href = `/dashboard/recruitment/interviews/new?candidateId=${candidate.id}`
-  }
-
   const handleDeleteCandidate = async (candidateId: string) => {
     try {
       await api.delete(`/recruitment/candidates/${candidateId}`)
+      toast.success('Xóa ứng viên thành công')
       loadCandidates()
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Có lỗi xảy ra khi xóa ứng viên')
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi xóa ứng viên')
     }
   }
 
@@ -209,7 +177,7 @@ export default function CandidatesList() {
       });
     } catch (err) {
       console.error(err);
-      alert('Không thể tải danh sách chiến dịch');
+      toast.error('Không thể tải danh sách chiến dịch');
       setTransferModal((prev) => ({ ...prev, isOpen: false, loading: false }));
     }
   };
@@ -221,49 +189,56 @@ export default function CandidatesList() {
       await api.patch(`/recruitment/candidates/${transferModal.candidate.id}/transfer-campaign`, {
         campaignId: transferModal.selectedCampaignId
       });
-      alert('Chuyển chiến dịch thành công');
+      toast.success('Chuyển chiến dịch thành công');
       setTransferModal({ isOpen: false, candidate: null, campaigns: [], selectedCampaignId: '', loading: false });
       loadCandidates();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Có lỗi xảy ra');
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra');
       setTransferModal((prev) => ({ ...prev, loading: false }));
     }
   };
 
-  const getStatusLabel = (status: string | null | undefined | { id: string; name: string; code: string }) => {
-    if (!status) {
-      return 'Chưa có trạng thái'
-    }
-    if (typeof status === 'object') {
-      return status.name
-    }
+  const getStatusLabel = (status: unknown) => {
+    if (!status || typeof status !== 'string' && typeof status !== 'object') return 'Chưa có trạng thái'
     
-    // Try to find in STATUS_GROUPS
-    for (const group of Object.values(STATUS_GROUPS)) {
-      if ('statuses' in group) {
-        const found = group.statuses.find((s) => s.value === status)
-        if (found) return found.label
-      }
+    // If it's an object from the new relational backend
+    if (typeof status === 'object' && status !== null && 'name' in status) {
+      return (status as { name: string }).name
     }
-    return status
+
+    const statusCode = typeof status === 'string' ? status : (status as any)?.code
+    if (!statusCode) return 'Chưa có trạng thái'
+
+    const dbObj = dbStatuses.find((s) => s.code === statusCode)
+    if (dbObj) return dbObj.name
+    return statusCode
   }
 
-  const getStatusColor = (status: string | null | undefined | { id: string; name: string; code: string }) => {
-    if (!status) {
+  const getStatusColor = (status: unknown) => {
+    if (!status || typeof status !== 'string' && typeof status !== 'object') {
       return 'bg-gray-100 text-gray-700'
     }
-    const statusCode = typeof status === 'object' ? status.code : status
+    const statusCode = typeof status === 'string' ? status : (status as any)?.code
     if (!statusCode) {
       return 'bg-gray-100 text-gray-700'
     }
-    if (statusCode.includes('PASSED') || statusCode === 'OFFER_ACCEPTED' || statusCode === 'ONBOARDING_ACCEPTED') {
+    if (statusCode === 'CV_FILTERING') {
+      return 'bg-sky-50 text-sky-700 border border-sky-200'
+    }
+    if (statusCode === 'CV_PASSED' || statusCode === 'HR_INTERVIEW_PASSED' || statusCode === 'SM_AM_INTERVIEW_PASSED' || statusCode === 'OM_PV_INTERVIEW_PASSED') {
       return 'bg-emerald-50 text-emerald-700 border border-emerald-200'
     }
-    if (statusCode.includes('FAILED') || statusCode === 'OFFER_REJECTED' || statusCode === 'ONBOARDING_REJECTED') {
-      return 'bg-red-50 text-red-700 border border-red-200'
+    if (statusCode === 'CV_FAILED' || statusCode === 'HR_INTERVIEW_FAILED' || statusCode === 'SM_AM_INTERVIEW_FAILED' || statusCode === 'OM_PV_INTERVIEW_FAILED' || statusCode === 'BLACKLIST') {
+      return 'bg-rose-50 text-rose-700 border border-rose-200'
     }
-    if (statusCode.includes('WAITING') || statusCode === 'OFFER_SENT') {
+    if (statusCode === 'WAITING_INTERVIEW' || statusCode === 'WAITING_ONBOARDING' || statusCode === 'OFFER_SENT') {
       return 'bg-amber-50 text-amber-700 border border-amber-200'
+    }
+    if (statusCode === 'OFFER_ACCEPTED' || statusCode === 'ONBOARDING_ACCEPTED') {
+      return 'bg-green-50 text-green-700 border border-green-200 font-bold'
+    }
+    if (statusCode === 'CANNOT_CONTACT' || statusCode === 'AREA_NOT_RECRUITING') {
+      return 'bg-slate-50 text-slate-700 border border-slate-200'
     }
     return 'bg-blue-50 text-blue-700 border border-blue-200'
   }
@@ -278,7 +253,7 @@ export default function CandidatesList() {
   }
 
   const allowedStatuses = getAllowedStatuses()
-  const allStatuses = Object.values(STATUS_GROUPS).flatMap((group) => group.statuses)
+  const allStatuses = dbStatuses.map((s) => ({ value: s.code, label: s.name }))
 
   return (
     <div className="relative">
@@ -297,26 +272,26 @@ export default function CandidatesList() {
               const statuses = await api.get('/types/by-category/CANDIDATE_STATUS')
               const targetStatus = statuses.data.find((s: any) => s.code === newStatusCode)
               if (!targetStatus) {
-                alert('Không tìm thấy trạng thái')
+                toast.error('Không tìm thấy trạng thái')
                 return
               }
               await api.patch(`/recruitment/candidates/${candidate.id}`, {
-                statusId: targetStatus.id,
+                status: targetStatus.code,
               })
+              toast.success(`Đã cập nhật: ${targetStatus.name}`)
               loadCandidates()
               setContextMenu(null)
-              // Show success feedback
-              const statusName = targetStatus.name || newStatusCode
-              console.log(`✅ Đã cập nhật trạng thái thành: ${statusName}`)
             } catch (err: any) {
               const errorMsg = err.response?.data?.message || 'Có lỗi xảy ra khi cập nhật trạng thái'
-              alert(errorMsg)
+              toast.error(errorMsg)
               console.error('Error updating status:', err)
             }
           }}
           onDelete={handleDeleteCandidate}
-          onScheduleInterview={handleScheduleInterview}
+          onScheduleInterview={(candidate) => setInterviewCandidateId(candidate.id)}
+          onEdit={(candidate) => setEditCandidateId(candidate.id)}
           onTransferCampaign={loadCampaignsForTransfer}
+          onViewDetail={(id) => setViewCandidateId(id)}
           allowedStatuses={allowedStatuses}
           statusOptions={allStatuses}
         />
@@ -324,13 +299,13 @@ export default function CandidatesList() {
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-2xl font-semibold text-gray-900">Danh sách ứng viên</h2>
         <div className="flex flex-wrap gap-2">
-          <Link
-            href="/dashboard/recruitment/candidates/new"
+          <button
+            onClick={() => setShowCreateModal(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium shadow-sm"
           >
             <Icon name="plus" size={16} />
             Thêm ứng viên
-          </Link>
+          </button>
           <div className="flex border border-gray-200 rounded-lg overflow-hidden shadow-sm">
             <button
               onClick={() => setViewMode('list')}
@@ -364,20 +339,15 @@ export default function CandidatesList() {
                 className="pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 bg-white text-gray-700 shadow-sm"
               >
                 <option value="">Tất cả trạng thái</option>
-              {Object.entries(STATUS_GROUPS).map(([key, group]) => {
-                if ('statuses' in group) {
-                  return (
-                    <optgroup key={key} label={group.label}>
-                      {group.statuses.map((status) => (
-                        <option key={status.value} value={status.value}>
-                          {status.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )
-                }
-                return null
-              })}
+              {Object.entries(dynamicGroups).map(([key, group]) => (
+                <optgroup key={key} label={group.label}>
+                  {group.statuses.map((status) => (
+                    <option key={status.value} value={status.value}>
+                      {status.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
             </select>
             </div>
           )}
@@ -438,13 +408,13 @@ export default function CandidatesList() {
                     {statusFilter ? 'Thử thay đổi bộ lọc trạng thái' : 'Bắt đầu bằng cách thêm ứng viên mới'}
                   </p>
                   {!statusFilter && (
-                    <Link
-                      href="/dashboard/recruitment/candidates/new"
+                    <button
+                      onClick={() => setShowCreateModal(true)}
                       className="mt-6 inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium shadow-sm"
                     >
                       <Icon name="plus" size={16} />
                       Thêm ứng viên đầu tiên
-                    </Link>
+                    </button>
                   )}
                 </li>
               ) : (
@@ -453,16 +423,16 @@ export default function CandidatesList() {
                 key={candidate.id}
                 onContextMenu={(e) => handleContextMenu(e, candidate)}
                 className="hover:bg-gray-50 transition-colors cursor-pointer"
+                onClick={() => setViewCandidateId(candidate.id)}
               >
                 <div className="px-6 py-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <Link
-                        href={`/dashboard/recruitment/candidates/${candidate.id}`}
+                      <span
                         className="text-base font-semibold text-gray-900 hover:text-gray-700 transition-colors"
                       >
                         {candidate.fullName}
-                      </Link>
+                      </span>
                       <div className="mt-2 space-y-1.5">
                         {candidate.email && (
                           <div className="flex items-center gap-2 text-sm text-gray-600 truncate" title={candidate.email}>
@@ -481,10 +451,20 @@ export default function CandidatesList() {
                               {candidate.position}
                             </span>
                           )}
-                          {candidate.store && (
+                          {candidate.store && typeof candidate.store === 'object' && candidate.store !== null && 'name' in candidate.store && (
                             <span className="inline-flex items-center gap-1.5 text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded-md font-medium">
                               <Icon name="store" size={12} />
-                              {candidate.store.name}
+                              {(candidate.store as { name: string }).name}
+                            </span>
+                          )}
+                          <span className="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md font-medium">
+                            <Icon name="campaign" size={12} />
+                            Chiến dịch: {typeof candidate.campaign === 'object' && campaign !== null && 'name' in candidate.campaign ? candidate.campaign.name : 'Chiến dịch tuyển dụng tổng'}
+                          </span>
+                          {candidate.pic && typeof candidate.pic === 'object' && candidate.pic !== null && 'fullName' in candidate.pic && (
+                            <span className="inline-flex items-center gap-1.5 text-xs bg-purple-50 text-purple-700 px-2.5 py-1 rounded-md font-medium">
+                              <Icon name="user" size={12} />
+                              TA Phụ trách: {(candidate.pic as { fullName: string }).fullName}
                             </span>
                           )}
                         </div>
@@ -498,18 +478,6 @@ export default function CandidatesList() {
                       >
                         {getStatusLabel(candidate.status)}
                       </span>
-                      {allowedStatuses.length > 0 && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setSelectedCandidate(candidate)
-                          }}
-                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
-                          title="Đổi trạng thái"
-                        >
-                          <Icon name="refresh" size={16} />
-                        </button>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -576,8 +544,40 @@ export default function CandidatesList() {
             setPage(1)
           }}
           onTransferCampaign={loadCampaignsForTransfer}
+          onViewDetail={(id) => setViewCandidateId(id)}
         />
       )}
+
+      {/* Create Candidate Modal */}
+      <Modal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Thêm ứng viên mới"
+        maxWidth="max-w-2xl"
+      >
+        <CreateCandidateForm 
+          onSuccess={() => {
+            setShowCreateModal(false)
+            loadCandidates()
+          }}
+          onCancel={() => setShowCreateModal(false)}
+        />
+      </Modal>
+
+      {/* Candidate Detail Modal */}
+      <Modal
+        isOpen={!!viewCandidateId}
+        onClose={() => setViewCandidateId(null)}
+        title="Chi tiết ứng viên"
+        maxWidth="max-w-5xl"
+      >
+        {viewCandidateId && (
+          <CandidateDetail 
+            candidateId={viewCandidateId} 
+            isModal={true} 
+          />
+        )}
+      </Modal>
       {transferModal.isOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
@@ -627,6 +627,43 @@ export default function CandidatesList() {
           </div>
         </div>
       )}
+      {/* Edit Candidate Modal */}
+      <Modal
+        isOpen={!!editCandidateId}
+        onClose={() => setEditCandidateId(null)}
+        title="Chỉnh sửa ứng viên"
+        maxWidth="max-w-4xl"
+      >
+        {editCandidateId && (
+          <EditCandidateForm
+            candidateId={editCandidateId}
+            onSuccess={() => {
+              setEditCandidateId(null)
+              loadCandidates()
+            }}
+            onCancel={() => setEditCandidateId(null)}
+          />
+        )}
+      </Modal>
+
+      {/* Schedule Interview Modal */}
+      <Modal
+        isOpen={!!interviewCandidateId}
+        onClose={() => setInterviewCandidateId(null)}
+        title="Tạo lịch phỏng vấn"
+        maxWidth="max-w-2xl"
+      >
+        {interviewCandidateId && (
+          <CreateInterviewForm
+            candidateId={interviewCandidateId}
+            onSuccess={() => {
+              setInterviewCandidateId(null)
+              loadCandidates()
+            }}
+            onCancel={() => setInterviewCandidateId(null)}
+          />
+        )}
+      </Modal>
     </div>
   )
 }

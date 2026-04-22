@@ -57,21 +57,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const menuItems = [
     {
       name: 'Tuyển dụng',
-      href: '/dashboard/recruitment',
+      href: '/recruitment',
       icon: 'users',
     },
     ...(user?.role === 'ADMIN'
       ? [
         {
           name: 'Cửa hàng',
-          href: '/dashboard/settings/stores',
+          href: '/stores',
           icon: 'store',
+        },
+        {
+          name: 'Cấu hình',
+          href: '/settings/users',
+          icon: 'settings',
         },
       ]
       : []),
   ]
-
-  const showProfile = user?.role === 'ADMIN' || user?.role === 'TA' || user?.role === 'AM' || user?.role === 'SM'
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -95,15 +98,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </h1>
           </div>
         </div>
-        <nav className="p-4 space-y-2 flex-1">
+        <nav className="p-4 space-y-1 flex-1 overflow-y-auto max-h-[calc(100vh-200px)]">
           {menuItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors ${pathname?.startsWith(item.href)
-                ? 'bg-kfc-red text-white border-l-4 border-white'
-                : 'text-gray-700 hover:bg-gray-100'
-                }`}
+              className={`flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href))
+                  ? 'bg-kfc-red text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
             >
               <span className="mr-3">
                 <Icon name={item.icon} size={20} />
@@ -112,26 +116,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </Link>
           ))}
         </nav>
-        {showProfile && (
+        {user && typeof user === 'object' && 'fullName' in user && (
           <div className="p-4 border-t bg-white">
-            <Link
-              href="/dashboard/profile"
-              className="block mb-3 p-2 rounded-lg hover:bg-gray-50 transition-colors"
-            >
+            <div className="mb-3 p-2">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-kfc-red rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
-                  {user?.fullName?.charAt(0).toUpperCase() || 'U'}
+                  {user.fullName?.charAt(0).toUpperCase() || 'U'}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-700 truncate">
-                    {user?.fullName}
+                    {user.fullName}
                   </p>
                   <p className="text-xs text-gray-500 truncate">
-                    {user?.role}
+                    {user.role}
                   </p>
                 </div>
               </div>
-            </Link>
+            </div>
             <button
               onClick={handleLogout}
               className="w-full text-left px-4 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors flex items-center gap-2"
@@ -144,8 +145,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto">
-        <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main className="flex-1 overflow-auto bg-gray-50">
+        <div className="py-8 px-6 sm:px-10 lg:px-16 xl:px-24 2xl:px-32 w-full max-w-[1600px] mx-auto">
           {children}
         </div>
       </main>

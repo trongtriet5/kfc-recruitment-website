@@ -21,6 +21,10 @@ model User {
   interviews    Interview[]
   campaigns     Campaign[]
   createdProposals RecruitmentProposal[] @relation("ProposalCreator")
+  picCandidates Candidate[] @relation("CandidatePIC")
+  managedStore  Store?      @relation("StoreSM")
+
+  managedStores Store[]    @relation("StoreAM")
 
   @@map("users")
 }
@@ -53,8 +57,8 @@ model Position {
 
   headcountPositions HeadcountPosition[]
   proposals   RecruitmentProposal[]
-  requests    Request[]
   interviews  Interview[]
+  forms      RecruitmentForm[]
 
   @@map("positions")
 }
@@ -64,16 +68,29 @@ model Store {
   name        String
   code        String   @unique
   address     String
+  city        String?
+  zone        String?
   brand       String
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  smId        String?  @unique
+  sm          User?    @relation("StoreSM", fields: [smId], references: [id])
+
+  amId        String?
+  am          User?    @relation("StoreAM", fields: [amId], references: [id])
+
+amName      String?
+  omName     String?
+  odName     String?
+  icName     String?
+  group     String?
+
   candidates  Candidate[]
   campaigns   Campaign[]
   headcounts  Headcount[]
   proposals   RecruitmentProposal[]
-  requests    Request[]
 
   @@map("stores")
 }
@@ -95,6 +112,7 @@ model RecruitmentForm {
   campaigns   Campaign[]
   candidates  Candidate[]
   fields      FormField[]
+  positions   Position[]
 
   @@map("recruitment_forms")
 }
@@ -132,6 +150,7 @@ model Campaign {
   picId        String?
   departmentId String?
   storeId      String?
+  proposalId   String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -140,7 +159,6 @@ model Campaign {
   department   Department?     @relation(fields: [departmentId], references: [id])
   store        Store?          @relation(fields: [storeId], references: [id])
   candidates   Candidate[]
-  proposals   RecruitmentProposal[]
 
   @@map("campaigns")
 }
@@ -153,10 +171,14 @@ model Candidate {
   cvUrl           String?
   formId          String?
   campaignId      String?
+  sourceId        String?
+  source          Source?        @relation(fields: [sourceId], references: [id])
   brand           String?
   position        String?
   storeId         String?
   departmentId    String?
+  statusId        String?
+  status          CandidateStatus?  @relation(fields: [statusId], references: [id])
   notes           String?
   gender          String?
   dateOfBirth     DateTime?
@@ -169,10 +191,30 @@ model Candidate {
   campaign        Campaign?         @relation(fields: [campaignId], references: [id])
   store           Store?           @relation(fields: [storeId], references: [id])
   department      Department?      @relation(fields: [departmentId], references: [id])
+  
+  picId           String?
+  pic             User?            @relation("CandidatePIC", fields: [picId], references: [id])
+  
   interviews      Interview[]
   proposals       RecruitmentProposal[]
 
   @@map("candidates")
+}
+
+model CandidateStatus {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  color       String?
+  group       String?
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  candidates  Candidate[]
+
+  @@map("candidate_statuses")
 }
 
 model Interview {
@@ -215,30 +257,10 @@ model RecruitmentProposal {
   store        Store?          @relation(fields: [storeId], references: [id])
   position     Position?       @relation(fields: [positionId], references: [id])
   approver     User?           @relation("ProposalCreator", fields: [approverId], references: [id])
-  campaign    Campaign?       @relation(fields: [campaignId], references: [id])
   department  Department?    @relation(fields: [departmentId], references: [id])
   candidates  Candidate[]
 
   @@map("recruitment_proposals")
-}
-
-model Request {
-  id           String   @id @default(cuid())
-  title        String
-  description  String?
-  storeId      String?
-  positionId   String?
-  quantity    Int?
-  reason      String?
-  status      String   @default("PENDING")
-  requesterId  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  store       Store?    @relation(fields: [storeId], references: [id])
-  position    Position? @relation(fields: [positionId], references: [id])
-
-  @@map("requests")
 }
 
 model Headcount {
@@ -284,4 +306,19 @@ model CandidateToRecruit {
   createdAt    DateTime @default(now())
 
   @@map("_candidate_to_recruit")
+}
+
+model Source {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  description String?
+  link        String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  candidates  Candidate[]
+
+  @@map("sources")
 }
