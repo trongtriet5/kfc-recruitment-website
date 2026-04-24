@@ -81,11 +81,11 @@ model Store {
   amId        String?
   am          User?    @relation("StoreAM", fields: [amId], references: [id])
 
-amName      String?
+  amName     String?
   omName     String?
   odName     String?
-  icName     String?
-  group     String?
+  taIncharge String?
+  group      String?
 
   candidates  Candidate[]
   campaigns   Campaign[]
@@ -321,4 +321,30 @@ model Source {
   candidates  Candidate[]
 
   @@map("sources")
+}
+
+model Province {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  code        String   @unique
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  wards       Ward[]
+
+  @@map("provinces")
+}
+
+model Ward {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  provinceId  String
+  province    Province @relation(fields: [provinceId], references: [id], onDelete: Cascade)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("wards")
 }

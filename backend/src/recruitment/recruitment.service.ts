@@ -609,8 +609,10 @@ export class RecruitmentService {
 
     // Candidates by Store
     const storeCounts = await this.prisma.store.findMany({
-      include: { 
-        _count: { select: { candidates: true } } 
+      select: {
+        id: true,
+        name: true,
+        _count: { select: { candidates: true } },
       },
       take: 10,
       orderBy: { candidates: { _count: 'desc' } },

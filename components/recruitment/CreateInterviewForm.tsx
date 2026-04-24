@@ -223,7 +223,7 @@ export default function CreateInterviewForm({
               const empUser = employee.user && typeof employee.user === 'object' && employee.user !== null ? employee.user : null
               return (
                 <option key={empUser && 'id' in empUser ? empUser.id : ''} value={empUser && 'id' in empUser ? empUser.id : ''}>
-                  {typeof employee === 'object' && employee !== null && 'fullName' in employee ? employee.fullName : 'Unknown'} ({empUser && 'email' in empUser ? empUser.email : ''})
+                  {typeof employee === 'object' && employee !== null && 'fullName' in employee ? String(employee.fullName || 'Unknown') : 'Unknown'} ({empUser && 'email' in empUser ? String(empUser.email || '') : ''})
                 </option>
               )
             })}

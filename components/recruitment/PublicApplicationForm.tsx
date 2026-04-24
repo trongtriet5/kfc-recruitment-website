@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
-import { PROVINCES, getDistrictsByProvince, getWardsByDistrict } from '@/lib/vietnam-addresses'
 import Icon from '@/components/icons/Icon'
 
 const POSITIONS = [
@@ -39,12 +38,10 @@ interface FormData {
   email: string
   cccd: string
   currentCity: string
-  currentDistrict: string
   currentWard: string
   currentStreet: string
   permanentSameAsCurrent: boolean
   permanentCity: string
-  permanentDistrict: string
   permanentWard: string
   permanentStreet: string
   appliedPosition: string
@@ -58,11 +55,23 @@ interface FormData {
   workExperience: string
 }
 
+interface Province {
+  id: string
+  name: string
+  code: string
+}
+
+interface Ward {
+  id: string
+  name: string
+  code: string
+}
+
 export default function PublicApplicationForm() {
   const searchParams = useSearchParams()
   const campaignLink = searchParams.get('campaignId') || ''
-  const legacyLink = searchParams.get('link') || searchParams.get('formId') || '' // For backward compatibility
-  const sourceFromUrl = searchParams.get('source') || '' // Source tracking from URL parameter
+  const legacyLink = searchParams.get('link') || searchParams.get('formId') || ''
+  const sourceFromUrl = searchParams.get('source') || ''
 
   const [formInfo, setFormInfo] = useState<any>(null)
   const [campaignInfo, setCampaignInfo] = useState<any>(null)
@@ -70,6 +79,10 @@ export default function PublicApplicationForm() {
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [provinces, setProvinces] = useState<Province[]>([])
+  const [currentWards, setCurrentWards] = useState<Ward[]>([])
+  const [permanentWards, setPermanentWards] = useState<Ward[]>([])
 
   const [formData, setFormData] = useState<FormData>({
     fullName: '',
@@ -79,12 +92,10 @@ export default function PublicApplicationForm() {
     email: '',
     cccd: '',
     currentCity: '',
-    currentDistrict: '',
     currentWard: '',
     currentStreet: '',
     permanentSameAsCurrent: false,
     permanentCity: '',
-    permanentDistrict: '',
     permanentWard: '',
     permanentStreet: '',
     appliedPosition: '',
@@ -98,18 +109,70 @@ export default function PublicApplicationForm() {
     workExperience: '',
   })
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+  const [availableLocations, setAvailableLocations] = useState<Ward[]>([])
 
   useEffect(() => {
+    loadProvinces()
+    loadAllLocations()
     if (campaignLink) {
       loadCampaignInfo()
     } else if (legacyLink) {
-      // Backward compatibility: load form by link
       loadFormInfo()
     } else {
       setError('Thiếu link chiến dịch tuyển dụng')
       setLoading(false)
     }
   }, [campaignLink, legacyLink])
+
+  const loadProvinces = async () => {
+    try {
+      const res = await api.get('/locations/provinces')
+      setProvinces(res.data)
+    } catch (err) {
+      console.error('Error loading provinces:', err)
+    }
+  }
+
+  const loadAllLocations = async () => {
+    try {
+      const res = await api.get('/locations/provinces')
+      const provincesList = res.data
+      
+      // Load all wards from all provinces
+      const allWards: Ward[] = []
+      for (const province of provincesList) {
+        try {
+          const wardsRes = await api.get(`/locations/provinces/${province.id}/wards`)
+          allWards.push(...wardsRes.data)
+        } catch (err) {
+          console.error(`Error loading wards for province ${province.id}:`, err)
+        }
+      }
+      setAvailableLocations(allWards)
+    } catch (err) {
+      console.error('Error loading all locations:', err)
+    }
+  }
+
+  const loadCurrentWards = async (provinceId: string) => {
+    try {
+      const res = await api.get(`/locations/provinces/${provinceId}/wards`)
+      setCurrentWards(res.data)
+    } catch (err) {
+      console.error('Error loading wards:', err)
+      setCurrentWards([])
+    }
+  }
+
+  const loadPermanentWards = async (provinceId: string) => {
+    try {
+      const res = await api.get(`/locations/provinces/${provinceId}/wards`)
+      setPermanentWards(res.data)
+    } catch (err) {
+      console.error('Error loading wards:', err)
+      setPermanentWards([])
+    }
+  }
 
   const loadCampaignInfo = async () => {
     try {
@@ -200,12 +263,12 @@ export default function PublicApplicationForm() {
       setError('Vui lòng nhập CCCD (12 số)')
       return
     }
-    if (!formData.currentCity || !formData.currentDistrict || !formData.currentWard) {
+    if (!formData.currentCity || !formData.currentWard) {
       setError('Vui lòng điền đầy đủ địa chỉ nơi ở hiện tại')
       return
     }
     if (!formData.permanentSameAsCurrent) {
-      if (!formData.permanentCity || !formData.permanentDistrict || !formData.permanentWard) {
+      if (!formData.permanentCity || !formData.permanentWard) {
         setError('Vui lòng điền đầy đủ địa chỉ thường trú')
         return
       }
@@ -327,12 +390,6 @@ export default function PublicApplicationForm() {
     )
   }
 
-  // Get districts and wards based on selected province/district
-  const currentDistricts = formData.currentCity ? getDistrictsByProvince(formData.currentCity) : []
-  const currentWards = formData.currentDistrict ? getWardsByDistrict(formData.currentDistrict) : []
-  const permanentDistricts = formData.permanentCity ? getDistrictsByProvince(formData.permanentCity) : []
-  const permanentWards = formData.permanentDistrict ? getWardsByDistrict(formData.permanentDistrict) : []
-
   // Real-time validation functions
   const validateField = (name: string, value: any) => {
     const errors: Record<string, string> = {}
@@ -390,11 +447,6 @@ export default function PublicApplicationForm() {
           errors.currentCity = 'Vui lòng chọn tỉnh/thành phố'
         }
         break
-      case 'currentDistrict':
-        if (!value) {
-          errors.currentDistrict = 'Vui lòng chọn quận/huyện'
-        }
-        break
       case 'currentWard':
         if (!value) {
           errors.currentWard = 'Vui lòng chọn phường/xã'
@@ -410,11 +462,6 @@ export default function PublicApplicationForm() {
       case 'permanentCity':
         if (!formData.permanentSameAsCurrent && !value) {
           errors.permanentCity = 'Vui lòng chọn tỉnh/thành phố'
-        }
-        break
-      case 'permanentDistrict':
-        if (!formData.permanentSameAsCurrent && !value) {
-          errors.permanentDistrict = 'Vui lòng chọn quận/huyện'
         }
         break
       case 'permanentWard':
@@ -702,7 +749,8 @@ export default function PublicApplicationForm() {
                     value={formData.currentCity}
                     onChange={(e) => {
                       const value = e.target.value
-                      setFormData({ ...formData, currentCity: value, currentDistrict: '', currentWard: '' })
+                      setFormData({ ...formData, currentCity: value, currentWard: '' })
+                      loadCurrentWards(value)
                       validateField('currentCity', value)
                     }}
                     onBlur={() => validateField('currentCity', formData.currentCity)}
@@ -714,46 +762,14 @@ export default function PublicApplicationForm() {
                     required
                   >
                     <option value="">Chọn tỉnh/thành phố</option>
-                    {PROVINCES.map((province) => (
-                      <option key={province.code} value={province.code}>
+                    {provinces.map((province) => (
+                      <option key={province.id} value={province.id}>
                         {province.name}
                       </option>
                     ))}
                   </select>
                   {validationErrors.currentCity && (
                     <p className="mt-1 text-sm text-red-600">{validationErrors.currentCity}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Quận/Huyện <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.currentDistrict}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      setFormData({ ...formData, currentDistrict: value, currentWard: '' })
-                      validateField('currentDistrict', value)
-                    }}
-                    onBlur={() => validateField('currentDistrict', formData.currentDistrict)}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                      validationErrors.currentDistrict
-                        ? 'border-red-500 focus:ring-red-500'
-                        : 'border-gray-300 focus:ring-yellow-500'
-                    }`}
-                    required
-                    disabled={!formData.currentCity}
-                  >
-                    <option value="">Chọn quận/huyện</option>
-                    {currentDistricts.map((district) => (
-                      <option key={district.code} value={district.code}>
-                        {district.name}
-                      </option>
-                    ))}
-                  </select>
-                  {validationErrors.currentDistrict && (
-                    <p className="mt-1 text-sm text-red-600">{validationErrors.currentDistrict}</p>
                   )}
                 </div>
 
@@ -775,11 +791,11 @@ export default function PublicApplicationForm() {
                         : 'border-gray-300 focus:ring-yellow-500'
                     }`}
                     required
-                    disabled={!formData.currentDistrict}
+                    disabled={!formData.currentCity}
                   >
                     <option value="">Chọn phường/xã</option>
                     {currentWards.map((ward) => (
-                      <option key={ward.code} value={ward.code}>
+                      <option key={ward.id} value={ward.id}>
                         {ward.name}
                       </option>
                     ))}
@@ -856,7 +872,8 @@ export default function PublicApplicationForm() {
                       value={formData.permanentCity}
                       onChange={(e) => {
                         const value = e.target.value
-                        setFormData({ ...formData, permanentCity: value, permanentDistrict: '', permanentWard: '' })
+                        setFormData({ ...formData, permanentCity: value, permanentWard: '' })
+                        loadPermanentWards(value)
                         validateField('permanentCity', value)
                       }}
                       onBlur={() => validateField('permanentCity', formData.permanentCity)}
@@ -868,46 +885,14 @@ export default function PublicApplicationForm() {
                       required
                     >
                       <option value="">Chọn tỉnh/thành phố</option>
-                      {PROVINCES.map((province) => (
-                        <option key={province.code} value={province.code}>
+                      {provinces.map((province) => (
+                        <option key={province.id} value={province.id}>
                           {province.name}
                         </option>
                       ))}
                     </select>
                     {validationErrors.permanentCity && (
                       <p className="mt-1 text-sm text-red-600">{validationErrors.permanentCity}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Quận/Huyện <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formData.permanentDistrict}
-                      onChange={(e) => {
-                        const value = e.target.value
-                        setFormData({ ...formData, permanentDistrict: value, permanentWard: '' })
-                        validateField('permanentDistrict', value)
-                      }}
-                      onBlur={() => validateField('permanentDistrict', formData.permanentDistrict)}
-                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                        validationErrors.permanentDistrict
-                          ? 'border-red-500 focus:ring-red-500'
-                          : 'border-gray-300 focus:ring-yellow-500'
-                      }`}
-                      required
-                      disabled={!formData.permanentCity}
-                    >
-                      <option value="">Chọn quận/huyện</option>
-                      {permanentDistricts.map((district) => (
-                        <option key={district.code} value={district.code}>
-                          {district.name}
-                        </option>
-                      ))}
-                    </select>
-                    {validationErrors.permanentDistrict && (
-                      <p className="mt-1 text-sm text-red-600">{validationErrors.permanentDistrict}</p>
                     )}
                   </div>
 
@@ -929,11 +914,11 @@ export default function PublicApplicationForm() {
                           : 'border-gray-300 focus:ring-yellow-500'
                       }`}
                       required
-                      disabled={!formData.permanentDistrict}
+                      disabled={!formData.permanentCity}
                     >
                       <option value="">Chọn phường/xã</option>
                       {permanentWards.map((ward) => (
-                        <option key={ward.code} value={ward.code}>
+                        <option key={ward.id} value={ward.id}>
                           {ward.name}
                         </option>
                       ))}
@@ -1184,17 +1169,17 @@ export default function PublicApplicationForm() {
                       ? 'border-red-500'
                       : 'border-gray-300'
                   }`}>
-                    {currentDistricts.map((district) => (
-                      <label key={district.code} className="flex items-center">
+                    {availableLocations.map((location) => (
+                      <label key={location.id} className="flex items-center">
                         <input
                           type="checkbox"
-                          checked={formData.preferredLocations.includes(district.code)}
+                          checked={formData.preferredLocations.includes(location.id)}
                           onChange={(e) => {
                             let newLocations: string[]
                             if (e.target.checked) {
-                              newLocations = [...formData.preferredLocations, district.code]
+                              newLocations = [...formData.preferredLocations, location.id]
                             } else {
-                              newLocations = formData.preferredLocations.filter((loc) => loc !== district.code)
+                              newLocations = formData.preferredLocations.filter((loc) => loc !== location.id)
                             }
                             setFormData({
                               ...formData,
@@ -1205,7 +1190,7 @@ export default function PublicApplicationForm() {
                           onBlur={() => validateField('preferredLocations', formData.preferredLocations)}
                           className="mr-2"
                         />
-                        <span className="text-sm">{district.name}</span>
+                        <span className="text-sm">{location.name}</span>
                       </label>
                     ))}
                   </div>

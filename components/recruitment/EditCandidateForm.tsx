@@ -66,37 +66,66 @@ export default function EditCandidateForm({
       setCandidate(candidateData)
 
       setFormData({
-        fullName: candidateData.fullName || '',
-        email: candidateData.email || '',
-        phone: candidateData.phone || '',
-        cvUrl: candidateData.cvUrl || '',
-        position: candidateData.position || '',
-        storeId: candidateData.store?.id || '',
-        picId: candidateData.pic?.id || '',
-        status: candidateData.status?.code || (typeof candidateData.status === 'string' ? candidateData.status : ''),
-        notes: candidateData.notes || '',
+        fullName: String(candidateData.fullName || ''),
+        email: String(candidateData.email || ''),
+        phone: String(candidateData.phone || ''),
+        cvUrl: String(candidateData.cvUrl || ''),
+        position: String(candidateData.position || ''),
+        storeId: String(candidateData.store?.id || ''),
+        picId: String(candidateData.pic?.id || ''),
+        status: String(candidateData.status?.code || candidateData.status || ''),
+        notes: String(candidateData.notes || ''),
       })
 
       // Load stores and statuses (optional, don't fail if these fail)
       try {
         const storesRes = await api.get('/stores')
-        setStores(storesRes.data)
+        let storesData = Array.isArray(storesRes.data) ? storesRes.data : []
+        // Filter to only include objects with id and name
+        storesData = storesData.filter(store => 
+          typeof store === 'object' && 
+          store !== null && 
+          'id' in store && 
+          'name' in store
+        )
+        setStores(storesData)
       } catch (err) {
         console.error('Error loading stores:', err)
+        setStores([])
       }
 
       try {
         const statusesRes = await api.get('/types/by-category/CANDIDATE_STATUS')
-        setStatuses(statusesRes.data)
+        let statusesData = Array.isArray(statusesRes.data) ? statusesRes.data : []
+        // Filter to only include objects with id, code, and name
+        statusesData = statusesData.filter(status => 
+          typeof status === 'object' && 
+          status !== null && 
+          'id' in status && 
+          'code' in status && 
+          'name' in status
+        )
+        setStatuses(statusesData)
       } catch (err) {
         console.error('Error loading statuses:', err)
+        setStatuses([])
       }
 
       try {
         const usersRes = await api.get('/users/select')
-        setUsers(usersRes.data)
+        // Ensure users is an array and filter to only valid user objects
+        let usersData = Array.isArray(usersRes.data) ? usersRes.data : []
+        // Filter to only include objects with both id and fullName
+        usersData = usersData.filter(user => 
+          typeof user === 'object' && 
+          user !== null && 
+          'id' in user && 
+          'fullName' in user
+        )
+        setUsers(usersData)
       } catch (err) {
         console.error('Error loading users:', err)
+        setUsers([])
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Không thể tải thông tin ứng viên')
@@ -242,9 +271,9 @@ export default function EditCandidateForm({
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
             >
               <option value="">Chọn cửa hàng</option>
-              {stores.map((store) => (
+              {Array.isArray(stores) && stores.length > 0 && stores.map((store) => (
                 <option key={store.id} value={store.id}>
-                  {store.code} - {store.name}
+                  {String(store.code || '')} - {String(store.name || '')}
                 </option>
               ))}
             </select>
@@ -261,9 +290,9 @@ export default function EditCandidateForm({
               required
             >
               <option value="">Chọn trạng thái</option>
-              {statuses.map((status) => (
+              {Array.isArray(statuses) && statuses.length > 0 && statuses.map((status) => (
                 <option key={status.id} value={status.code}>
-                  {status.name}
+                  {String(status.name || '')}
                 </option>
               ))}
             </select>
@@ -279,9 +308,9 @@ export default function EditCandidateForm({
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
             >
               <option value="">-- Chọn TA phụ trách --</option>
-              {users.map((user) => (
-                <option key={typeof user === 'object' && user !== null && 'id' in user ? user.id : ''} value={typeof user === 'object' && user !== null && 'id' in user ? user.id : ''}>
-                  {typeof user === 'object' && user !== null && 'fullName' in user ? user.fullName : 'Unknown'}
+              {Array.isArray(users) && users.length > 0 && users.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {String(user.fullName || '')}
                 </option>
               ))}
             </select>

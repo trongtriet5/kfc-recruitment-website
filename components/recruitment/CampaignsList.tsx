@@ -216,14 +216,19 @@ export default function CampaignsList() {
   const canManage = user && (user.role === 'ADMIN' || user.role === 'HEAD_OF_DEPARTMENT');
 
   return (
-    <div>
-      <div className="mb-4 flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Chiến dịch tuyển dụng</h2>
+    <div className="pt-6 space-y-8">
+      {/* Page Header */}
+      <div className="pb-2">
+        <h1 className="text-2xl font-bold text-gray-900">Chiến dịch tuyển dụng</h1>
+        <p className="text-gray-600 mt-2">Quản lý các chiến dịch tuyển dụng, theo dõi ứng viên và kết quả</p>
+      </div>
+
+      <div className="flex justify-between items-center">
         <button
           onClick={() => setShowCreateForm(true)}
-          className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium shadow-sm"
         >
-          Tạo chiến dịch
+          + Tạo chiến dịch
         </button>
       </div>
 
@@ -248,7 +253,7 @@ export default function CampaignsList() {
             </div>
           </div>
           <div className="bg-white rounded-lg shadow p-4">
-            <div className="text-sm text-gray-600">CV đạt</div>
+            <div className="text-sm text-gray-600">Ứng viên đạt</div>
             <div className="text-2xl font-bold text-green-600 mt-1">
               {statistics.candidatesByStatus?.find((s: any) => s.status === 'CV_PASSED')?._count || 0}
             </div>

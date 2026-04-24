@@ -323,97 +323,103 @@ export default function RecruitmentDashboard() {
     },
   ]
   return (
-    <div className="space-y-6">
+    <div className="pt-6 space-y-12">
+      {/* Page Header */}
+      <div className="pb-2">
+        <h1 className="text-2xl font-bold text-gray-900">Bảng điều khiển tuyển dụng</h1>
+        <p className="text-gray-600 mt-2">Tổng quan về quy trình tuyển dụng và thống kê ứng viên</p>
+      </div>
+
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg shadow p-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Tổng ứng viên</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">{data.totalCandidates}</p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tổng ứng viên</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{data.totalCandidates}</p>
             </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Ứng viên mới (tháng này)</p>
-              <p className="text-3xl font-bold text-green-600 mt-2">{data.newCandidatesThisMonth}</p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Ứng viên mới</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{data.newCandidatesThisMonth}</p>
               {data.newCandidatesLastMonth > 0 && (
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-400 mt-1">
                   Tháng trước: {data.newCandidatesLastMonth}
                 </p>
               )}
             </div>
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
               </svg>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Chiến dịch đang hoạt động</p>
-              <p className="text-3xl font-bold text-yellow-600 mt-2">{data.activeCampaigns}</p>
-              <p className="text-xs text-gray-500 mt-1">Tổng: {data.totalCampaigns}</p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chiến dịch hoạt động</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{data.activeCampaigns}</p>
+              <p className="text-xs text-gray-400 mt-1">Tổng: {data.totalCampaigns}</p>
             </div>
-            <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
               </svg>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Form tuyển dụng</p>
-              <p className="text-3xl font-bold text-purple-600 mt-2">{data.totalForms}</p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Form tuyển dụng</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{data.totalForms}</p>
             </div>
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">CV đạt</p>
-              <p className="text-3xl font-bold text-emerald-600 mt-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Ứng viên đạt</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
                 {cvPassedCount}
               </p>
             </div>
-            <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Trúng tuyển</p>
-              <p className="text-3xl font-bold text-indigo-600 mt-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Trúng tuyển</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
                 {candidatesByStatus.find((s) => s.statusCode === 'ONBOARDING_ACCEPTED')?.count || 0}
               </p>
             </div>
-            <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>

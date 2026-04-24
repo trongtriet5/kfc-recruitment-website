@@ -244,14 +244,19 @@ export default function ProposalsList() {
   }
 
   return (
-    <div>
-      <div className="mb-4 flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Đề xuất tuyển dụng</h2>
+    <div className="pt-6 space-y-8">
+      {/* Page Header */}
+      <div className="pb-2">
+        <h1 className="text-2xl font-bold text-gray-900">Đề xuất tuyển dụng</h1>
+        <p className="text-gray-600 mt-2">Quản lý đề xuất tuyển dụng từ các cửa hàng, phê duyệt và tạo chiến dịch</p>
+      </div>
+
+      <div className="flex justify-between items-center">
         <button
           onClick={() => setShowCreateForm(true)}
-          className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium shadow-sm"
         >
-          Tạo đề xuất
+          + Tạo đề xuất
         </button>
       </div>
 

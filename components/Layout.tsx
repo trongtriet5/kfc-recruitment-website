@@ -79,7 +79,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
-      <aside className="w-64 bg-white shadow-sm min-h-screen flex flex-col">
+      <aside className="w-64 bg-white shadow-sm h-screen flex flex-col fixed top-0 left-0">
         <div className="p-4 border-b">
           <div className="flex items-center gap-3">
             {/* Logo */}
@@ -98,7 +98,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </h1>
           </div>
         </div>
-        <nav className="p-4 space-y-1 flex-1 overflow-y-auto max-h-[calc(100vh-200px)]">
+        <nav className="p-4 space-y-1 flex-1 overflow-y-auto">
           {menuItems.map((item) => (
             <Link
               key={item.href}
@@ -117,20 +117,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         {user && typeof user === 'object' && 'fullName' in user && (
-          <div className="p-4 border-t bg-white">
-            <div className="mb-3 p-2">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-kfc-red rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
-                  {user.fullName?.charAt(0).toUpperCase() || 'U'}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-700 truncate">
-                    {user.fullName}
-                  </p>
-                  <p className="text-xs text-gray-500 truncate">
-                    {user.role}
-                  </p>
-                </div>
+          <div className="p-4 border-t bg-white mt-auto mb-4">
+            <div className="flex items-center gap-3 p-2">
+              <div className="w-10 h-10 bg-kfc-red rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
+                {user.fullName?.charAt(0).toUpperCase() || 'U'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-700 truncate">
+                  {user.fullName}
+                </p>
+                <p className="text-xs text-gray-500 truncate">
+                  {user.role}
+                </p>
               </div>
             </div>
             <button
@@ -145,7 +143,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto bg-gray-50">
+      <main className="flex-1 overflow-auto bg-gray-50 ml-64">
         <div className="py-8 px-6 sm:px-10 lg:px-16 xl:px-24 2xl:px-32 w-full max-w-[1600px] mx-auto">
           {children}
         </div>

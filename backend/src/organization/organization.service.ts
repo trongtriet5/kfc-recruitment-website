@@ -5,6 +5,58 @@ import { PrismaService } from '../prisma/prisma.service';
 export class OrganizationService {
   constructor(private prisma: PrismaService) {}
 
+  private readonly storeSelect = {
+    id: true,
+    name: true,
+    code: true,
+    address: true,
+    city: true,
+    zone: true,
+    brand: true,
+    isActive: true,
+    createdAt: true,
+    updatedAt: true,
+    amName: true,
+    omName: true,
+    odName: true,
+    group: true,
+    sm: { select: { id: true, fullName: true, email: true } },
+    am: { select: { id: true, fullName: true, email: true } },
+  } as const;
+
+  private mapStorePayload(data: any) {
+    const {
+      am,
+      om,
+      od,
+      taIncharge,
+      amName,
+      omName,
+      odName,
+      ...rest
+    } = data || {};
+
+    return {
+      ...rest,
+      amName: amName ?? am,
+      omName: omName ?? om,
+      odName: odName ?? od,
+    };
+  }
+
+  private mapStoreResponse(store: any) {
+    if (!store) return store;
+
+    return {
+      ...store,
+      am: store.am ?? store.amName ?? null,
+      om: store.omName ?? null,
+      od: store.odName ?? null,
+      taIncharge: store.taIncharge ?? null,
+      group: store.group ?? null,
+    };
+  }
+
   // Departments
   async getDepartments() {
     return this.prisma.department.findMany({
@@ -70,40 +122,39 @@ export class OrganizationService {
       }
     }
 
-    return this.prisma.store.findMany({
+    const stores = await this.prisma.store.findMany({
       where,
-      include: {
-        sm: { select: { id: true, fullName: true, email: true } },
-        am: { select: { id: true, fullName: true, email: true } }
-      },
+      select: this.storeSelect,
       orderBy: { name: 'asc' },
     });
+
+    return stores.map((store) => this.mapStoreResponse(store));
   }
 
   async getStore(id: string, user?: any) {
     const store = await this.prisma.store.findUnique({ 
       where: { id },
-      include: {
-        sm: { select: { id: true, fullName: true, email: true } },
-        am: { select: { id: true, fullName: true, email: true } }
-      }
+      select: this.storeSelect,
     });
     if (!store) throw new NotFoundException('Store not found');
-    return store;
+    return this.mapStoreResponse(store);
   }
 
   async createStore(data: any) {
-    const existing = await this.prisma.store.findUnique({ where: { code: data.code } });
+    const existing = await this.prisma.store.findUnique({ where: { code: data.code }, select: { id: true } });
     if (existing) throw new ConflictException(`Store ${data.code} already exists`);
-    return this.prisma.store.create({ data });
+    const store = await this.prisma.store.create({ data: this.mapStorePayload(data), select: this.storeSelect });
+    return this.mapStoreResponse(store);
   }
 
   async updateStore(id: string, data: any) {
-    return this.prisma.store.update({ where: { id }, data });
+    const store = await this.prisma.store.update({ where: { id }, data: this.mapStorePayload(data), select: this.storeSelect });
+    return this.mapStoreResponse(store);
   }
 
   async deleteStore(id: string) {
-    return this.prisma.store.update({ where: { id }, data: { isActive: false } });
+    const store = await this.prisma.store.update({ where: { id }, data: { isActive: false }, select: this.storeSelect });
+    return this.mapStoreResponse(store);
   }
 
 // Helper to convert BigInt values to numbers for JSON serialization

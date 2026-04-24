@@ -172,15 +172,20 @@ export default function HeadcountList() {
   }
 
   return (
-    <div>
-      {/* Header */}
-      <div className="mb-6 flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Bảng định biên</h2>
+    <div className="pt-6 space-y-8">
+      {/* Page Header */}
+      <div className="pb-2">
+        <h1 className="text-2xl font-bold text-gray-900">Bảng định biên</h1>
+        <p className="text-gray-600 mt-2">Quản lý kế hoạch nhân sự theo vị trí và cửa hàng</p>
+      </div>
+
+      {/* Header Actions */}
+      <div className="flex justify-between items-center">
         <button
           onClick={() => setShowCreateForm(true)}
-          className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium shadow-sm"
         >
-          Tạo định biên
+          + Tạo định biên
         </button>
       </div>
 

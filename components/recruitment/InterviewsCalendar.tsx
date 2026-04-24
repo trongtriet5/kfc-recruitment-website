@@ -123,9 +123,14 @@ export default function InterviewsCalendar() {
   const sortedDates = Object.keys(groupedInterviews).sort()
 
   return (
-    <div>
-      <div className="mb-4 flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Lịch phỏng vấn</h2>
+    <div className="pt-6 space-y-8">
+      {/* Page Header */}
+      <div className="pb-2">
+        <h1 className="text-2xl font-bold text-gray-900">Lịch phỏng vấn</h1>
+        <p className="text-gray-600 mt-2">Quản lý lịch phỏng vấn, kết quả và theo dõi tiến độ ứng viên</p>
+      </div>
+
+      <div className="flex justify-between items-center">
         <div className="flex flex-wrap gap-2">
           <select
             value={typeId}
@@ -206,7 +211,7 @@ export default function InterviewsCalendar() {
                             </p>
                             <p className="text-gray-500">{typeof interview.candidate === 'object' && interview.candidate !== null && 'phone' in interview.candidate ? interview.candidate.phone : ''}</p>
                             <p className="text-gray-500">
-                              Người phỏng vấn: {typeof interview.interviewer === 'object' && interview.interviewer !== null && 'fullName' in interview.interviewer ? interview.interviewer.fullName : 'N/A'}
+                              Người phỏng vấn: {typeof interview.interviewer === 'object' && interview.interviewer !== null && 'fullName' in interview.interviewer ? String(interview.interviewer.fullName || 'N/A') : 'N/A'}
                             </p>
                             {interview.location && (
                               <p className="text-gray-500">Địa điểm: {interview.location}</p>

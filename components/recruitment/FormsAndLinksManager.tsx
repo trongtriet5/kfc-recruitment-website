@@ -224,14 +224,15 @@ export default function FormsAndLinksManager() {
   }
 
   return (
-    <div>
-      <div className="mb-6 flex justify-between items-center">
-        <div>
-          <h2 className="text-xl font-semibold">Form tuyển dụng</h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Quản lý form ứng tuyển (dùng chung cho các chiến dịch)
-          </p>
-        </div>
+    <div className="pt-6 space-y-8">
+      {/* Page Header */}
+      <div className="pb-2">
+        <h1 className="text-2xl font-bold text-gray-900">Form tuyển dụng</h1>
+        <p className="text-gray-600 mt-2">Quản lý form ứng tuyển (dùng chung cho các chiến dịch)</p>
+      </div>
+
+      <div className="flex justify-between items-center">
+        <div></div>
         <button
           onClick={() => {
             setEditingForm(null)
@@ -250,9 +251,9 @@ export default function FormsAndLinksManager() {
             })
             setShowCreateForm(true)
           }}
-          className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium shadow-sm"
         >
-          Tạo mới
+          + Tạo form
         </button>
       </div>
 

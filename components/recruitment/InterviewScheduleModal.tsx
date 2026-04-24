@@ -159,10 +159,10 @@ export default function InterviewScheduleModal({ candidate, proposal, onClose, o
               onChange={(e) => setFormData({ ...formData, interviewerId: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             >
-              <option value="">Mac dinh: {proposal?.requester && typeof proposal.requester === 'object' && 'fullName' in proposal.requester ? proposal.requester.fullName : 'Nguoi tao de xuat'}</option>
+              <option value="">Mac dinh: {proposal?.requester && typeof proposal.requester === 'object' && 'fullName' in proposal.requester ? String(proposal.requester.fullName || 'Nguoi tao de xuat') : 'Nguoi tao de xuat'}</option>
               {users.map((user) => (
                 <option key={typeof user === 'object' && user !== null && 'id' in user ? user.id : ''} value={typeof user === 'object' && user !== null && 'id' in user ? user.id : ''}>
-                  {typeof user === 'object' && user !== null && 'fullName' in user ? user.fullName : 'Unknown'} ({typeof user === 'object' && user !== null && 'email' in user ? user.email : ''})
+                  {typeof user === 'object' && user !== null && 'fullName' in user ? String(user.fullName || 'Unknown') : 'Unknown'} ({typeof user === 'object' && user !== null && 'email' in user ? String(user.email || '') : ''})
                 </option>
               ))}
             </select>

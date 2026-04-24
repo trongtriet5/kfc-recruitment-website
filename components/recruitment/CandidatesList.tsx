@@ -203,22 +203,22 @@ export default function CandidatesList() {
     
     // If it's an object from the new relational backend
     if (typeof status === 'object' && status !== null && 'name' in status) {
-      return (status as { name: string }).name
+      return String((status as { name: string }).name || '')
     }
 
     const statusCode = typeof status === 'string' ? status : (status as any)?.code
     if (!statusCode) return 'Chưa có trạng thái'
 
-    const dbObj = dbStatuses.find((s) => s.code === statusCode)
-    if (dbObj) return dbObj.name
-    return statusCode
+    const dbObj = dbStatuses.find((s) => s.code === String(statusCode))
+    if (dbObj) return String(dbObj.name || '')
+    return String(statusCode || '')
   }
 
   const getStatusColor = (status: unknown) => {
     if (!status || typeof status !== 'string' && typeof status !== 'object') {
       return 'bg-gray-100 text-gray-700'
     }
-    const statusCode = typeof status === 'string' ? status : (status as any)?.code
+    const statusCode = typeof status === 'string' ? String(status) : (status as any)?.code ? String((status as any).code) : ''
     if (!statusCode) {
       return 'bg-gray-100 text-gray-700'
     }
@@ -256,7 +256,13 @@ export default function CandidatesList() {
   const allStatuses = dbStatuses.map((s) => ({ value: s.code, label: s.name }))
 
   return (
-    <div className="relative">
+    <div className="relative pt-6 space-y-8">
+      {/* Page Header */}
+      <div className="pb-2">
+        <h1 className="text-2xl font-bold text-gray-900">Danh sách ứng viên</h1>
+        <p className="text-gray-600 mt-2">Quản lý danh sách ứng viên, kiểm tra trạng thái và xếp lịch phỏng vấn</p>
+      </div>
+
       {contextMenu && (
         <CandidateContextMenu
           candidate={contextMenu.candidate}
@@ -296,8 +302,7 @@ export default function CandidatesList() {
           statusOptions={allStatuses}
         />
       )}
-      <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-semibold text-gray-900">Danh sách ứng viên</h2>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setShowCreateModal(true)}
@@ -459,7 +464,7 @@ export default function CandidatesList() {
                           )}
                           <span className="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md font-medium">
                             <Icon name="campaign" size={12} />
-                            Chiến dịch: {typeof candidate.campaign === 'object' && campaign !== null && 'name' in candidate.campaign ? candidate.campaign.name : 'Chiến dịch tuyển dụng tổng'}
+                            Chiến dịch: {typeof candidate.campaign === 'object' && candidate.campaign !== null && 'name' in candidate.campaign ? candidate.campaign.name : 'Chiến dịch tuyển dụng tổng'}
                           </span>
                           {candidate.pic && typeof candidate.pic === 'object' && candidate.pic !== null && 'fullName' in candidate.pic && (
                             <span className="inline-flex items-center gap-1.5 text-xs bg-purple-50 text-purple-700 px-2.5 py-1 rounded-md font-medium">

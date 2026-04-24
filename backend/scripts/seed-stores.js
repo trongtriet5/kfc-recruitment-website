@@ -65,7 +65,7 @@ async function main() {
     const amName = am ? String(am).trim() : null;
     const omName = om ? String(om).trim() : null;
     const odName = od ? String(od).trim() : null;
-    const icName = group ? String(group).trim() : null;
+    const taIncharge = group ? String(group).trim() : null;
     const groupStr = group2 ? String(group2).trim() : null;
 
     try {
@@ -92,7 +92,7 @@ async function main() {
           amName,
           omName,
           odName,
-          icName,
+          taIncharge,
           group: groupStr,
         }
       });

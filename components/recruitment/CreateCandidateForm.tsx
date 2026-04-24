@@ -248,7 +248,7 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
               <option value="">-- Chọn TA phụ trách --</option>
               {users.map((user) => (
                 <option key={typeof user === 'object' && user !== null && 'id' in user ? user.id : ''} value={typeof user === 'object' && user !== null && 'id' in user ? user.id : ''}>
-                  {typeof user === 'object' && user !== null && 'fullName' in user ? user.fullName : 'Unknown'}
+                  {typeof user === 'object' && user !== null && 'fullName' in user ? String(user.fullName || 'Unknown') : 'Unknown'}
                 </option>
               ))}
             </select>
