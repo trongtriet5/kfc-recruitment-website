@@ -3,17 +3,20 @@
 import { useEffect, useState, useRef } from 'react'
 import api from '@/lib/api'
 import Link from 'next/link'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import CandidateContextMenu from './CandidateContextMenu'
 import CandidatesKanban from './CandidatesKanban'
 import { useClickOutside } from '@/hooks/useClickOutside'
 import Icon from '@/components/icons/Icon'
 import { useCandidateStatuses } from '@/lib/useCandidateStatuses'
 import Modal from '@/components/common/Modal'
+import ConfirmDialog from '@/components/common/ConfirmDialog'
 import CreateCandidateForm from './CreateCandidateForm'
 import EditCandidateForm from './EditCandidateForm'
 import CreateInterviewForm from './CreateInterviewForm'
 import CandidateDetail from './CandidateDetail'
+import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface Candidate {
   id: string
@@ -53,6 +56,8 @@ export default function CandidatesList() {
   const [viewCandidateId, setViewCandidateId] = useState<string | null>(null)
   const [editCandidateId, setEditCandidateId] = useState<string | null>(null)
   const [interviewCandidateId, setInterviewCandidateId] = useState<string | null>(null)
+  const [deleteCandidateId, setDeleteCandidateId] = useState<string | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
   const statusUpdateFormRef = useRef<HTMLDivElement>(null)
 
   const [transferModal, setTransferModal] = useState<{
@@ -62,6 +67,14 @@ export default function CandidatesList() {
     selectedCampaignId: string;
     loading: boolean;
   }>({ isOpen: false, candidate: null, campaigns: [], selectedCampaignId: '', loading: false });
+
+  const [picModal, setPicModal] = useState<{
+    isOpen: boolean;
+    candidate: Candidate | null;
+    tas: any[];
+    selectedPicId: string;
+    loading: boolean;
+  }>({ isOpen: false, candidate: null, tas: [], selectedPicId: '', loading: false });
 
   useClickOutside(statusUpdateFormRef, () => {
     if (selectedCandidate) {
@@ -154,13 +167,18 @@ export default function CandidatesList() {
     })
   }
 
-  const handleDeleteCandidate = async (candidateId: string) => {
+  const handleDeleteCandidate = async () => {
+    if (!deleteCandidateId) return
+    setDeleteLoading(true)
     try {
-      await api.delete(`/recruitment/candidates/${candidateId}`)
+      await api.delete(`/recruitment/candidates/${deleteCandidateId}`)
       toast.success('Xóa ứng viên thành công')
       loadCandidates()
+      setDeleteCandidateId(null)
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi xóa ứng viên')
+    } finally {
+      setDeleteLoading(false)
     }
   }
 
@@ -179,6 +197,41 @@ export default function CandidatesList() {
       console.error(err);
       toast.error('Không thể tải danh sách chiến dịch');
       setTransferModal((prev) => ({ ...prev, isOpen: false, loading: false }));
+    }
+  };
+
+  const loadTAsForAssign = async (candidate: Candidate) => {
+    try {
+      setPicModal((prev) => ({ ...prev, isOpen: true, candidate, loading: true }));
+      const res = await api.get('/recruitment/users/tas');
+      setPicModal({
+        isOpen: true,
+        candidate,
+        tas: res.data || [],
+        selectedPicId: candidate.pic?.id || '',
+        loading: false,
+      });
+    } catch (err) {
+      console.error(err);
+      toast.error('Không thể tải danh sách TA');
+      setPicModal((prev) => ({ ...prev, isOpen: false, loading: false }));
+    }
+  };
+
+  const submitAssignPIC = async () => {
+    if (!picModal.candidate) return;
+    setPicModal((prev) => ({ ...prev, loading: true }));
+    try {
+      await api.patch(`/recruitment/candidates/${picModal.candidate.id}/assign-pic`, {
+        picId: picModal.selectedPicId || null
+      });
+      toast.success('Đã gán Người phụ trách');
+      setPicModal((prev) => ({ ...prev, isOpen: false }));
+      loadCandidates();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra');
+    } finally {
+      setPicModal((prev) => ({ ...prev, loading: false }));
     }
   };
 
@@ -293,9 +346,10 @@ export default function CandidatesList() {
               console.error('Error updating status:', err)
             }
           }}
-          onDelete={handleDeleteCandidate}
+          onDelete={(candidateId) => setDeleteCandidateId(candidateId)}
           onScheduleInterview={(candidate) => setInterviewCandidateId(candidate.id)}
-          onEdit={(candidate) => setEditCandidateId(candidate.id)}
+          onEdit={(candidateId) => setEditCandidateId(candidateId)}
+          onAssignPIC={loadTAsForAssign}
           onTransferCampaign={loadCampaignsForTransfer}
           onViewDetail={(id) => setViewCandidateId(id)}
           allowedStatuses={allowedStatuses}
@@ -335,25 +389,19 @@ export default function CandidatesList() {
               Kanban
             </button>
           </div>
-          {viewMode === 'list' && (
+{viewMode === 'list' && (
             <div className="relative">
-              <Icon name="search" size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 bg-white text-gray-700 shadow-sm"
-              >
-                <option value="">Tất cả trạng thái</option>
-              {Object.entries(dynamicGroups).map(([key, group]) => (
-                <optgroup key={key} label={group.label}>
-                  {group.statuses.map((status) => (
-                    <option key={status.value} value={status.value}>
-                      {status.label}
-                    </option>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="pl-9 w-[200px]">
+                  <SelectValue placeholder="Tất cả trạng thái" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Tất cả trạng thái</SelectItem>
+                  {Object.entries(dynamicGroups).map(([key, group]) => (
+                    <SelectItem key={key} value={key} disabled className="font-medium">{group.label}</SelectItem>
                   ))}
-                </optgroup>
-              ))}
-            </select>
+                </SelectContent>
+              </Select>
             </div>
           )}
         </div>
@@ -365,38 +413,32 @@ export default function CandidatesList() {
             <div ref={statusUpdateFormRef} className="mb-4 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
               <h3 className="font-medium text-gray-900 mb-3">Cập nhật trạng thái: <span className="text-gray-700">{selectedCandidate.fullName}</span></h3>
               <div className="flex flex-col sm:flex-row gap-2">
-                <select
-                  value={newStatus}
-                  onChange={(e) => setNewStatus(e.target.value)}
-                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 bg-white text-gray-700"
-                >
-                  <option value="">Chọn trạng thái mới</option>
-                  {allowedStatuses.map((status) => {
-                    const statusInfo = allStatuses.find((s) => s.value === status)
-                    return (
-                      <option key={status} value={status}>
-                        {statusInfo?.label || status}
-                      </option>
-                    )
-                  })}
-                </select>
-                <button
-                  onClick={handleStatusChange}
-                  disabled={!newStatus}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                >
+                <Select value={newStatus} onValueChange={setNewStatus}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Chọn trạng thái mới" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__clear__">Chọn trạng thái mới</SelectItem>
+                    {allowedStatuses.map((status) => {
+                      const statusInfo = allStatuses.find((s) => s.value === status)
+                      return (
+                        <SelectItem key={status} value={status}>
+                          {statusInfo?.label || status}
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                </Select>
+                <Button onClick={handleStatusChange} disabled={!newStatus}>
                   <Icon name="check" size={16} />
                   Cập nhật
-                </button>
-                <button
-                  onClick={() => {
-                    setSelectedCandidate(null)
-                    setNewStatus('')
-                  }}
-                  className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700"
-                >
+                </Button>
+                <Button variant="outline" onClick={() => {
+                  setSelectedCandidate(null)
+                  setNewStatus('')
+                }}>
                   Hủy
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -669,6 +711,66 @@ export default function CandidatesList() {
           />
         )}
       </Modal>
+
+      <ConfirmDialog
+        isOpen={!!deleteCandidateId}
+        title="Xóa ứng viên"
+        message="Bạn có chắc chắn muốn xóa ứng viên này không?"
+        confirmText="Xóa"
+        destructive
+        isLoading={deleteLoading}
+        onClose={() => setDeleteCandidateId(null)}
+        onConfirm={handleDeleteCandidate}
+      />
+      {picModal.isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">Gán Người phụ trách (TA)</h3>
+              <button onClick={() => setPicModal(prev => ({ ...prev, isOpen: false }))}>
+                <span className="text-gray-400 hover:text-gray-600 font-bold text-xl">×</span>
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-4">
+                Ứng viên: <span className="font-semibold text-gray-900">{picModal.candidate?.fullName}</span>
+              </p>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Chọn TA phụ trách <span className="text-red-500">*</span>
+              </label>
+              <select
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                value={picModal.selectedPicId}
+                onChange={e => setPicModal(prev => ({ ...prev, selectedPicId: e.target.value }))}
+                disabled={picModal.loading}
+              >
+                <option value="">-- Chọn TA --</option>
+                {picModal.tas.map(t => (
+                  <option key={t.id} value={t.id}>{t.fullName}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+              <button 
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 bg-white text-gray-700" 
+                onClick={() => setPicModal(prev => ({ ...prev, isOpen: false }))}
+                disabled={picModal.loading}
+              >
+                Hủy
+              </button>
+              <button 
+                className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+                onClick={submitAssignPIC}
+                disabled={picModal.loading}
+              >
+                {picModal.loading ? 'Đang lưu...' : 'Xác nhận'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

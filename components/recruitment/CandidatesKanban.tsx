@@ -5,6 +5,10 @@ import Link from 'next/link'
 import api from '@/lib/api'
 import CandidateContextMenu from './CandidateContextMenu'
 import Icon from '@/components/icons/Icon'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useCandidateStatuses } from '@/lib/useCandidateStatuses'
 
 interface Candidate {
   id: string
@@ -22,7 +26,6 @@ interface User {
   role: string
 }
 
-import { useCandidateStatuses } from '@/lib/useCandidateStatuses'
 interface CandidatesKanbanProps {
   candidates?: Candidate[]
   onStatusChange?: () => void
@@ -178,7 +181,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
     // Check if user has permission
     const allowedStatuses = getAllowedStatuses()
     if (!allowedStatuses.includes(firstStatus.value)) {
-      alert('Bạn không có quyền chuyển trạng thái này')
+      toast.error('Bạn không có quyền chuyển trạng thái này')
       setDraggedCandidate(null)
       return
     }
@@ -187,7 +190,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
       // Fetch status ID from backend not needed, we have targetStatus code
       const targetStatus = dbStatuses.find((s: any) => s.code === firstStatus.value)
       if (!targetStatus) {
-        alert('Không tìm thấy trạng thái')
+        toast.error('Không tìm thấy trạng thái')
         setDraggedCandidate(null)
         return
       }
@@ -200,7 +203,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
         loadCandidates()
       }
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Có lỗi xảy ra khi cập nhật trạng thái')
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi cập nhật trạng thái')
     } finally {
       setDraggedCandidate(null)
     }
@@ -217,7 +220,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
 
   const handleScheduleInterview = (candidate: Candidate) => {
     // Navigate to create interview page with candidate pre-filled
-    window.location.href = `/dashboard/recruitment/interviews/new?candidateId=${candidate.id}`
+    window.location.href = `/recruitment/interviews/new?candidateId=${candidate.id}`
   }
 
   const handleDeleteCandidate = async (candidateId: string) => {
@@ -229,7 +232,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
         loadCandidates()
       }
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Có lỗi xảy ra khi xóa ứng viên')
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi xóa ứng viên')
     }
   }
 
@@ -241,7 +244,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
     const statusCode = typeof status === 'string' ? status : (status as any)?.code
     if (!statusCode) return 'Chưa có trạng thái'
     
-    for (const group of Object.values(STATUS_GROUPS)) {
+    for (const group of Object.values(dynamicGroups)) {
       const found = group.statuses.find((s) => s.value === statusCode)
       if (found) return found.label
     }
@@ -297,7 +300,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
     if (onViewDetail) {
       onViewDetail(candidate.id)
     } else {
-      window.location.href = `/dashboard/recruitment/candidates/${candidate.id}`
+      window.location.href = `/recruitment/candidates/${candidate.id}`
     }
   }
 
@@ -314,39 +317,40 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
       <div className="mb-4 px-6 py-3 border-b border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white">
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <span>Hiển thị:</span>
-          <select
-            value={limit}
-            onChange={(e) => {
-              handleLimitChange(Number(e.target.value))
-            }}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 bg-white text-gray-700"
-          >
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-          </select>
+          <Select value={String(limit)} onValueChange={(v) => handleLimitChange(Number(v))}>
+            <SelectTrigger className="w-[80px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="20">20</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+            </SelectContent>
+          </Select>
           <span className="text-gray-500">
             / Tổng: <span className="font-semibold text-gray-700">{total}</span> ứng viên
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => handlePageChange(page - 1)}
             disabled={page === 1}
-            className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors text-gray-700 bg-white"
           >
             Trước
-          </button>
+          </Button>
           <span className="text-sm text-gray-600 px-2">
             Trang <span className="font-semibold text-gray-900">{page}</span> / {totalPages || 1}
           </span>
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => handlePageChange(page + 1)}
             disabled={page >= totalPages}
-            className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors text-gray-700 bg-white"
           >
             Sau
-          </button>
+          </Button>
         </div>
       </div>
       <div className="overflow-x-auto pb-4 relative">
@@ -364,7 +368,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
               const statuses = await api.get('/types/by-category/CANDIDATE_STATUS')
               const targetStatus = statuses.data.find((s: any) => s.code === newStatusCode)
               if (!targetStatus) {
-                alert('Không tìm thấy trạng thái')
+                toast.error('Không tìm thấy trạng thái')
                 return
               }
               await api.patch(`/recruitment/candidates/${candidate.id}`, {
@@ -377,7 +381,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
               }
               setContextMenu(null)
             } catch (err: any) {
-              alert(err.response?.data?.message || 'Có lỗi xảy ra khi cập nhật trạng thái')
+              toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi cập nhật trạng thái')
             }
           }}
           onDelete={handleDeleteCandidate}

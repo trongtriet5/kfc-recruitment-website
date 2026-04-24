@@ -5,19 +5,6 @@ import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 import Icon from '@/components/icons/Icon'
 
-const POSITIONS = [
-  'Quản lý cửa hàng',
-  'Trưởng ca / giám sát ca',
-  'Nhân viên cửa hàng (Parttime: Thu ngân, Order, Pha chế)',
-  'Nhân viên cửa hàng (Parttime: Hoạt náo viên CSS)',
-  'Nhân viên cửa hàng (Fulltime: Có kinh nghiệm 6 tháng trở lên trong F&B)',
-  'Nhân viên cửa hàng (Fulltime: Xoay ca 8 tiếng được nhưng không có kinh nghiệm F&B)',
-  'Công nhân sản xuất',
-  'Captain (Fulltime)',
-  'Tổ trưởng cửa hàng',
-  'Other',
-]
-
 const WORK_SHIFTS = [
   '6 tiếng ngày',
   '8 tiếng ngày',
@@ -67,6 +54,11 @@ interface Ward {
   code: string
 }
 
+interface PositionOption {
+  id: string
+  name: string
+}
+
 export default function PublicApplicationForm() {
   const searchParams = useSearchParams()
   const campaignLink = searchParams.get('campaignId') || ''
@@ -110,10 +102,12 @@ export default function PublicApplicationForm() {
   })
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
   const [availableLocations, setAvailableLocations] = useState<Ward[]>([])
+  const [positions, setPositions] = useState<PositionOption[]>([])
 
   useEffect(() => {
     loadProvinces()
     loadAllLocations()
+    loadPositions()
     if (campaignLink) {
       loadCampaignInfo()
     } else if (legacyLink) {
@@ -123,6 +117,16 @@ export default function PublicApplicationForm() {
       setLoading(false)
     }
   }, [campaignLink, legacyLink])
+
+  const loadPositions = async () => {
+    try {
+      const res = await api.get('/organization/positions')
+      setPositions(res.data || [])
+    } catch (err) {
+      console.error('Error loading positions:', err)
+      setPositions([])
+    }
+  }
 
   const loadProvinces = async () => {
     try {
@@ -319,8 +323,17 @@ export default function PublicApplicationForm() {
       const [day, month, year] = formData.dateOfBirth.split('/')
       const dateOfBirthISO = `${year}-${month}-${day}`
 
+      // Convert city ID to city name
+      const selectedProvince = provinces.find(p => p.id === formData.currentCity)
+      const cityName = selectedProvince?.name || formData.currentCity
+
       await api.post('/recruitment/apply', {
         ...formData,
+        currentCity: cityName,
+        appliedPosition:
+          formData.appliedPosition === 'Other'
+            ? formData.appliedPositionOther
+            : formData.appliedPosition,
         dateOfBirth: dateOfBirthISO,
         formId: formInfo?.id || '',
         campaignId: campaignInfo?.id || undefined,
@@ -555,7 +568,7 @@ export default function PublicApplicationForm() {
               <img
                 src={formInfo.bannerUrl}
                 alt="Banner"
-                className="w-full h-48 object-cover rounded-lg"
+                className="w-full h-auto max-h-64 object-contain rounded-lg bg-gray-50"
                 onError={(e) => {
                   e.currentTarget.style.display = 'none'
                 }}
@@ -981,11 +994,19 @@ export default function PublicApplicationForm() {
                     required
                   >
                     <option value="">Chọn vị trí</option>
-                    {POSITIONS.map((position) => (
-                      <option key={position} value={position}>
-                        {position}
+                    {(
+                      formInfo?.positions && formInfo.positions.length > 0
+                        ? formInfo.positions
+                        : positions
+                    ).map((position: any) => (
+                      <option
+                        key={typeof position === 'string' ? position : position.id}
+                        value={typeof position === 'string' ? position : position.name}
+                      >
+                        {typeof position === 'string' ? position : position.name}
                       </option>
                     ))}
+                    <option value="Other">Khác</option>
                   </select>
                   {validationErrors.appliedPosition && (
                     <p className="mt-1 text-sm text-red-600">{validationErrors.appliedPosition}</p>

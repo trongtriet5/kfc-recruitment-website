@@ -98,7 +98,7 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
       if (onSuccess) {
         onSuccess()
       } else {
-        router.push(`/dashboard/recruitment/candidates/${res.data.id}`)
+        router.push(`/recruitment/candidates/${res.data.id}`)
       }
     } catch (err: any) {
       const errorMsg = err.response?.data?.message || 'Có lỗi xảy ra khi tạo ứng viên'

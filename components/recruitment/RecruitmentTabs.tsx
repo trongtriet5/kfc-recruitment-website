@@ -11,7 +11,6 @@ const tabs = [
   { id: 'proposals', label: 'Đề xuất', icon: 'clipboard', href: '/recruitment/proposals' },
   { id: 'campaigns', label: 'Chiến dịch', icon: 'megaphone', href: '/recruitment/campaigns' },
   { id: 'interviews', label: 'Phỏng vấn', icon: 'calendar', href: '/recruitment/interviews' },
-  { id: 'headcount', label: 'Định biên', icon: 'users', href: '/recruitment/headcount' },
 ]
 
 function getTabFromPath(pathname: string): string {
@@ -21,7 +20,6 @@ function getTabFromPath(pathname: string): string {
   if (pathname === '/recruitment/proposals') return 'proposals'
   if (pathname === '/recruitment/campaigns') return 'campaigns'
   if (pathname === '/recruitment/interviews') return 'interviews'
-  if (pathname === '/recruitment/headcount') return 'headcount'
   return 'dashboard'
 }
 

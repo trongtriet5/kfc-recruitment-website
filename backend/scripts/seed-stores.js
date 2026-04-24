@@ -10,7 +10,7 @@
  */
 
 const { PrismaClient } = require('@prisma/client');
-const xlsx = require('xlsx');
+const readXlsxFile = require('read-excel-file/node');
 const path = require('path');
 
 const prisma = new PrismaClient();
@@ -35,12 +35,14 @@ function amEmail(name) {
   return `am.${toSlug(name)}@kfcvietnam.com.vn`;
 }
 
+async function readWorksheetRows(filePath) {
+  return readXlsxFile(filePath);
+}
+
 // ── main ───────────────────────────────────────────────────────────────────
 async function main() {
   const filePath = path.resolve(__dirname, '..', '..', 'Store_KFC.xlsx');
-  const wb = xlsx.readFile(filePath);
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const raw = xlsx.utils.sheet_to_json(ws, { header: 1 });
+  const raw = await readWorksheetRows(filePath);
 
   // header row: StoreName StoreID ID AM OM OD City Zone IC Group Group2
   const rows = raw.slice(1).filter(r => r[0]); // skip header, skip empty rows

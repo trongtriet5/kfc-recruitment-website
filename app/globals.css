@@ -31,9 +31,19 @@ body {
   font-family: 'Lexend', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
 }
 
+/* Focus States - WCAG 2.2 AA compliant */
+*:focus-visible {
+  outline: 2px solid #e4002b;
+  outline-offset: 2px;
+}
+
+/* Remove default focus for mouse users */
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
 }
-

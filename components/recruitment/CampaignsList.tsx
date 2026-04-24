@@ -4,6 +4,10 @@ import { useEffect, useState, useRef } from 'react'
 import api from '@/lib/api'
 import { useClickOutside } from '@/hooks/useClickOutside'
 import Icon from '@/components/icons/Icon'
+import { toast } from 'sonner'
+import ConfirmDialog from '@/components/common/ConfirmDialog'
+import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface Campaign {
   id: string
@@ -30,6 +34,22 @@ export default function CampaignsList() {
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('')
   const [statistics, setStatistics] = useState<any>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; campaign: Campaign } | null>(null)
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean
+    title: string
+    message: string
+    confirmText: string
+    destructive: boolean
+    action: null | (() => Promise<void>)
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Xác nhận',
+    destructive: false,
+    action: null,
+  })
+  const [confirmLoading, setConfirmLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -129,20 +149,26 @@ export default function CampaignsList() {
       setShowEditModal(false)
       setEditingCampaign(null)
       loadCampaigns()
+      toast.success('Cập nhật chiến dịch thành công')
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Có lỗi xảy ra')
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra')
     }
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (campaign: Campaign) => {
     setContextMenu(null)
-    if (!confirm('Bạn có chắc chắn muốn xóa chiến dịch này?')) return
-    try {
-      await api.delete(`/recruitment/campaigns/${id}`)
-      loadCampaigns()
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Có lỗi xảy ra')
-    }
+    setConfirmState({
+      isOpen: true,
+      title: 'Xóa chiến dịch',
+      message: `Bạn có chắc chắn muốn xóa chiến dịch "${campaign.name}"?`,
+      confirmText: 'Xóa',
+      destructive: true,
+      action: async () => {
+        await api.delete(`/recruitment/campaigns/${campaign.id}`)
+        toast.success('Xóa chiến dịch thành công')
+        loadCampaigns()
+      },
+    })
   }
 
   const loadCampaigns = () => {
@@ -170,7 +196,7 @@ export default function CampaignsList() {
   const copyLink = (link: string) => {
     const fullUrl = getCampaignUrl(link)
     navigator.clipboard.writeText(fullUrl)
-    alert('Đã copy link!')
+    toast.success('Đã copy link')
   }
 
   const openForm = (link: string) => {
@@ -193,19 +219,39 @@ export default function CampaignsList() {
       })
       loadCampaigns()
       loadStatistics()
+      toast.success('Tạo chiến dịch thành công')
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Có lỗi xảy ra')
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra')
     }
   }
 
-  const handleToggleActive = async (id: string, currentStatus: boolean) => {
+  const handleToggleActive = (campaign: Campaign) => {
     setContextMenu(null)
-    if (!confirm(currentStatus ? 'Bạn muốn tạm dừng chiến dịch này?' : 'Bạn muốn mở lại chiến dịch này?')) return
+    const nextAction = campaign.isActive ? 'tạm dừng' : 'mở lại'
+    setConfirmState({
+      isOpen: true,
+      title: `${campaign.isActive ? 'Tạm dừng' : 'Mở lại'} chiến dịch`,
+      message: `Bạn có chắc chắn muốn ${nextAction} chiến dịch "${campaign.name}"?`,
+      confirmText: campaign.isActive ? 'Tạm dừng' : 'Mở lại',
+      destructive: false,
+      action: async () => {
+        await api.patch(`/recruitment/campaigns/${campaign.id}`, { isActive: !campaign.isActive })
+        toast.success(`${campaign.isActive ? 'Đã tạm dừng' : 'Đã mở lại'} chiến dịch`)
+        loadCampaigns()
+      },
+    })
+  }
+
+  const handleConfirmAction = async () => {
+    if (!confirmState.action) return
+    setConfirmLoading(true)
     try {
-      await api.patch(`/recruitment/campaigns/${id}`, { isActive: !currentStatus })
-      loadCampaigns()
+      await confirmState.action()
+      setConfirmState((prev) => ({ ...prev, isOpen: false, action: null }))
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Có lỗi xảy ra')
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra')
+    } finally {
+      setConfirmLoading(false)
     }
   }
 
@@ -465,7 +511,7 @@ export default function CampaignsList() {
                     {canManage && (
                       <>
                         <button
-                          onClick={() => handleToggleActive(campaign.id, campaign.isActive)}
+                          onClick={() => handleToggleActive(campaign)}
                           className={`text-sm px-3 py-1 border rounded-md flex items-center gap-1 ${
                             campaign.isActive 
                               ? 'text-yellow-600 hover:text-yellow-700 border-yellow-300 hover:bg-yellow-50' 
@@ -476,7 +522,7 @@ export default function CampaignsList() {
                         </button>
                         {campaign._count?.candidates === 0 && (
                           <button
-                            onClick={() => handleDelete(campaign.id)}
+                            onClick={() => handleDelete(campaign)}
                             className="text-sm text-red-600 hover:text-red-700 px-3 py-1 border border-red-300 rounded-md hover:bg-red-50 flex items-center gap-1"
                           >
                             Xóa
@@ -505,7 +551,7 @@ export default function CampaignsList() {
             <Icon name="edit" size={16} /> Chỉnh sửa
           </button>
           <button
-            onClick={() => handleToggleActive(contextMenu.campaign.id, contextMenu.campaign.isActive)}
+            onClick={() => handleToggleActive(contextMenu.campaign)}
             className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
           >
             <Icon name={contextMenu.campaign.isActive ? 'pause' : 'play'} size={16} />
@@ -513,7 +559,7 @@ export default function CampaignsList() {
           </button>
           {contextMenu.campaign._count?.candidates === 0 && (
             <button
-              onClick={() => handleDelete(contextMenu.campaign.id)}
+              onClick={() => handleDelete(contextMenu.campaign)}
               className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 text-red-600 flex items-center gap-2"
             >
               <Icon name="trash" size={16} /> Xóa
@@ -521,6 +567,17 @@ export default function CampaignsList() {
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmText={confirmState.confirmText}
+        destructive={confirmState.destructive}
+        isLoading={confirmLoading}
+        onClose={() => setConfirmState((prev) => ({ ...prev, isOpen: false, action: null }))}
+        onConfirm={handleConfirmAction}
+      />
 
       {/* Edit Modal */}
       {showEditModal && editingCampaign && (

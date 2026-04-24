@@ -26,7 +26,7 @@ export default function LoginPage() {
       if (response.data.access_token) {
         // Save token to localStorage
         localStorage.setItem('token', response.data.access_token)
-        router.push('/dashboard/recruitment')
+        router.push('/recruitment/dashboard')
         router.refresh()
       }
     } catch (err: any) {

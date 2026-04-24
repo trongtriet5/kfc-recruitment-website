@@ -57,4 +57,45 @@ export class UsersService {
       where: { id }
     });
   }
+
+  async importUsers(data: any) {
+    const results = { success: 0, failed: 0, errors: [] as string[] };
+    
+    for (const user of data.users || []) {
+      try {
+        const existing = await this.prisma.user.findUnique({
+          where: { email: user.email }
+        });
+        
+        if (existing) {
+          await this.prisma.user.update({
+            where: { id: existing.id },
+            data: {
+              fullName: user.fullName || existing.fullName,
+              phone: user.phone,
+              role: user.role || existing.role,
+              isActive: user.isActive !== undefined ? user.isActive : existing.isActive,
+            }
+          });
+        } else {
+          await this.prisma.user.create({
+            data: {
+              email: user.email,
+              password: user.password || 'kfc@123',
+              fullName: user.fullName,
+              phone: user.phone,
+              role: user.role || 'USER',
+              isActive: user.isActive !== undefined ? user.isActive : true,
+            }
+          });
+        }
+        results.success++;
+      } catch (error) {
+        results.failed++;
+        results.errors.push(`Lỗi import ${user.email || 'unknown'}: ${error.message}`);
+      }
+    }
+    
+    return results;
+  }
 }

@@ -5,7 +5,9 @@ export default function RecruitmentLayout({ children }: { children: React.ReactN
   return (
     <Layout>
       <RecruitmentTabs />
-      {children}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm mt-6 p-6 sm:p-8">
+        {children}
+      </div>
     </Layout>
   )
 }

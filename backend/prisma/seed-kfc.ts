@@ -26,6 +26,28 @@ async function main() {
   });
   console.log('✅ Admin user created');
 
+  // TA Users (Recruitment Executive - xử lý ứng viên)
+  const taUsers = [
+    { email: 'ta1@kfcvietnam.com.vn', fullName: 'Nguyễn Thị Lan TA' },
+    { email: 'ta2@kfcvietnam.com.vn', fullName: 'Trần Văn Minh TA' },
+    { email: 'ta3@kfcvietnam.com.vn', fullName: 'Lê Thị Hoa TA' },
+  ];
+
+  for (const ta of taUsers) {
+    await prisma.user.upsert({
+      where: { email: ta.email },
+      update: {},
+      create: {
+        email: ta.email,
+        password: hashedPassword,
+        fullName: ta.fullName,
+        role: 'TA',
+        isActive: true,
+      },
+    });
+  }
+  console.log('✅ TA users created:', taUsers.length);
+
   // Departments
   await prisma.department.upsert({
     where: { code: 'HR' },

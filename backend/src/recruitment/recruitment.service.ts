@@ -162,6 +162,36 @@ export class RecruitmentService {
     return this.prisma.recruitmentForm.delete({ where: { id } });
   }
 
+  async getCampaignStatistics(campaignId?: string) {
+    const where: any = campaignId ? { id: campaignId } : {};
+
+    const campaigns = await this.prisma.campaign.findMany({
+      where,
+      select: {
+        id: true,
+        _count: { select: { candidates: true } },
+      },
+    });
+
+    const total = campaigns.reduce((sum, c) => sum + c._count.candidates, 0);
+
+    let byStatus: Record<string, number> = {};
+
+    if (campaignId) {
+      const candidates = await this.prisma.candidate.findMany({
+        where: { campaignId },
+        include: { status: { select: { code: true } } },
+      });
+      byStatus = candidates.reduce((acc, c) => {
+        const code = c.status?.code || 'unknown';
+        acc[code] = (acc[code] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+    }
+
+    return { total, byStatus };
+  }
+
   // Campaigns
   async getCampaigns(user?: any) {
     const where: any = {};

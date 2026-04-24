@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import api from '@/lib/api'
 import Icon from '@/components/icons/Icon'
+import toast from 'react-hot-toast'
 
 interface Candidate {
   id: string
@@ -62,6 +63,10 @@ export default function InterviewScheduleModal({ candidate, proposal, onClose, o
     setLoading(true)
 
     try {
+      if (formData.toTime <= formData.fromTime) {
+        toast.error('Giờ kết thúc phải lớn hơn giờ bắt đầu')
+        return
+      }
       const scheduledAt = new Date(`${formData.date}T${formData.fromTime}:00`)
       const interviewData = {
         candidateId: candidate.id,
@@ -72,10 +77,11 @@ export default function InterviewScheduleModal({ candidate, proposal, onClose, o
       }
 
       await api.post('/recruitment/interviews', interviewData)
+      toast.success('Tạo lịch phỏng vấn thành công')
       onSuccess()
       onClose()
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Có lỗi xảy ra')
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra')
     } finally {
       setLoading(false)
     }

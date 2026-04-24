@@ -14,7 +14,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import * as xlsx from 'xlsx';
+import readXlsxFile from 'read-excel-file/node';
 
 const prisma = new PrismaClient();
 
@@ -37,6 +37,10 @@ function storeEmail(code: string): string {
 
 function amEmail(name: string): string {
   return `am.${toSlug(name)}@kfcvietnam.com.vn`;
+}
+
+async function readWorksheetRows(filePath: string): Promise<any[][]> {
+  return (await readXlsxFile(filePath)) as any[][];
 }
 
 // ============ SEED DATA ============
@@ -155,9 +159,7 @@ async function main() {
   // 5. Import Stores from Excel
   console.log('=== Importing Stores from Store_KFC.xlsx ===');
   const filePath = './Store_KFC.xlsx';
-  const wb = xlsx.readFile(filePath);
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const raw = xlsx.utils.sheet_to_json(ws, { header: 1 });
+  const raw = await readWorksheetRows(filePath);
   const rows = raw.slice(1).filter((r: any) => r[0]);
 
   console.log(`📋 Found ${rows.length} stores in file\n`);

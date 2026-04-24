@@ -1,10 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import readXlsxFile from 'read-excel-file'
+import writeXlsxFile from 'write-excel-file'
+import { toast } from 'sonner'
 import api from '@/lib/api'
 import Icon from '@/components/icons/Icon'
 import Layout from '@/components/Layout'
-import toast from 'react-hot-toast'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 
 interface User {
   id: string
@@ -22,6 +29,11 @@ export default function UsersManagementPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [formData, setFormData] = useState({ fullName: '', email: '', phone: '', password: '', role: 'USER', isActive: true })
   const [submitting, setSubmitting] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importSummary, setImportSummary] = useState<{ success: number; failed: number } | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [filterRole, setFilterRole] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
 
   useEffect(() => { loadUsers() }, [])
 
@@ -49,6 +61,54 @@ export default function UsersManagementPage() {
     } catch (error) { toast.error('Có lỗi xảy ra') }
   }
 
+  const handleExport = () => {
+    void (async () => {
+      try {
+        const roleLabels: Record<string, string> = { USER: 'User (TA)', SM: 'SM (Store Manager)', AM: 'AM (Area Manager)', ADMIN: 'Admin' }
+        const headers = ['Email', 'Họ và tên', 'Số điện thoại', 'Vai trò', 'Trạng thái']
+        const data = filteredUsers.map((u) => [u.email, u.fullName, u.phone || '', roleLabels[u.role] || u.role, u.isActive ? 'Hoạt động' : 'Đã khóa'])
+        const exportRows = [headers, ...data].map((row) => row.map((value) => ({ value })))
+        await writeXlsxFile(exportRows, { fileName: `users_${new Date().toISOString().split('T')[0]}.xlsx` })
+        toast.success(`Đã export ${filteredUsers.length} tài khoản`)
+      } catch (err) { toast.error('Không thể export file Excel') }
+    })()
+  }
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true)
+    try {
+      const fileRows = await readXlsxFile(file)
+      const headers = fileRows[0].map((v) => String(v).trim())
+      const roleMap: Record<string, string> = { 'user': 'USER', 'ta': 'USER', 'sm': 'SM', 'am': 'AM', 'admin': 'ADMIN' }
+      const usersToImport = fileRows.slice(1).filter((row) => row.some((v) => v)).map((row) => {
+        const obj: Record<string, string> = {}
+        headers.forEach((h, i) => { obj[h] = String(row[i] || '').trim() })
+        const roleKey = (obj['Vai trò'] || obj['role'] || '').toLowerCase()
+        return {
+          email: obj['Email'] || obj['email'],
+          fullName: obj['Họ và tên'] || obj['fullName'] || obj['Họ tên'] || obj['name'],
+          phone: obj['Số điện thoại'] || obj['phone'] || obj['SDT'] || '',
+          role: roleMap[roleKey] || roleMap[roleKey.split('(')[0].trim()] || 'USER',
+          isActive: !obj['Trạng thái'] || obj['Trạng thái'].toLowerCase() === 'hoạt động' || obj['status']?.toLowerCase() === 'active',
+        }
+      }).filter((u) => u.email)
+      const res = await api.post('/users/import', { users: usersToImport })
+      setImportSummary(res.data)
+      if (res.data.success > 0) toast.success(`Import thành công ${res.data.success} tài khoản`)
+      loadUsers()
+    } catch (err) { toast.error('Lỗi khi đọc file Excel') }
+    finally { setImporting(false); if (fileInputRef.current) fileInputRef.current.value = '' }
+  }
+
+  const filteredUsers = users.filter((u) => {
+    if (filterRole && u.role !== filterRole) return false
+    if (filterStatus === 'active' && !u.isActive) return false
+    if (filterStatus === 'inactive' && u.isActive) return false
+    return true
+  })
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
@@ -74,9 +134,33 @@ export default function UsersManagementPage() {
             <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><Icon name="settings" size={24} className="text-gray-500" />Cấu hình hệ thống</h2>
             <p className="text-sm text-gray-500 mt-1">Quản lý và phân quyền tài khoản truy cập hệ thống</p>
           </div>
-          <button onClick={() => { setEditingUser(null); setFormData({ fullName: '', email: '', phone: '', password: '', role: 'USER', isActive: true }); setShowModal(true) }} className="flex items-center gap-2 px-4 py-2 bg-kfc-red text-white text-sm font-medium rounded-md hover:bg-red-700">
-            <Icon name="plus" size={18} />Tạo tài khoản
-          </button>
+          <div className="flex gap-2">
+            <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-sm font-medium">
+              <Icon name="download" size={18} /> Export
+            </button>
+            <label className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer text-sm font-medium">
+              <Icon name="upload" size={18} /> {importing ? 'Đang import...' : 'Import'}
+              <input ref={fileInputRef} type="file" accept=".xlsx, .xls" onChange={handleImport} className="hidden" />
+            </label>
+            <button onClick={() => { setEditingUser(null); setFormData({ fullName: '', email: '', phone: '', password: '', role: 'USER', isActive: true }); setShowModal(true) }} className="flex items-center gap-2 px-4 py-2 bg-kfc-red text-white text-sm font-medium rounded-md hover:bg-red-700">
+              <Icon name="plus" size={18} />Tạo tài khoản
+            </button>
+          </div>
+        </div>
+
+        <div className="flex gap-4 items-center bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+          <select value={filterRole} onChange={(e) => setFilterRole(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm">
+            <option value="">Tất cả vai trò</option>
+            <option value="USER">User (TA)</option>
+            <option value="SM">SM (Store Manager)</option>
+            <option value="AM">AM (Area Manager)</option>
+            <option value="ADMIN">Admin</option>
+          </select>
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm">
+            <option value="">Tất cả trạng thái</option>
+            <option value="active">Hoạt động</option>
+            <option value="inactive">Đã khóa</option>
+          </select>
         </div>
 
         <div className="bg-white shadow-sm rounded-lg border border-gray-100 overflow-hidden">
@@ -93,10 +177,10 @@ export default function UsersManagementPage() {
             <tbody className="bg-white divide-y divide-gray-100">
               {loading ? (
                 <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500">Đang tải...</td></tr>
-              ) : users.length === 0 ? (
+              ) : filteredUsers.length === 0 ? (
                 <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-400">Chưa có tài khoản nào</td></tr>
               ) : (
-                users.map((user) => (
+                filteredUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">{user.fullName.charAt(0)}</div><div><div className="text-sm font-bold">{user.fullName}</div><div className="text-xs text-gray-500">{user.phone || 'Chưa cập nhật SĐT'}</div></div></div></td>
                     <td className="px-6 py-4 text-sm text-gray-600">{user.email}</td>
@@ -114,27 +198,59 @@ export default function UsersManagementPage() {
         </div>
 
         {showModal && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-              <div className="px-6 py-4 border-b flex justify-between items-center">
-                <h3 className="text-lg font-bold">{editingUser ? 'Cập nhật tài khoản' : 'Tạo mới tài khoản'}</h3>
-                <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600"><Icon name="x" size={20} /></button>
-              </div>
-              <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                <div><label className="block text-sm font-semibold mb-1">Họ và tên <span className="text-red-500">*</span></label><input type="text" required value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-kfc-red outline-none" /></div>
-                <div><label className="block text-sm font-semibold mb-1">Email <span className="text-red-500">*</span></label><input type="email" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} disabled={!!editingUser} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-kfc-red outline-none disabled:bg-gray-100" /></div>
-                <div><label className="block text-sm font-semibold mb-1">Số điện thoại</label><input type="text" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-kfc-red outline-none" /></div>
-                <div><label className="block text-sm font-semibold mb-1">Quyền truy cập</label><select value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-kfc-red outline-none"><option value="USER">User (Recruiter / TA)</option><option value="ADMIN">Admin (Quản trị viên)</option></select></div>
-                <div><label className="block text-sm font-semibold mb-1">Mật khẩu {editingUser ? '(Bỏ trống nếu không đổi)' : <span className="text-red-500">*</span>}</label><input type="text" required={!editingUser} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} placeholder={editingUser ? "••••••••" : "Ví dụ: kfc@123"} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-kfc-red outline-none" /></div>
-                <div className="pt-4 flex justify-end gap-3 border-t">
-                  <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Hủy bỏ</button>
-                  <button type="submit" disabled={submitting} className="px-4 py-2 bg-kfc-red text-white rounded-md hover:bg-red-700">{submitting ? 'Đang xử lý...' : 'Lưu tài khoản'}</button>
+          <Dialog open={showModal} onOpenChange={setShowModal}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingUser ? 'Cập nhật tài khoản' : 'Tạo mới tài khoản'}</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div><Label>Họ và tên <span className="text-red-500">*</span></Label><Input type="text" required value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} /></div>
+                <div><Label>Email <span className="text-red-500">*</span></Label><Input type="email" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} disabled={!!editingUser} /></div>
+                <div><Label>Số điện thoại</Label><Input type="text" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} /></div>
+                <div><Label>Quyền truy cập</Label>
+                  <Select value={formData.role} onValueChange={v => setFormData({...formData, role: v})}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="USER">User (TA - Tuyển dụng viên)</SelectItem>
+                      <SelectItem value="SM">SM (Store Manager - Quản lý cửa hàng)</SelectItem>
+                      <SelectItem value="AM">AM (Area Manager - Quản lý khu vực)</SelectItem>
+                      <SelectItem value="ADMIN">Admin (Quản trị viên)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+                <div><Label>Mật khẩu {editingUser ? '(Bỏ trống nếu không đổi)' : <span className="text-red-500">*</span>}</Label><Input type="text" required={!editingUser} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} placeholder={editingUser ? "••••••••" : "Ví dụ: kfc@123"} /></div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setShowModal(false)}>Hủy bỏ</Button>
+                  <Button type="submit" disabled={submitting} className="bg-kfc-red hover:bg-red-700">{submitting ? 'Đang xử lý...' : 'Lưu tài khoản'}</Button>
+                </DialogFooter>
               </form>
-            </div>
-          </div>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
+
+      {importSummary && (
+          <Dialog open={!!importSummary} onOpenChange={() => setImportSummary(null)}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Kết quả Import</DialogTitle>
+              </DialogHeader>
+              <div className="grid grid-cols-2 gap-3 py-4">
+                <div className="rounded-lg bg-green-50 px-4 py-3">
+                  <div className="text-xs uppercase font-semibold text-green-700">Thành công</div>
+                  <div className="mt-1 text-2xl font-bold text-green-800">{importSummary.success}</div>
+                </div>
+                <div className="rounded-lg bg-red-50 px-4 py-3">
+                  <div className="text-xs uppercase font-semibold text-red-700">Lỗi</div>
+                  <div className="mt-1 text-2xl font-bold text-red-800">{importSummary.failed}</div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={() => setImportSummary(null)} className="bg-kfc-red hover:bg-red-700">Đóng</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
     </Layout>
   )
 }

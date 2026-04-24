@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
 import Icon from '@/components/icons/Icon'
+import { useCandidateStatuses } from '@/lib/useCandidateStatuses'
 
 interface CandidateDetail {
   id: string
@@ -18,6 +19,7 @@ interface CandidateDetail {
   form: { id: string; title: string } | null
   campaign: { id: string; name: string } | null
   store: { id: string; name: string } | null
+  [key: string]: any
   interviews: Array<{
     id: string
     type: string | { id: string; name: string; code: string } | null
@@ -45,8 +47,6 @@ interface User {
   role: string
 }
 
-import { useCandidateStatuses } from '@/lib/useCandidateStatuses'
-
 export default function CandidateDetail({ 
   candidateId, 
   isModal = false 
@@ -62,6 +62,7 @@ export default function CandidateDetail({
   const [showStatusChange, setShowStatusChange] = useState(false)
   const [newStatus, setNewStatus] = useState('')
   const [statusChangeLoading, setStatusChangeLoading] = useState(false)
+  const [provinces, setProvinces] = useState<any[]>([])
   const { dbStatuses, dynamicGroups } = useCandidateStatuses()
 
   useEffect(() => {
@@ -79,7 +80,21 @@ export default function CandidateDetail({
         setError(err.response?.data?.message || 'Không thể tải chi tiết ứng viên')
       })
       .finally(() => setLoading(false))
+
+    // Get provinces for resolving city ID to name
+    api.get('/locations/provinces')
+      .then(res => setProvinces(res.data || []))
+      .catch(console.error)
   }, [candidateId])
+
+  const getCityName = (cityId: string | null | undefined) => {
+    if (!cityId) return 'Chưa có'
+    const province = provinces.find(p => p.id === cityId)
+    if (province?.name) return province.name
+    // If not found in provinces, it's likely already a name (not an ID)
+    if (cityId.length < 10) return cityId // ID length is typically long, name is short
+    return cityId
+  }
 
   const getStatusLabel = (status: unknown) => {
     if (!status || typeof status !== 'string' && typeof status !== 'object') return 'Chưa có trạng thái'
@@ -210,7 +225,7 @@ export default function CandidateDetail({
         <div className="text-center py-8">
           <p className="text-red-600 mb-4">{error || 'Không tìm thấy ứng viên'}</p>
           <Link
-            href="/dashboard/recruitment"
+            href="/recruitment/dashboard"
             className="text-yellow-600 hover:text-yellow-700"
           >
             Quay lại danh sách ứng viên
@@ -241,7 +256,7 @@ export default function CandidateDetail({
             {getStatusLabel(candidate.status)}
           </span>
           <Link
-            href={`/dashboard/recruitment/candidates/${candidateId}/edit`}
+            href={`/recruitment/candidates/${candidateId}/edit`}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
           >
             <span className="flex items-center gap-1">
@@ -259,7 +274,7 @@ export default function CandidateDetail({
           )}
           {!isModal && (
             <Link
-              href="/dashboard/recruitment"
+              href="/recruitment/dashboard"
               className="text-sm text-gray-600 hover:text-gray-900"
             >
               ← Quay lại
@@ -268,65 +283,29 @@ export default function CandidateDetail({
         </div>
       </div>
 
-      {/* Status Change Form */}
+{/* Status Change Form */}
       {showStatusChange && allowedStatuses.length > 0 && (
         <div className="bg-white shadow rounded-lg p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Chuyển trạng thái</h3>
-          <div className="space-y-6">
-            {/* Ứng tuyển */}
-            {STATUS_GROUPS.application.statuses.some(s => allowedStatuses.includes(s.value)) && (
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-3">
-                  {STATUS_GROUPS.application.label}
-                </label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {STATUS_GROUPS.application.statuses
-                    .filter((s) => allowedStatuses.includes(s.value))
-                    .map((status) => {
-                      const currentStatusCode = typeof candidate.status === 'object' 
-                        ? candidate.status?.code 
-                        : candidate.status
-                      const isSelected = currentStatusCode === status.value
-                      
-                      return (
-                        <button
-                          key={status.value}
-                          onClick={() => setNewStatus(status.value)}
-                          className={`
-                            px-3 py-2 text-sm rounded-md border transition-all
-                            ${isSelected 
-                              ? 'bg-yellow-50 border-yellow-500 text-yellow-700 font-medium' 
-                              : newStatus === status.value
-                              ? 'bg-blue-50 border-blue-500 text-blue-700'
-                              : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                            }
-                          `}
-                        >
-                          {status.label}
-                        </button>
-                      )
-                    })}
-                </div>
-              </div>
-            )}
-
           <div className="space-y-6">
             {Object.entries(dynamicGroups).map(([groupKey, group]) => {
               const availableStatuses = group.statuses.filter((s) => allowedStatuses.includes(s.value))
               if (availableStatuses.length === 0) return null
 
               return (
-                <div key={groupKey}>
+<div key={groupKey}>
                   <label className="block text-sm font-semibold text-gray-700 mb-3">
                     {group.label}
                   </label>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {availableStatuses.map((status) => {
+                    {group.statuses
+                      .filter((s) => allowedStatuses.includes(s.value))
+                      .map((status) => {
                       const currentStatusCode = typeof candidate.status === 'object' 
                         ? candidate.status?.code 
                         : candidate.status
                       const isSelected = currentStatusCode === status.value
-                      
+                       
                       return (
                         <button
                           key={status.value}
@@ -349,7 +328,6 @@ export default function CandidateDetail({
                 </div>
               )
             })}
-          </div>
 
             {newStatus && (
               <div className="flex justify-end space-x-3 pt-4 border-t">
@@ -370,7 +348,7 @@ export default function CandidateDetail({
                   {statusChangeLoading ? 'Đang cập nhật...' : 'Xác nhận'}
                 </button>
               </div>
-            )}
+)}
           </div>
         </div>
       )}
@@ -400,15 +378,19 @@ export default function CandidateDetail({
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Cửa hàng</label>
-              <p className="mt-1 text-sm text-gray-900">{typeof candidate.store === 'object' && candidate.store !== null && 'name' in candidate.store ? candidate.store.name : 'N/A'}</p>
+              <p className="mt-1 text-sm text-gray-900">{typeof candidate.store === 'object' && candidate.store !== null && 'name' in candidate.store ? candidate.store.name : 'Chưa có'}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Form tuyển dụng</label>
-              <p className="mt-1 text-sm text-gray-900">{typeof candidate.form === 'object' && candidate.form !== null && 'title' in candidate.form ? candidate.form.title : 'N/A'}</p>
+              <p className="mt-1 text-sm text-gray-900">{(candidate as any).form?.title || 'Chưa có'}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Chiến dịch</label>
-              <p className="mt-1 text-sm text-gray-900">{typeof candidate.campaign === 'object' && candidate.campaign !== null && 'name' in candidate.campaign ? candidate.campaign.name : 'N/A'}</p>
+              <p className="mt-1 text-sm text-gray-900">{typeof candidate.campaign === 'object' && candidate.campaign !== null && 'name' in candidate.campaign ? candidate.campaign.name : 'Chưa có'}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Địa điểm mong muốn làm việc</label>
+              <p className="mt-1 text-sm text-gray-900">{getCityName(candidate.currentCity)}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Ngày tạo</label>
@@ -447,9 +429,60 @@ export default function CandidateDetail({
           )}
 
           {candidate.notes && (
-            <div>
-              <label className="text-sm font-medium text-gray-500">Ghi chú</label>
-              <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">{candidate.notes}</p>
+            <div className="mt-6 pt-4 border-t border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Ghi chú</h3>
+              {(() => {
+                try {
+                  const notesObj = JSON.parse(candidate.notes);
+                  if (notesObj && typeof notesObj === 'object') {
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {notesObj.currentStreet && (
+                          <div>
+                            <label className="text-sm font-medium text-gray-500">Địa chỉ hiện tại</label>
+                            <p className="mt-1 text-sm text-gray-900">{notesObj.currentStreet}</p>
+                          </div>
+                        )}
+                        {notesObj.availableStartDate && (
+                          <div>
+                            <label className="text-sm font-medium text-gray-500">Ngày có thể bắt đầu</label>
+                            <p className="mt-1 text-sm text-gray-900">{new Date(notesObj.availableStartDate).toLocaleDateString('vi-VN')}</p>
+                          </div>
+                        )}
+                        {notesObj.preferredWorkShift && (
+                          <div>
+                            <label className="text-sm font-medium text-gray-500">Ca làm việc mong muốn</label>
+                            <p className="mt-1 text-sm text-gray-900">{notesObj.preferredWorkShift}</p>
+                          </div>
+                        )}
+                        {notesObj.canWorkTet && (
+                          <div>
+                            <label className="text-sm font-medium text-gray-500">Làm Tết</label>
+                            <p className="mt-1 text-sm text-gray-900">{notesObj.canWorkTet}</p>
+                          </div>
+                        )}
+                        {notesObj.referrer && (
+                          <div>
+                            <label className="text-sm font-medium text-gray-500">Người giới thiệu</label>
+                            <p className="mt-1 text-sm text-gray-900">
+                              {notesObj.referrer === 'Có' && notesObj.referrerName ? notesObj.referrerName : notesObj.referrer}
+                            </p>
+                          </div>
+                        )}
+                        {notesObj.workExperience && (
+                          <div>
+                            <label className="text-sm font-medium text-gray-500">Kinh nghiệm làm việc</label>
+                            <p className="mt-1 text-sm text-gray-900">{notesObj.workExperience}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                } catch (e) {
+                  return <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">{candidate.notes}</p>;
+                }
+                return <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">{candidate.notes}</p>;
+              })()}
             </div>
           )}
         </div>

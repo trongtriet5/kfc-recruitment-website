@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Icon from '@/components/icons/Icon'
+import ConfirmDialog from '@/components/common/ConfirmDialog'
 
 interface FormField {
   id?: string
@@ -52,6 +53,7 @@ export default function FormDesigner({ formId, formData, fields: initialFields, 
   const [showFieldEditor, setShowFieldEditor] = useState(false)
   const [activeSection, setActiveSection] = useState<'content' | 'design' | 'fields'>('content')
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [deleteFieldIndex, setDeleteFieldIndex] = useState<number | null>(null)
   const dragItemRef = useRef<number | null>(null)
   const dragOverItemRef = useRef<number | null>(null)
 
@@ -80,13 +82,12 @@ export default function FormDesigner({ formId, formData, fields: initialFields, 
   }
 
   const deleteField = (index: number) => {
-    if (confirm('Bạn có chắc chắn muốn xóa trường này?')) {
-      const newFields = fields.filter((_, i) => i !== index)
-      newFields.forEach((field, i) => {
-        field.order = i
-      })
-      setFields(newFields)
-    }
+    const newFields = fields.filter((_, i) => i !== index)
+    newFields.forEach((field, i) => {
+      field.order = i
+    })
+    setFields(newFields)
+    setDeleteFieldIndex(null)
   }
 
   const duplicateField = (index: number) => {
@@ -293,7 +294,7 @@ export default function FormDesigner({ formId, formData, fields: initialFields, 
               <Icon name="copy" size={16} />
             </button>
             <button
-              onClick={() => deleteField(index)}
+              onClick={() => setDeleteFieldIndex(index)}
               className="p-1 text-gray-400 hover:text-red-600"
               title="Xóa"
             >
@@ -556,6 +557,20 @@ export default function FormDesigner({ formId, formData, fields: initialFields, 
           }}
         />
       )}
+
+      <ConfirmDialog
+        isOpen={deleteFieldIndex !== null}
+        title="Xóa câu hỏi"
+        message="Bạn có chắc chắn muốn xóa trường này?"
+        confirmText="Xóa"
+        destructive
+        onClose={() => setDeleteFieldIndex(null)}
+        onConfirm={() => {
+          if (deleteFieldIndex !== null) {
+            deleteField(deleteFieldIndex)
+          }
+        }}
+      />
     </div>
   )
 }

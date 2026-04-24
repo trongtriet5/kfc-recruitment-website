@@ -145,7 +145,7 @@ export default function EditCandidateForm({
       if (onSuccess) {
         onSuccess()
       } else {
-        router.push(`/dashboard/recruitment/candidates/${candidateId}`)
+        router.push(`/recruitment/candidates/${candidateId}`)
       }
     } catch (err: any) {
       const errorMsg = err.response?.data?.message || 'Có lỗi xảy ra khi cập nhật ứng viên'
@@ -169,7 +169,7 @@ export default function EditCandidateForm({
       <div className="text-center py-8">
         <p className="text-red-600 mb-4">{error}</p>
         <button
-          onClick={onCancel || (() => router.push('/dashboard/recruitment'))}
+          onClick={onCancel || (() => router.push('/recruitment/dashboard'))}
           className="text-yellow-600 hover:text-yellow-700"
         >
           Quay lại
@@ -333,7 +333,7 @@ export default function EditCandidateForm({
         <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
           <button
             type="button"
-            onClick={onCancel || (() => router.push(`/dashboard/recruitment/candidates/${candidateId}`))}
+            onClick={onCancel || (() => router.push(`/recruitment/candidates/${candidateId}`))}
             className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
           >
             Hủy

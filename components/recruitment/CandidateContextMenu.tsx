@@ -36,7 +36,9 @@ interface CandidateContextMenuProps {
   onDelete?: (candidateId: string) => void
   onScheduleInterview?: (candidate: any) => void
   onTransferCampaign?: (candidate: any) => void
+  onAssignPIC?: (candidate: any) => void
   onViewDetail?: (candidateId: string) => void
+  onEdit?: (candidateId: string) => void
   allowedStatuses?: string[]
   statusOptions?: StatusOption[]
 }
@@ -50,7 +52,9 @@ export default function CandidateContextMenu({
   onDelete,
   onScheduleInterview,
   onTransferCampaign,
+  onAssignPIC,
   onViewDetail,
+  onEdit,
   allowedStatuses = [],
   statusOptions = [],
 }: CandidateContextMenuProps) {
@@ -204,7 +208,7 @@ export default function CandidateContextMenu({
         if (onViewDetail) {
           onViewDetail(candidate.id)
         } else {
-          router.push(`/dashboard/recruitment/candidates/${candidate.id}`)
+          router.push(`/recruitment/candidates/${candidate.id}`)
         }
         onClose()
       },
@@ -213,10 +217,22 @@ export default function CandidateContextMenu({
       label: 'Chỉnh sửa',
       icon: 'edit',
       action: () => {
-        router.push(`/dashboard/recruitment/candidates/${candidate.id}/edit`)
+        router.push(`/recruitment/candidates/${candidate.id}/edit`)
         onClose()
       },
     },
+    ...(onAssignPIC
+      ? [
+          {
+            label: 'Gán Người phụ trách',
+            icon: 'user',
+            action: () => {
+              onAssignPIC(candidate)
+              onClose()
+            },
+          },
+        ]
+      : []),
     ...(onTransferCampaign
       ? [
           {
@@ -271,10 +287,8 @@ export default function CandidateContextMenu({
             label: 'Xóa ứng viên',
             icon: 'trash',
             action: () => {
-              if (confirm(`Bạn có chắc chắn muốn xóa ứng viên ${candidate.fullName}?`)) {
-                onDelete(candidate.id)
-                onClose()
-              }
+              onDelete(candidate.id)
+              onClose()
             },
             danger: true,
           },

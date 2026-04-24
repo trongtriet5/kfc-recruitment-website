@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import api from '@/lib/api'
 import { useClickOutside } from '@/hooks/useClickOutside'
 import toast from 'react-hot-toast'
+import ConfirmDialog from '@/components/common/ConfirmDialog'
 
 interface Proposal {
   id: string
@@ -48,6 +49,9 @@ export default function ProposalsList() {
   const [action, setAction] = useState<'approve' | 'reject' | 'create-campaign' | null>(null)
   const [rejectionReason, setRejectionReason] = useState('')
   const [showCreateCampaign, setShowCreateCampaign] = useState(false)
+  const [confirmApprove, setConfirmApprove] = useState(false)
+  const [confirmReject, setConfirmReject] = useState(false)
+  const [actionLoading, setActionLoading] = useState(false)
   const [campaignFormData, setCampaignFormData] = useState({
     name: '',
     description: '',
@@ -126,8 +130,7 @@ export default function ProposalsList() {
   }
 
   const loadPositions = () => {
-    // Assuming there's a positions endpoint
-    api.get('/positions').then((res) => setPositions(res.data)).catch(() => setPositions([]))
+    api.get('/organization/positions').then((res) => setPositions(res.data)).catch(() => setPositions([]))
   }
 
   const loadProposals = () => {
@@ -161,12 +164,13 @@ export default function ProposalsList() {
 
   const handleApprove = async () => {
     if (!selectedProposal) return
+    setActionLoading(true)
     try {
       // Fetch APPROVED status ID
       const statuses = await api.get('/types/by-category/PROPOSAL_STATUS')
       const approvedStatus = statuses.data.find((s: any) => s.code === 'APPROVED')
       if (!approvedStatus) {
-        alert('Không tìm thấy trạng thái APPROVED')
+        toast.error('Không tìm thấy trạng thái APPROVED')
         return
       }
       await api.patch(`/recruitment/proposals/${selectedProposal.id}`, {
@@ -174,24 +178,28 @@ export default function ProposalsList() {
       })
       setSelectedProposal(null)
       setAction(null)
+      setConfirmApprove(false)
       toast.success('Đã duyệt đề xuất')
       loadProposals()
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Có lỗi xảy ra')
+    } finally {
+      setActionLoading(false)
     }
   }
 
   const handleReject = async () => {
     if (!selectedProposal || !rejectionReason.trim()) {
-      alert('Vui lòng nhập lý do từ chối')
+      toast.error('Vui lòng nhập lý do từ chối')
       return
     }
+    setActionLoading(true)
     try {
       // Fetch REJECTED status ID
       const statuses = await api.get('/types/by-category/PROPOSAL_STATUS')
       const rejectedStatus = statuses.data.find((s: any) => s.code === 'REJECTED')
       if (!rejectedStatus) {
-        alert('Không tìm thấy trạng thái REJECTED')
+        toast.error('Không tìm thấy trạng thái REJECTED')
         return
       }
       await api.patch(`/recruitment/proposals/${selectedProposal.id}`, {
@@ -201,10 +209,13 @@ export default function ProposalsList() {
       setSelectedProposal(null)
       setAction(null)
       setRejectionReason('')
+      setConfirmReject(false)
       toast.success('Đã từ chối đề xuất')
       loadProposals()
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Có lỗi xảy ra')
+    } finally {
+      setActionLoading(false)
     }
   }
 
@@ -213,7 +224,7 @@ export default function ProposalsList() {
 
   const handleCreateCampaign = async () => {
     if (!selectedProposal || !campaignFormData.name || !campaignFormData.formId || !campaignFormData.startDate) {
-      alert('Vui lòng điền đầy đủ thông tin')
+      toast.error('Vui lòng điền đầy đủ thông tin')
       return
     }
     try {
@@ -370,30 +381,22 @@ export default function ProposalsList() {
         </div>
       )}
 
-      {selectedProposal && action && action !== 'create-campaign' && (
+      {selectedProposal && action === 'reject' && (
         <div ref={actionFormRef} className="mb-4 bg-white shadow rounded-lg p-4">
-          <h3 className="font-medium mb-2">
-            {action === 'approve' ? 'Duyệt' : 'Từ chối'} đề xuất: {selectedProposal.title}
-          </h3>
-          {action === 'reject' && (
-            <div className="mb-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Lý do từ chối</label>
-              <textarea
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                rows={2}
-              />
-            </div>
-          )}
+          <h3 className="font-medium mb-2">Từ chối đề xuất: {selectedProposal.title}</h3>
+          <div className="mb-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Lý do từ chối</label>
+            <textarea
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              rows={2}
+            />
+          </div>
           <div className="flex gap-2">
             <button
-              onClick={action === 'approve' ? handleApprove : handleReject}
-              className={`px-4 py-2 rounded-md ${
-                action === 'approve'
-                  ? 'bg-green-600 text-white hover:bg-green-700'
-                  : 'bg-red-600 text-white hover:bg-red-700'
-              }`}
+              onClick={() => setConfirmReject(true)}
+              className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700"
             >
               Xác nhận
             </button>
@@ -572,7 +575,7 @@ export default function ProposalsList() {
                         <button
                           onClick={() => {
                             setSelectedProposal(proposal)
-                            setAction('approve')
+                            setConfirmApprove(true)
                           }}
                           className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
                         >
@@ -589,6 +592,31 @@ export default function ProposalsList() {
                         </button>
                       </>
                     )}
+
+      <ConfirmDialog
+        isOpen={confirmApprove && !!selectedProposal}
+        title="Duyệt đề xuất"
+        message={
+          selectedProposal
+            ? `Bạn có chắc chắn muốn duyệt đề xuất "${selectedProposal.title}"?`
+            : ''
+        }
+        confirmText="Duyệt"
+        isLoading={actionLoading}
+        onClose={() => setConfirmApprove(false)}
+        onConfirm={handleApprove}
+      />
+
+      <ConfirmDialog
+        isOpen={confirmReject && !!selectedProposal}
+        title="Từ chối đề xuất"
+        message="Xác nhận từ chối đề xuất này?"
+        confirmText="Từ chối"
+        destructive
+        isLoading={actionLoading}
+        onClose={() => setConfirmReject(false)}
+        onConfirm={handleReject}
+      />
                     {canCreateCampaign && 
                      (typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'APPROVED' && 
                      !proposal.campaign && (

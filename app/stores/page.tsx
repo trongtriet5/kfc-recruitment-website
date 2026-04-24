@@ -1,11 +1,17 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import toast from 'react-hot-toast'
-import * as XLSX from 'xlsx'
+import readXlsxFile from 'read-excel-file'
+import { toast } from 'sonner'
+import writeXlsxFile from 'write-excel-file'
 import api from '@/lib/api'
 import Icon from '@/components/icons/Icon'
 import Layout from '@/components/Layout'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 
 interface PersonRef {
   id: string
@@ -44,6 +50,33 @@ interface ImportSummary {
   fileName: string
   successCount: number
   errorCount: number
+}
+
+type ExcelRow = Record<string, string>
+
+const getExcelCellText = (value: unknown): string => {
+  if (value == null) return ''
+  if (value instanceof Date) return value.toISOString()
+
+  return String(value).trim()
+}
+
+const parseWorksheetRows = (rows: unknown[][]): ExcelRow[] => {
+  if (rows.length === 0) return []
+
+  const headers = rows[0].map((value) => getExcelCellText(value))
+
+  return rows
+    .slice(1)
+    .map((row) =>
+      headers.reduce<ExcelRow>((record, header, index) => {
+        if (!header) return record
+
+        record[header] = getExcelCellText(row[index])
+        return record
+      }, {})
+    )
+    .filter((row) => Object.values(row).some(Boolean))
 }
 
 const normalizeStoreGroup = (group?: string | null) => {
@@ -247,7 +280,8 @@ export default function StoresManagementPage() {
     .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' }))
 
   const handleExport = () => {
-    try {
+    void (async () => {
+      try {
       const headers = ['Mã', 'Tên cửa hàng', 'Địa chỉ', 'Quận/Huyện', 'Thành phố', 'AM', 'OM', 'OD', 'Zone', 'Area', 'TA IC', 'Group']
       const data = filteredStores.map((s) => [
         s.code,
@@ -264,32 +298,32 @@ export default function StoresManagementPage() {
         s.group || '',
       ])
 
-      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...data])
-      const workbook = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Stores')
-
       const maxWidth = data.reduce((w, r) => Math.max(w, (r[1] as string)?.length || 10), 20)
-      worksheet['!cols'] = [
-        { wch: 10 },
-        { wch: maxWidth },
-        { wch: 30 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 10 },
-        { wch: 10 },
-        { wch: 15 },
-        { wch: 15 },
-      ]
+      const exportRows = [headers, ...data].map((row) => row.map((value) => ({ value })))
 
-      XLSX.writeFile(workbook, `stores_${new Date().toISOString().split('T')[0]}.xlsx`)
+      await writeXlsxFile(exportRows, {
+        fileName: `stores_${new Date().toISOString().split('T')[0]}.xlsx`,
+        columns: [
+          { width: 10 },
+          { width: maxWidth },
+          { width: 30 },
+          { width: 15 },
+          { width: 15 },
+          { width: 15 },
+          { width: 15 },
+          { width: 15 },
+          { width: 10 },
+          { width: 10 },
+          { width: 15 },
+          { width: 15 },
+        ],
+      })
       toast.success(`Đã export ${filteredStores.length} cửa hàng`)
     } catch (err) {
       console.error('Export error:', err)
       toast.error('Không thể export file Excel')
-    }
+      }
+    })()
   }
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -299,14 +333,10 @@ export default function StoresManagementPage() {
     setImporting(true)
     setImportSummary(null)
 
-    const reader = new FileReader()
-    reader.onload = async (event) => {
+    void (async () => {
       try {
-        const bstr = event.target?.result
-        const workbook = XLSX.read(bstr, { type: 'binary' })
-        const firstSheetName = workbook.SheetNames[0]
-        const worksheet = workbook.Sheets[firstSheetName]
-        const dataRows = XLSX.utils.sheet_to_json(worksheet) as any[]
+        const fileRows = await readXlsxFile(file)
+        const dataRows = parseWorksheetRows(fileRows)
 
         let successCount = 0
         let errorCount = 0
@@ -361,9 +391,7 @@ export default function StoresManagementPage() {
         setImporting(false)
         if (fileInputRef.current) fileInputRef.current.value = ''
       }
-    }
-
-    reader.readAsBinaryString(file)
+    })()
   }
 
   const totalStores = stores.length
@@ -492,111 +520,104 @@ export default function StoresManagementPage() {
           </div>
 
           {showCreateModal && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                <div className="px-6 py-4 border-b flex justify-between items-center sticky top-0 bg-white z-10">
-                  <div className="flex items-center gap-3">
+            <Dialog open={showCreateModal} onOpenChange={(open) => { if (!open) closeStoreModal() }}>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-3">
                     <div className="bg-kfc-red/10 p-2 rounded-lg text-kfc-red"><Icon name={editingStore ? 'pencil' : 'plus'} size={20} /></div>
-                    <h3 className="text-xl font-bold">{editingStore ? 'Chỉnh sửa cửa hàng' : 'Thêm cửa hàng mới'}</h3>
-                  </div>
-                  <button onClick={closeStoreModal} className="p-2 hover:bg-gray-100 rounded-full"><Icon name="x" size={20} /></button>
-                </div>
-                <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                    {editingStore ? 'Chỉnh sửa cửa hàng' : 'Thêm cửa hàng mới'}
+                  </DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-1.5">Mã cửa hàng <span className="text-red-500">*</span></label>
-                      <input type="text" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })} placeholder="VD: SG001" className={`w-full px-3 py-2 border rounded-md ${formErrors.code ? 'border-red-500' : 'border-gray-300 focus:border-kfc-red'}`} />
+                      <Label>Mã cửa hàng <span className="text-red-500">*</span></Label>
+                      <Input type="text" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })} placeholder="VD: SG001" className={formErrors.code ? 'border-red-500' : ''} />
                       {formErrors.code && <p className="text-red-500 text-[11px] mt-1">{formErrors.code}</p>}
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-1.5">Tên cửa hàng <span className="text-red-500">*</span></label>
-                      <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="VD: KFC Lê Văn Sỹ" className={`w-full px-3 py-2 border rounded-md ${formErrors.name ? 'border-red-500' : 'border-gray-300 focus:border-kfc-red'}`} />
+                      <Label>Tên cửa hàng <span className="text-red-500">*</span></Label>
+                      <Input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="VD: KFC Lê Văn Sỹ" className={formErrors.name ? 'border-red-500' : ''} />
                       {formErrors.name && <p className="text-red-500 text-[11px] mt-1">{formErrors.name}</p>}
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1.5 border-l-4 border-kfc-red pl-2">Thông tin địa chỉ</label>
+                    <Label className="border-l-4 border-kfc-red pl-2">Thông tin địa chỉ</Label>
                     <div className="grid grid-cols-1 gap-4 mt-3">
-                      <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Địa chỉ cụ thể</label><input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md" /></div>
+                      <div><Label className="text-xs font-medium">Địa chỉ cụ thể</Label><Input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} /></div>
                       <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Quận/Huyện</label><input type="text" value={formData.district} onChange={(e) => setFormData({ ...formData, district: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md" /></div>
-                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Thành phố</label><input type="text" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md" /></div>
+                        <div><Label className="text-xs font-medium">Quận/Huyện</Label><Input type="text" value={formData.district} onChange={(e) => setFormData({ ...formData, district: e.target.value })} /></div>
+                        <div><Label className="text-xs font-medium">Thành phố</Label><Input type="text" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} /></div>
                       </div>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1.5 border-l-4 border-blue-500 pl-2">Thông tin quản lý</label>
+                    <Label className="border-l-4 border-blue-500 pl-2">Thông tin quản lý</Label>
                     <div className="grid grid-cols-3 gap-4 mt-3">
-                      <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">AM</label><input type="text" value={formData.am} onChange={(e) => setFormData({ ...formData, am: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md" /></div>
-                      <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">OM</label><input type="text" value={formData.om} onChange={(e) => setFormData({ ...formData, om: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md" /></div>
-                      <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">OD</label><input type="text" value={formData.od} onChange={(e) => setFormData({ ...formData, od: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md" /></div>
+                      <div><Label className="text-xs font-medium">AM</Label><Input type="text" value={formData.am} onChange={(e) => setFormData({ ...formData, am: e.target.value })} /></div>
+                      <div><Label className="text-xs font-medium">OM</Label><Input type="text" value={formData.om} onChange={(e) => setFormData({ ...formData, om: e.target.value })} /></div>
+                      <div><Label className="text-xs font-medium">OD</Label><Input type="text" value={formData.od} onChange={(e) => setFormData({ ...formData, od: e.target.value })} /></div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Vùng miền</label>
-                      <select value={formData.group} onChange={(e) => setFormData({ ...formData, group: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md">
-                        <option value="">Chọn Group</option>
-                        <option value="OPS_SOUTH">OPS-South (Miền Nam)</option>
-                        <option value="OPS_NORTH">OPS-North (Miền Bắc)</option>
-                      </select>
+                      <Label className="text-xs font-medium">Vùng miền</Label>
+                      <Select value={formData.group} onValueChange={(v) => setFormData({ ...formData, group: v })}>
+                        <SelectTrigger><SelectValue placeholder="Chọn Group" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="OPS_SOUTH">OPS-South (Miền Nam)</SelectItem>
+                          <SelectItem value="OPS_NORTH">OPS-North (Miền Bắc)</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">TA Incharge</label><input type="text" value={formData.taIncharge} onChange={(e) => setFormData({ ...formData, taIncharge: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md" /></div>
+                    <div><Label className="text-xs font-medium">TA Incharge</Label><Input type="text" value={formData.taIncharge} onChange={(e) => setFormData({ ...formData, taIncharge: e.target.value })} /></div>
                   </div>
 
-                  <div className="flex justify-end gap-3 pt-6 border-t">
-                    <button type="button" onClick={closeStoreModal} className="px-6 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50">Hủy bỏ</button>
-                    <button type="submit" disabled={submitting} className="px-8 py-2.5 bg-kfc-red text-white rounded-lg hover:bg-red-700 font-bold disabled:opacity-60">
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={closeStoreModal}>Hủy bỏ</Button>
+                    <Button type="submit" disabled={submitting} className="bg-kfc-red hover:bg-red-700">
                       {submitting ? 'Đang xử lý...' : editingStore ? 'Cập nhật' : 'Thêm mới'}
-                    </button>
-                  </div>
+                    </Button>
+                  </DialogFooter>
                 </form>
-              </div>
-            </div>
+              </DialogContent>
+            </Dialog>
           )}
 
           {storeToDelete && (
-            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-              <div className="w-full max-w-md rounded-xl bg-white shadow-xl">
-                <div className="px-6 py-4 border-b flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-gray-900">Xác nhận xóa cửa hàng</h3>
-                  <button onClick={() => setStoreToDelete(null)} className="p-2 hover:bg-gray-100 rounded-full">
-                    <Icon name="x" size={18} />
-                  </button>
-                </div>
-                <div className="px-6 py-5">
+            <Dialog open={!!storeToDelete} onOpenChange={() => setStoreToDelete(null)}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Xác nhận xóa cửa hàng</DialogTitle>
+                </DialogHeader>
+                <div className="py-4">
                   <p className="text-sm text-gray-600">
                     Bạn có chắc muốn xóa cửa hàng <span className="font-semibold text-gray-900">{storeToDelete.code}</span> - <span className="font-semibold text-gray-900">{storeToDelete.name}</span>?
                   </p>
                   <p className="mt-2 text-xs text-gray-500">Thao tác này sẽ ẩn cửa hàng khỏi danh sách đang hoạt động.</p>
                 </div>
-                <div className="px-6 py-4 border-t flex justify-end gap-3">
-                  <button type="button" onClick={() => setStoreToDelete(null)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
-                    Hủy
-                  </button>
-                  <button type="button" onClick={confirmDeleteStore} disabled={deleting} className="px-4 py-2 bg-kfc-red text-white rounded-lg hover:bg-red-700 disabled:opacity-60">
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setStoreToDelete(null)}>Hủy</Button>
+                  <Button onClick={confirmDeleteStore} disabled={deleting} className="bg-kfc-red hover:bg-red-700">
                     {deleting ? 'Đang xóa...' : 'Xóa cửa hàng'}
-                  </button>
-                </div>
-              </div>
-            </div>
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           )}
 
           {importSummary && (
-            <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-              <div className="w-full max-w-md rounded-xl bg-white shadow-xl">
-                <div className="px-6 py-4 border-b flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-gray-900">Kết quả import</h3>
-                  <button onClick={() => setImportSummary(null)} className="p-2 hover:bg-gray-100 rounded-full">
-                    <Icon name="x" size={18} />
-                  </button>
-                </div>
-                <div className="px-6 py-5 space-y-3">
+            <Dialog open={!!importSummary} onOpenChange={() => setImportSummary(null)}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Kết quả import</DialogTitle>
+                </DialogHeader>
+                <div className="py-4">
                   <p className="text-sm text-gray-600">File: <span className="font-medium text-gray-900">{importSummary.fileName}</span></p>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-3 mt-4">
                     <div className="rounded-lg bg-green-50 px-4 py-3">
                       <div className="text-xs uppercase font-semibold text-green-700">Thành công</div>
                       <div className="mt-1 text-2xl font-bold text-green-800">{importSummary.successCount}</div>
@@ -607,13 +628,11 @@ export default function StoresManagementPage() {
                     </div>
                   </div>
                 </div>
-                <div className="px-6 py-4 border-t flex justify-end">
-                  <button type="button" onClick={() => setImportSummary(null)} className="px-4 py-2 bg-kfc-red text-white rounded-lg hover:bg-red-700">
-                    Đóng
-                  </button>
-                </div>
-              </div>
-            </div>
+                <DialogFooter>
+                  <Button onClick={() => setImportSummary(null)} className="bg-kfc-red hover:bg-red-700">Đóng</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           )}
         </div>
       )}

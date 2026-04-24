@@ -29,6 +29,11 @@ export class RecruitmentController {
   @Get('campaigns')
   getCampaigns(@CurrentUser() user: any) { return this.service.getCampaigns(user); }
   
+  @Get('campaigns/statistics')
+  getCampaignStatistics(@Query('campaignId') campaignId?: string) {
+    return this.service.getCampaignStatistics(campaignId);
+  }
+  
   @Get('campaigns/:id')
   getCampaign(@Param('id') id: string, @CurrentUser() user: any) { return this.service.getCampaign(id, user); }
   

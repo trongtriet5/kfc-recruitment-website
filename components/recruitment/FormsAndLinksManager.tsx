@@ -6,6 +6,8 @@ import api from '@/lib/api'
 import { useClickOutside } from '@/hooks/useClickOutside'
 import FormDesigner from './FormDesigner'
 import Icon from '@/components/icons/Icon'
+import { toast } from 'sonner'
+import ConfirmDialog from '@/components/common/ConfirmDialog'
 
 interface FormField {
   id?: string
@@ -58,6 +60,8 @@ export default function FormsAndLinksManager() {
   const [showPreview, setShowPreview] = useState(false)
   const [showDesigner, setShowDesigner] = useState(false)
   const [designingForm, setDesigningForm] = useState<RecruitmentForm | null>(null)
+  const [confirmDeleteForm, setConfirmDeleteForm] = useState<RecruitmentForm | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -144,8 +148,9 @@ export default function FormsAndLinksManager() {
         isActive: true,
       })
       loadForms()
+      toast.success(editingForm ? 'Cập nhật form thành công' : 'Tạo form thành công')
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Có lỗi xảy ra')
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra')
     }
   }
 
@@ -175,9 +180,9 @@ export default function FormsAndLinksManager() {
       setShowDesigner(false)
       setDesigningForm(null)
       loadForms()
-      alert('Đã lưu thiết kế form thành công!')
+      toast.success('Đã lưu thiết kế form thành công')
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Có lỗi xảy ra khi lưu thiết kế')
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi lưu thiết kế')
     }
   }
 
@@ -204,13 +209,18 @@ export default function FormsAndLinksManager() {
     setShowCreateForm(true)
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa form này?')) return
+  const handleDelete = async () => {
+    if (!confirmDeleteForm) return
+    setDeleting(true)
     try {
-      await api.delete(`/recruitment/forms/${id}`)
+      await api.delete(`/recruitment/forms/${confirmDeleteForm.id}`)
+      toast.success('Xóa form thành công')
+      setConfirmDeleteForm(null)
       loadForms()
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Có lỗi xảy ra')
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -302,23 +312,23 @@ export default function FormsAndLinksManager() {
                     />
                   </div>
                   <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Nguồn <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        value={formData.source}
-                        onChange={(e) => setFormData({ ...formData, source: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        required
-                      >
-                        <option value="">Chọn nguồn...</option>
-                        {sources.map((source) => (
-                          <option key={source.id} value={source.name}>
-                            {source.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nguồn <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.source}
+                      onChange={(e) => setFormData({ ...formData, source: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      required
+                    >
+                      <option value="">Chọn nguồn...</option>
+                      {sources.map((source) => (
+                        <option key={source.id} value={source.name}>
+                          {source.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -340,14 +350,14 @@ export default function FormsAndLinksManager() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nội dung Form (HTML)
+                      Nội dung Form
                     </label>
                     <textarea
                       value={formData.formContent}
                       onChange={(e) => setFormData({ ...formData, formContent: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
                       rows={5}
-                      placeholder="Nhập nội dung mô tả form (hỗ trợ HTML)"
+                      placeholder="Nhập nội dung mô tả form"
                     />
                   </div>
                   <div>
@@ -470,25 +480,12 @@ export default function FormsAndLinksManager() {
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(`${window.location.origin}/apply?link=${selectedForm?.link}`)
-                    alert('Đã copy link!')
+                    toast.success('Đã copy link')
                   }}
-                  className="px-3 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 flex items-center gap-1"
                 >
-                  <Icon name="copy" size={16} />
                   Copy link
                 </button>
               </div>
-            </div>
-            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex items-center justify-end">
-              <button
-                onClick={() => {
-                  setShowPreview(false)
-                  setSelectedForm(null)
-                }}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 text-sm"
-              >
-                Đóng
-              </button>
             </div>
           </div>
         </div>
@@ -554,7 +551,7 @@ export default function FormsAndLinksManager() {
                       Xem
                     </button>
                     <button
-                      onClick={() => handleDelete(form.id)}
+                      onClick={() => setConfirmDeleteForm(form)}
                       className="text-sm text-red-600 hover:text-red-700 px-3 py-1 border border-red-300 rounded-md hover:bg-red-50 flex items-center gap-1"
                     >
                       <Icon name="trash" size={16} />
@@ -589,7 +586,21 @@ export default function FormsAndLinksManager() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={!!confirmDeleteForm}
+        title="Xóa form tuyển dụng"
+        message={
+          confirmDeleteForm
+            ? `Bạn có chắc chắn muốn xóa form "${confirmDeleteForm.title}"?`
+            : ''
+        }
+        confirmText="Xóa"
+        destructive
+        isLoading={deleting}
+        onClose={() => setConfirmDeleteForm(null)}
+        onConfirm={handleDelete}
+      />
     </div>
   )
 }
-
