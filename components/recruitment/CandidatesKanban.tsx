@@ -36,6 +36,7 @@ interface CandidatesKanbanProps {
   onPageChange?: (page: number) => void
   onLimitChange?: (limit: number) => void
   onTransferCampaign?: (candidate: any) => void
+  onAssignPIC?: (candidate: any) => void
   onViewDetail?: (candidateId: string) => void
 }
 
@@ -50,6 +51,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
     onPageChange,
     onLimitChange,
     onTransferCampaign,
+    onAssignPIC,
     onViewDetail,
   } = props
   const [candidates, setCandidates] = useState<Candidate[]>([])
@@ -387,6 +389,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
           onDelete={handleDeleteCandidate}
           onScheduleInterview={handleScheduleInterview}
           onTransferCampaign={onTransferCampaign}
+          onAssignPIC={onAssignPIC}
           allowedStatuses={allowedStatuses}
           statusOptions={allStatuses}
         />

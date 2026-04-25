@@ -1,15 +1,21 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 import Icon from '@/components/icons/Icon'
+import { 
+  CheckCircle2, 
+  AlertCircle, 
+  Calendar, 
+  MapPin, 
+  Phone, 
+  Mail, 
+  User, 
+  ChevronDown, 
+  Search 
+} from 'lucide-react'
 
-const WORK_SHIFTS = [
-  '6 tiếng ngày',
-  '8 tiếng ngày',
-  'Ca đêm 18:00/20:00 - 2:00/3:00',
-]
 
 const REFERRERS = [
   'Nhân viên công ty',
@@ -34,12 +40,107 @@ interface FormData {
   appliedPosition: string
   appliedPositionOther: string
   availableStartDate: string
-  preferredWorkShift: string
-  canWorkTet: 'Có' | 'Không'
-  referrer: string
-  referrerName: string
   preferredLocations: string[]
   workExperience: string
+  canWorkTet?: string
+  referrer?: string
+  referrerName?: string
+}
+
+const SearchableSelect = ({ 
+  options, 
+  value, 
+  onChange, 
+  placeholder, 
+  className,
+  error,
+  disabled 
+}: { 
+  options: { id: string, name: string }[], 
+  value: string, 
+  onChange: (val: string) => void, 
+  placeholder: string,
+  className?: string,
+  error?: string,
+  disabled?: boolean
+}) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const filteredOptions = options.filter(opt => 
+    opt.name.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const selectedOption = options.find(opt => opt.id === value)
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <div 
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        className={`w-full px-3 py-2 border rounded-md bg-white flex justify-between items-center ${
+          disabled ? 'bg-gray-50 cursor-not-allowed' : 'cursor-pointer'
+        } ${
+          error ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-yellow-500'
+        } ${className}`}
+      >
+        <span className={selectedOption ? 'text-gray-900' : 'text-gray-400'}>
+          {selectedOption ? selectedOption.name : placeholder}
+        </span>
+        <ChevronDown className="h-4 w-4 text-gray-400" />
+      </div>
+      
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+          <div className="sticky top-0 bg-white p-2 border-b border-gray-100">
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                autoFocus
+                className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                placeholder="Tìm kiếm..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          </div>
+          <div className="py-1">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map(opt => (
+                <div
+                  key={opt.id}
+                  className={`px-3 py-2 text-sm cursor-pointer hover:bg-yellow-50 ${
+                    opt.id === value ? 'bg-yellow-100 text-yellow-900' : 'text-gray-700'
+                  }`}
+                  onClick={() => {
+                    onChange(opt.id)
+                    setIsOpen(false)
+                    setSearch('')
+                  }}
+                >
+                  {opt.name}
+                </div>
+              ))
+            ) : (
+              <div className="px-3 py-2 text-sm text-gray-500 text-center">Không tìm thấy kết quả</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 interface Province {
@@ -93,7 +194,6 @@ export default function PublicApplicationForm() {
     appliedPosition: '',
     appliedPositionOther: '',
     availableStartDate: '',
-    preferredWorkShift: '',
     canWorkTet: 'Không',
     referrer: 'Không có',
     referrerName: '',
@@ -101,12 +201,13 @@ export default function PublicApplicationForm() {
     workExperience: '',
   })
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
-  const [availableLocations, setAvailableLocations] = useState<Ward[]>([])
+  const [stores, setStores] = useState<any[]>([])
+  const [availableStores, setAvailableStores] = useState<any[]>([])
   const [positions, setPositions] = useState<PositionOption[]>([])
 
   useEffect(() => {
     loadProvinces()
-    loadAllLocations()
+    loadPublicStores()
     loadPositions()
     if (campaignLink) {
       loadCampaignInfo()
@@ -118,9 +219,19 @@ export default function PublicApplicationForm() {
     }
   }, [campaignLink, legacyLink])
 
+  const loadPublicStores = async () => {
+    try {
+      const res = await api.get('/recruitment/public/stores')
+      setStores(res.data || [])
+      setAvailableStores(res.data || [])
+    } catch (err) {
+      console.error('Error loading stores:', err)
+    }
+  }
+
   const loadPositions = async () => {
     try {
-      const res = await api.get('/organization/positions')
+      const res = await api.get('/recruitment/public/positions')
       setPositions(res.data || [])
     } catch (err) {
       console.error('Error loading positions:', err)
@@ -138,24 +249,7 @@ export default function PublicApplicationForm() {
   }
 
   const loadAllLocations = async () => {
-    try {
-      const res = await api.get('/locations/provinces')
-      const provincesList = res.data
-      
-      // Load all wards from all provinces
-      const allWards: Ward[] = []
-      for (const province of provincesList) {
-        try {
-          const wardsRes = await api.get(`/locations/provinces/${province.id}/wards`)
-          allWards.push(...wardsRes.data)
-        } catch (err) {
-          console.error(`Error loading wards for province ${province.id}:`, err)
-        }
-      }
-      setAvailableLocations(allWards)
-    } catch (err) {
-      console.error('Error loading all locations:', err)
-    }
+    // This function is unused - stores are loaded via loadPublicStores instead
   }
 
   const loadCurrentWards = async (provinceId: string) => {
@@ -167,6 +261,30 @@ export default function PublicApplicationForm() {
       setCurrentWards([])
     }
   }
+
+  // Filter stores whenever currentCity or stores change
+  useEffect(() => {
+    if (!formData.currentCity) {
+      setAvailableStores([])
+      return
+    }
+
+    const selectedProvince = provinces.find((p) => p.id === formData.currentCity)
+    if (selectedProvince) {
+      const provinceName = normalizeCityName(selectedProvince.name)
+      const filtered = stores.filter((s) => {
+        if (!s.city) return false
+        const storeCity = normalizeCityName(s.city)
+        return (
+          storeCity.includes(provinceName) ||
+          provinceName.includes(storeCity)
+        )
+      })
+      setAvailableStores(filtered)
+    } else {
+      setAvailableStores(stores)
+    }
+  }, [formData.currentCity, stores, provinces])
 
   const loadPermanentWards = async (provinceId: string) => {
     try {
@@ -203,6 +321,24 @@ export default function PublicApplicationForm() {
     }
   }
 
+  const normalizeCityName = (name: string) => {
+    if (!name) return ''
+    let normalized = name.toLowerCase().normalize('NFC')
+      .replace(/tỉnh/g, '')
+      .replace(/thành phố/g, '')
+      .replace(/tp\./g, '')
+      .replace(/tp/g, '')
+      .replace(/-/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    
+    // Handle common abbreviations
+    if (normalized === 'hcm' || normalized === 'tphcm') return 'hồ chí minh'
+    if (normalized === 'hn') return 'hà nội'
+    
+    return normalized
+  }
+
   const formatPhone = (value: string) => {
     // Chỉ cho phép số
     const numbers = value.replace(/\D/g, '')
@@ -212,6 +348,20 @@ export default function PublicApplicationForm() {
   }
 
   const formatDateOfBirth = (value: string) => {
+    // Chỉ cho phép số và dấu /
+    let formatted = value.replace(/[^\d/]/g, '')
+    // Tự động thêm dấu /
+    if (formatted.length === 2 && !formatted.includes('/')) {
+      formatted = formatted + '/'
+    } else if (formatted.length === 5 && formatted.split('/').length === 2) {
+      formatted = formatted + '/'
+    }
+    // Giới hạn độ dài
+    if (formatted.length > 10) return formatted.slice(0, 10)
+    return formatted
+  }
+
+  const formatAvailableStartDate = (value: string) => {
     // Chỉ cho phép số và dấu /
     let formatted = value.replace(/[^\d/]/g, '')
     // Tự động thêm dấu /
@@ -285,21 +435,19 @@ export default function PublicApplicationForm() {
       setError('Vui lòng nhập tên vị trí ứng tuyển')
       return
     }
-    if (!formData.availableStartDate) {
-      setError('Vui lòng chọn ngày có thể bắt đầu công việc')
+    const [startDay, startMonth, startYear] = formData.availableStartDate.split('/')
+    if (!startDay || !startMonth || !startYear || startYear.length !== 4) {
+      setError('Ngày bắt đầu công việc không hợp lệ (DD/MM/YYYY)')
       return
     }
-    const startDate = new Date(formData.availableStartDate)
+    const startDate = new Date(parseInt(startYear), parseInt(startMonth) - 1, parseInt(startDay))
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     if (startDate <= today) {
       setError('Ngày bắt đầu công việc phải lớn hơn ngày hiện tại')
       return
     }
-    if (!formData.preferredWorkShift) {
-      setError('Vui lòng chọn ca làm việc mong muốn')
-      return
-    }
+
     if (!formData.canWorkTet) {
       setError('Vui lòng chọn có thể làm việc Tết hay không')
       return
@@ -308,7 +456,7 @@ export default function PublicApplicationForm() {
       setError('Vui lòng chọn người giới thiệu')
       return
     }
-    if ((formData.referrer === 'Nhân viên công ty' || formData.referrer === 'Cộng tác viên') && !formData.referrerName.trim()) {
+    if ((formData.referrer === 'Nhân viên công ty' || formData.referrer === 'Cộng tác viên') && !formData.referrerName?.trim()) {
       setError('Vui lòng nhập tên người giới thiệu')
       return
     }
@@ -319,22 +467,45 @@ export default function PublicApplicationForm() {
 
     setSubmitting(true)
     try {
-      // Convert dateOfBirth from DD/MM/YYYY to YYYY-MM-DD
-      const [day, month, year] = formData.dateOfBirth.split('/')
-      const dateOfBirthISO = `${year}-${month}-${day}`
+      // Convert dateOfBirth from DD/MM/YYYY or YYYY-MM-DD to YYYY-MM-DD
+      let dateOfBirthISO: string
+      if (formData.dateOfBirth.includes('/')) {
+        const [day, month, year] = formData.dateOfBirth.split('/')
+        dateOfBirthISO = `${year}-${month}-${day}`
+      } else {
+        // Already YYYY-MM-DD from input type="date"
+        dateOfBirthISO = formData.dateOfBirth
+      }
 
-      // Convert city ID to city name
+      // Convert city and ward IDs to names
       const selectedProvince = provinces.find(p => p.id === formData.currentCity)
       const cityName = selectedProvince?.name || formData.currentCity
+      
+      const selectedWard = currentWards.find(w => w.id === formData.currentWard)
+      const wardName = selectedWard?.name || formData.currentWard
+
+      const selectedPermProvince = provinces.find(p => p.id === formData.permanentCity)
+      const permCityName = selectedPermProvince?.name || formData.permanentCity
+
+      const selectedPermWard = permanentWards.find(w => w.id === formData.permanentWard)
+      const permWardName = selectedPermWard?.name || formData.permanentWard
+
+      // Convert availableStartDate from DD/MM/YYYY to YYYY-MM-DD
+      const [sDay, sMonth, sYear] = formData.availableStartDate.split('/')
+      const availableStartDateISO = `${sYear}-${sMonth}-${sDay}`
 
       await api.post('/recruitment/apply', {
         ...formData,
         currentCity: cityName,
+        currentWard: wardName,
+        permanentCity: permCityName,
+        permanentWard: permWardName,
         appliedPosition:
           formData.appliedPosition === 'Other'
             ? formData.appliedPositionOther
             : formData.appliedPosition,
         dateOfBirth: dateOfBirthISO,
+        availableStartDate: availableStartDateISO,
         formId: formInfo?.id || '',
         campaignId: campaignInfo?.id || undefined,
         sourceCode: sourceFromUrl || undefined,
@@ -441,10 +612,15 @@ export default function PublicApplicationForm() {
       case 'dateOfBirth':
         if (!value) {
           errors.dateOfBirth = 'Vui lòng nhập ngày sinh'
-        } else if (!/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
-          errors.dateOfBirth = 'Ngày sinh phải có định dạng DD/MM/YYYY'
+        } else if (!/^\d{2}\/\d{2}\/\d{4}$/.test(value) && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+          errors.dateOfBirth = 'Ngày sinh phải có định dạng DD/MM/YYYY hoặc YYYY-MM-DD'
         } else {
-          const [day, month, year] = value.split('/').map(Number)
+          let day: number, month: number, year: number
+          if (value.includes('/')) {
+            [day, month, year] = value.split('/').map(Number)
+          } else {
+            [year, month, day] = value.split('-').map(Number)
+          }
           const birthDate = new Date(year, month - 1, day)
           const today = new Date()
           const age = today.getFullYear() - year
@@ -503,19 +679,17 @@ export default function PublicApplicationForm() {
         break
       case 'availableStartDate':
         if (!value) {
-          errors.availableStartDate = 'Vui lòng chọn ngày có thể bắt đầu công việc'
+          errors.availableStartDate = 'Vui lòng nhập ngày có thể bắt đầu công việc'
+        } else if (!/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+          errors.availableStartDate = 'Ngày bắt đầu phải có định dạng DD/MM/YYYY'
         } else {
-          const startDate = new Date(value)
+          const [day, month, year] = value.split('/').map(Number)
+          const startDate = new Date(year, month - 1, day)
           const today = new Date()
           today.setHours(0, 0, 0, 0)
           if (startDate <= today) {
             errors.availableStartDate = 'Ngày bắt đầu công việc phải lớn hơn ngày hiện tại'
           }
-        }
-        break
-      case 'preferredWorkShift':
-        if (!value) {
-          errors.preferredWorkShift = 'Vui lòng chọn ca làm việc mong muốn'
         }
         break
       case 'canWorkTet':
@@ -584,12 +758,12 @@ export default function PublicApplicationForm() {
           {/* Content */}
           {formInfo?.formContent && (
             <div
-              className="text-gray-600 mb-6 prose prose-sm max-w-none"
+              className="text-gray-600 mb-6 prose prose-sm max-w-none whitespace-pre-wrap"
               dangerouslySetInnerHTML={{ __html: formInfo.formContent }}
             />
           )}
           {!formInfo?.formContent && formInfo?.description && (
-            <p className="text-gray-600 mb-6">{formInfo.description}</p>
+            <p className="text-gray-600 mb-6 whitespace-pre-wrap">{formInfo.description}</p>
           )}
 
           {error && (
@@ -758,29 +932,17 @@ export default function PublicApplicationForm() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Thành phố/Tỉnh <span className="text-red-500">*</span>
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={provinces}
                     value={formData.currentCity}
-                    onChange={(e) => {
-                      const value = e.target.value
+                    onChange={(value) => {
                       setFormData({ ...formData, currentCity: value, currentWard: '' })
                       loadCurrentWards(value)
                       validateField('currentCity', value)
                     }}
-                    onBlur={() => validateField('currentCity', formData.currentCity)}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                      validationErrors.currentCity
-                        ? 'border-red-500 focus:ring-red-500'
-                        : 'border-gray-300 focus:ring-yellow-500'
-                    }`}
-                    required
-                  >
-                    <option value="">Chọn tỉnh/thành phố</option>
-                    {provinces.map((province) => (
-                      <option key={province.id} value={province.id}>
-                        {province.name}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Chọn tỉnh/thành phố"
+                    error={validationErrors.currentCity}
+                  />
                   {validationErrors.currentCity && (
                     <p className="mt-1 text-sm text-red-600">{validationErrors.currentCity}</p>
                   )}
@@ -790,29 +952,17 @@ export default function PublicApplicationForm() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Phường/Xã <span className="text-red-500">*</span>
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={currentWards}
                     value={formData.currentWard}
-                    onChange={(e) => {
-                      const value = e.target.value
+                    onChange={(value) => {
                       setFormData({ ...formData, currentWard: value })
                       validateField('currentWard', value)
                     }}
-                    onBlur={() => validateField('currentWard', formData.currentWard)}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                      validationErrors.currentWard
-                        ? 'border-red-500 focus:ring-red-500'
-                        : 'border-gray-300 focus:ring-yellow-500'
-                    }`}
-                    required
+                    placeholder="Chọn phường/xã"
+                    error={validationErrors.currentWard}
                     disabled={!formData.currentCity}
-                  >
-                    <option value="">Chọn phường/xã</option>
-                    {currentWards.map((ward) => (
-                      <option key={ward.id} value={ward.id}>
-                        {ward.name}
-                      </option>
-                    ))}
-                  </select>
+                  />
                   {validationErrors.currentWard && (
                     <p className="mt-1 text-sm text-red-600">{validationErrors.currentWard}</p>
                   )}
@@ -881,29 +1031,17 @@ export default function PublicApplicationForm() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Thành phố/Tỉnh <span className="text-red-500">*</span>
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={provinces}
                       value={formData.permanentCity}
-                      onChange={(e) => {
-                        const value = e.target.value
+                      onChange={(value) => {
                         setFormData({ ...formData, permanentCity: value, permanentWard: '' })
                         loadPermanentWards(value)
                         validateField('permanentCity', value)
                       }}
-                      onBlur={() => validateField('permanentCity', formData.permanentCity)}
-                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                        validationErrors.permanentCity
-                          ? 'border-red-500 focus:ring-red-500'
-                          : 'border-gray-300 focus:ring-yellow-500'
-                      }`}
-                      required
-                    >
-                      <option value="">Chọn tỉnh/thành phố</option>
-                      {provinces.map((province) => (
-                        <option key={province.id} value={province.id}>
-                          {province.name}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="Chọn tỉnh/thành phố"
+                      error={validationErrors.permanentCity}
+                    />
                     {validationErrors.permanentCity && (
                       <p className="mt-1 text-sm text-red-600">{validationErrors.permanentCity}</p>
                     )}
@@ -913,29 +1051,17 @@ export default function PublicApplicationForm() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Phường/Xã <span className="text-red-500">*</span>
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={permanentWards}
                       value={formData.permanentWard}
-                      onChange={(e) => {
-                        const value = e.target.value
+                      onChange={(value) => {
                         setFormData({ ...formData, permanentWard: value })
                         validateField('permanentWard', value)
                       }}
-                      onBlur={() => validateField('permanentWard', formData.permanentWard)}
-                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                        validationErrors.permanentWard
-                          ? 'border-red-500 focus:ring-red-500'
-                          : 'border-gray-300 focus:ring-yellow-500'
-                      }`}
-                      required
+                      placeholder="Chọn phường/xã"
+                      error={validationErrors.permanentWard}
                       disabled={!formData.permanentCity}
-                    >
-                      <option value="">Chọn phường/xã</option>
-                      {permanentWards.map((ward) => (
-                        <option key={ward.id} value={ward.id}>
-                          {ward.name}
-                        </option>
-                      ))}
-                    </select>
+                    />
                     {validationErrors.permanentWard && (
                       <p className="mt-1 text-sm text-red-600">{validationErrors.permanentWard}</p>
                     )}
@@ -978,36 +1104,20 @@ export default function PublicApplicationForm() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Vị trí ứng tuyển <span className="text-red-500">*</span>
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={(
+                      positions && positions.length > 0
+                        ? positions.map(p => ({ id: p.name, name: p.name }))
+                        : []
+                    ).concat([{ id: 'Other', name: 'Khác' }])}
                     value={formData.appliedPosition}
-                    onChange={(e) => {
-                      const value = e.target.value
+                    onChange={(value) => {
                       setFormData({ ...formData, appliedPosition: value, appliedPositionOther: '' })
                       validateField('appliedPosition', value)
                     }}
-                    onBlur={() => validateField('appliedPosition', formData.appliedPosition)}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                      validationErrors.appliedPosition
-                        ? 'border-red-500 focus:ring-red-500'
-                        : 'border-gray-300 focus:ring-yellow-500'
-                    }`}
-                    required
-                  >
-                    <option value="">Chọn vị trí</option>
-                    {(
-                      formInfo?.positions && formInfo.positions.length > 0
-                        ? formInfo.positions
-                        : positions
-                    ).map((position: any) => (
-                      <option
-                        key={typeof position === 'string' ? position : position.id}
-                        value={typeof position === 'string' ? position : position.name}
-                      >
-                        {typeof position === 'string' ? position : position.name}
-                      </option>
-                    ))}
-                    <option value="Other">Khác</option>
-                  </select>
+                    placeholder="Chọn vị trí"
+                    error={validationErrors.appliedPosition}
+                  />
                   {validationErrors.appliedPosition && (
                     <p className="mt-1 text-sm text-red-600">{validationErrors.appliedPosition}</p>
                   )}
@@ -1045,15 +1155,15 @@ export default function PublicApplicationForm() {
                     Ngày có thể bắt đầu công việc <span className="text-red-500">*</span>
                   </label>
                   <input
-                    type="date"
+                    type="text"
                     value={formData.availableStartDate}
                     onChange={(e) => {
-                      const value = e.target.value
+                      const value = formatAvailableStartDate(e.target.value)
                       setFormData({ ...formData, availableStartDate: value })
                       validateField('availableStartDate', value)
                     }}
                     onBlur={() => validateField('availableStartDate', formData.availableStartDate)}
-                    min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
+                    placeholder="DD/MM/YYYY"
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                       validationErrors.availableStartDate
                         ? 'border-red-500 focus:ring-red-500'
@@ -1063,37 +1173,6 @@ export default function PublicApplicationForm() {
                   />
                   {validationErrors.availableStartDate && (
                     <p className="mt-1 text-sm text-red-600">{validationErrors.availableStartDate}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ca làm việc mong muốn <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.preferredWorkShift}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      setFormData({ ...formData, preferredWorkShift: value })
-                      validateField('preferredWorkShift', value)
-                    }}
-                    onBlur={() => validateField('preferredWorkShift', formData.preferredWorkShift)}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                      validationErrors.preferredWorkShift
-                        ? 'border-red-500 focus:ring-red-500'
-                        : 'border-gray-300 focus:ring-yellow-500'
-                    }`}
-                    required
-                  >
-                    <option value="">Chọn ca làm việc</option>
-                    {WORK_SHIFTS.map((shift) => (
-                      <option key={shift} value={shift}>
-                        {shift}
-                      </option>
-                    ))}
-                  </select>
-                  {validationErrors.preferredWorkShift && (
-                    <p className="mt-1 text-sm text-red-600">{validationErrors.preferredWorkShift}</p>
                   )}
                 </div>
 
@@ -1185,35 +1264,43 @@ export default function PublicApplicationForm() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Địa điểm mong muốn làm việc <span className="text-red-500">*</span>
                   </label>
-                  <div className={`grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto border rounded-md p-2 ${
+                  <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto border rounded-md p-3 ${
                     validationErrors.preferredLocations
                       ? 'border-red-500'
                       : 'border-gray-300'
                   }`}>
-                    {availableLocations.map((location) => (
-                      <label key={location.id} className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={formData.preferredLocations.includes(location.id)}
-                          onChange={(e) => {
-                            let newLocations: string[]
-                            if (e.target.checked) {
-                              newLocations = [...formData.preferredLocations, location.id]
-                            } else {
-                              newLocations = formData.preferredLocations.filter((loc) => loc !== location.id)
-                            }
-                            setFormData({
-                              ...formData,
-                              preferredLocations: newLocations,
-                            })
-                            validateField('preferredLocations', newLocations)
-                          }}
-                          onBlur={() => validateField('preferredLocations', formData.preferredLocations)}
-                          className="mr-2"
-                        />
-                        <span className="text-sm">{location.name}</span>
-                      </label>
-                    ))}
+                    {availableStores.length > 0 ? (
+                      availableStores.map((store) => (
+                        <label key={store.id} className="flex items-start space-x-2 p-2 hover:bg-gray-50 rounded-md cursor-pointer border border-transparent hover:border-gray-200 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={formData.preferredLocations.includes(store.id)}
+                            onChange={(e) => {
+                              let newLocations: string[]
+                              if (e.target.checked) {
+                                newLocations = [...formData.preferredLocations, store.id]
+                              } else {
+                                newLocations = formData.preferredLocations.filter((loc) => loc !== store.id)
+                              }
+                              setFormData({
+                                ...formData,
+                                preferredLocations: newLocations,
+                              })
+                              validateField('preferredLocations', newLocations)
+                            }}
+                            className="mt-1 h-4 w-4 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+                          />
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium text-gray-900">{store.name}</span>
+                            <span className="text-xs text-gray-500">{store.address}</span>
+                          </div>
+                        </label>
+                      ))
+                    ) : (
+                      <div className="col-span-full py-4 text-center text-gray-500 text-sm italic">
+                        {formData.currentCity ? 'Không tìm thấy cửa hàng KFC tại khu vực này.' : 'Vui lòng chọn Tỉnh/Thành phố để xem các cửa hàng gần bạn.'}
+                      </div>
+                    )}
                   </div>
                   {validationErrors.preferredLocations && (
                     <p className="mt-1 text-sm text-red-600">{validationErrors.preferredLocations}</p>

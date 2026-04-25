@@ -3,6 +3,20 @@
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import api from '@/lib/api'
+import { Filter, Calendar, X } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Button } from '@/components/ui/button'
+import { Calendar as CalendarPicker } from '@/components/ui/calendar'
+import Icon from '@/components/icons/Icon'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 // Dynamically import ApexCharts to avoid SSR issues
 const Chart = dynamic(() => import('react-apexcharts'), { ssr: false })
 
@@ -33,6 +47,7 @@ interface DashboardData {
   candidatesByStore: Array<{
     storeId: string
     storeName: string
+    storeCode: string
     count: number
   }>
   funnelData: Array<{
@@ -46,6 +61,15 @@ interface DashboardData {
     count?: number
     previousCount?: number
     conversionRate?: number
+  }>
+  taPerformance: Array<{
+    taId: string
+    taName: string
+    taEmail: string
+    taRole: string
+    totalCandidates: number
+    passedCandidates: number
+    onboardedCandidates: number
   }>
 }
 
@@ -69,18 +93,74 @@ function adjustColor(color: string | null, amount: number): string {
 export default function RecruitmentDashboard() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
+  
+  // Filter states
+  const [campaignId, setCampaignId] = useState<string>('ALL')
+  const [storeId, setStoreId] = useState<string>('ALL')
+  const [taId, setTaId] = useState<string>('ALL')
+  const [statusId, setStatusId] = useState<string>('ALL')
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined })
+  const [showFilters, setShowFilters] = useState(false)
+  
+  // Filter options
+  const [campaigns, setCampaigns] = useState<any[]>([])
+  const [stores, setStores] = useState<any[]>([])
+  const [statuses, setStatuses] = useState<any[]>([])
+  const [users, setUsers] = useState<any[]>([])
 
-  useEffect(() => {
+  const fetchFilters = async () => {
+    const [campaignsRes, storesRes, statusesRes, usersRes] = await Promise.all([
+      api.get('/recruitment/campaigns').catch(() => ({ data: [] })),
+      api.get('/stores').catch(() => ({ data: [] })),
+      api.get('/types/by-category/CANDIDATE_STATUS').catch(() => ({ data: [] })),
+      api.get('/users/select').catch(() => ({ data: [] })),
+    ])
+    setCampaigns(campaignsRes.data || [])
+    setStores(storesRes.data || [])
+    setStatuses(statusesRes.data || [])
+    setUsers(usersRes.data || [])
+  }
+
+  const buildFilterParams = () => {
+    const params = new URLSearchParams()
+    if (campaignId && campaignId !== 'ALL') params.append('campaignId', campaignId)
+    if (storeId && storeId !== 'ALL') params.append('storeId', storeId)
+    if (taId && taId !== 'ALL') params.append('taId', taId)
+    if (statusId && statusId !== 'ALL') params.append('statusId', statusId)
+    if (dateRange.from) params.append('dateFrom', dateRange.from.toISOString())
+    if (dateRange.to) params.append('dateTo', dateRange.to.toISOString())
+    return params.toString()
+  }
+
+  const fetchDashboard = () => {
+    const params = buildFilterParams()
     api
-      .get('/recruitment/dashboard')
+      .get(`/recruitment/dashboard${params ? `?${params}` : ''}`)
       .then((res) => setData(res.data))
       .catch(console.error)
       .finally(() => setLoading(false))
+  }
+
+  const clearFilters = () => {
+    setCampaignId('ALL')
+    setStoreId('ALL')
+    setTaId('ALL')
+    setStatusId('ALL')
+    setDateRange({ from: undefined, to: undefined })
+  }
+
+  const hasFilters = (campaignId !== 'ALL') || (storeId !== 'ALL') || (taId !== 'ALL') || dateRange.from || dateRange.to
+
+  useEffect(() => {
+    fetchFilters()
   }, [])
 
-  if (loading) {
-    return <div className="text-center py-8">Đang tải dữ liệu...</div>
-  }
+  useEffect(() => {
+    setLoading(true)
+    fetchDashboard()
+  }, [campaignId, storeId, taId, statusId, dateRange])
+
+
 
   if (!data) {
     return <div className="text-center py-8 text-red-600">Không thể tải dữ liệu dashboard</div>
@@ -89,14 +169,15 @@ export default function RecruitmentDashboard() {
   // Using getBrandLabel from brand-utils
 
   // Prepare chart data
-  const candidatesByStatus = data.candidatesByStatus || []
-  const monthlyData = data.monthlyData || []
-  const candidatesByCampaign = data.candidatesByCampaign || []
-  const candidatesByStore = data.candidatesByStore || []
-  const funnelData = data.funnelData || []
+  const candidatesByStatus = data?.candidatesByStatus || []
+  const monthlyData = data?.monthlyData || []
+  const candidatesByCampaign = data?.candidatesByCampaign || []
+  const candidatesByStore = data?.candidatesByStore || []
+  const funnelData = data?.funnelData || []
+  const taPerformance = data?.taPerformance || []
   
   const cvPassedCount = candidatesByStatus
-    .filter((s) => [
+    ?.filter((s: any) => [
       'SM_AM_INTERVIEW_PASSED',
       'OM_PV_INTERVIEW_PASSED',
       'OFFER_SENT',
@@ -209,9 +290,9 @@ export default function RecruitmentDashboard() {
     },
     xaxis: {
       categories: candidatesByCampaign
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 10)
-        .map((c) => c.campaignName),
+        ?.sort((a: any, b: any) => b.count - a.count)
+        ?.slice(0, 10)
+        ?.map((c: any) => c.campaignName) || [],
       labels: {
         style: {
           fontFamily: 'Lexend, sans-serif',
@@ -282,7 +363,7 @@ export default function RecruitmentDashboard() {
       categories: candidatesByStore
         .sort((a, b) => b.count - a.count)
         .slice(0, 10)
-        .map((s) => s.storeName),
+        .map((s) => s.storeCode),
       labels: {
         style: {
           fontFamily: 'Lexend, sans-serif',
@@ -305,7 +386,10 @@ export default function RecruitmentDashboard() {
     colors: ['#10B981'],
     tooltip: {
       y: {
-        formatter: (val: number) => `${val} ứng viên`,
+        formatter: (val: number, opts?: any) => {
+          const store = candidatesByStore.find(s => s.storeCode === opts?.w?.globals?.categoryLabel?.[opts?.dataPointIndex])
+          return `${val} ứng viên - ${store?.storeName || ''}`
+        },
       },
       style: {
         fontFamily: 'Lexend, sans-serif',
@@ -323,20 +407,135 @@ export default function RecruitmentDashboard() {
     },
   ]
   return (
-    <div className="pt-6 space-y-12">
+    <div className="pt-6 space-y-12 relative">
+      {loading && (
+        <div className="absolute inset-x-0 top-0 h-0.5 z-50 bg-red-600 animate-pulse"></div>
+      )}
       {/* Page Header */}
       <div className="pb-2">
         <h1 className="text-2xl font-bold text-gray-900">Bảng điều khiển tuyển dụng</h1>
         <p className="text-gray-600 mt-2">Tổng quan về quy trình tuyển dụng và thống kê ứng viên</p>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3 pb-6 border-b border-gray-100">
+        <div className="flex flex-wrap items-center gap-3 flex-1">
+          {/* Chiến dịch */}
+          <div className="w-[220px]">
+            <Select value={campaignId} onValueChange={setCampaignId}>
+              <SelectTrigger className="h-auto min-h-[40px] bg-white [&>span]:line-clamp-none py-2">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-3.5 h-3.5 text-gray-400" />
+                  <SelectValue placeholder="Chiến dịch" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Tất cả chiến dịch</SelectItem>
+                {campaigns.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Cửa hàng */}
+          <div className="w-[220px]">
+            <Select value={storeId} onValueChange={setStoreId}>
+              <SelectTrigger className="h-auto min-h-[40px] bg-white [&>span]:line-clamp-none py-2">
+                <div className="flex items-center gap-2">
+                  <Icon name="store" size={14} className="text-gray-400" />
+                  <SelectValue placeholder="Cửa hàng" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Tất cả cửa hàng</SelectItem>
+                {Object.entries(
+                  stores.reduce((acc: any, store: any) => {
+                    const city = store.city || 'Khác';
+                    if (!acc[city]) acc[city] = [];
+                    acc[city].push(store);
+                    return acc;
+                  }, {})
+                ).sort(([cityA], [cityB]) => cityA.localeCompare(cityB)).map(([city, cityStores]: [string, any]) => (
+                  <SelectGroup key={city}>
+                    <SelectItem value={`CITY:${city}`} className="font-bold text-gray-900 bg-gray-100 focus:bg-gray-200 focus:text-gray-900 py-2">
+                      {city.toUpperCase()}
+                    </SelectItem>
+                    {[...cityStores].sort((a, b) => a.code.localeCompare(b.code)).map((s: any) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.code} - {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          
+
+          {/* TA phụ trách */}
+          <div className="w-[220px]">
+            <Select value={taId} onValueChange={setTaId}>
+              <SelectTrigger className="h-auto min-h-[40px] bg-white [&>span]:line-clamp-none py-2">
+                <div className="flex items-center gap-2">
+                  <Icon name="user" size={14} className="text-gray-400" />
+                  <SelectValue placeholder="Người phụ trách" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Tất cả người phụ trách</SelectItem>
+                {users.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>{u.fullName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Date Picker */}
+          <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-md px-2 h-10 shadow-sm">
+             <Popover>
+              <PopoverTrigger asChild>
+                <button className="text-xs font-medium text-gray-600 hover:text-gray-900 flex items-center gap-1.5 px-1">
+                  {dateRange.from ? dateRange.from.toLocaleDateString('vi-VN') : 'Từ ngày'}
+                  <Calendar className="w-3.5 h-3.5" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <CalendarPicker
+                  mode="single"
+                  selected={dateRange.from}
+                  onSelect={(date) => setDateRange({ ...dateRange, from: date })}
+                />
+              </PopoverContent>
+            </Popover>
+            <span className="text-gray-300">-</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="text-xs font-medium text-gray-600 hover:text-gray-900 flex items-center gap-1.5 px-1">
+                  {dateRange.to ? dateRange.to.toLocaleDateString('vi-VN') : 'Đến ngày'}
+                  <Calendar className="w-3.5 h-3.5" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <CalendarPicker
+                  mode="single"
+                  selected={dateRange.to}
+                  onSelect={(date) => setDateRange({ ...dateRange, to: date })}
+                />
+              </PopoverContent>
+            </Popover>
+</div>
+      </div>
+    </div>
+        
+    {/* Summary Cards */}
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tổng ứng viên</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{data.totalCandidates}</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{data?.totalCandidates || 0}</p>
             </div>
             <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
               <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -592,6 +791,92 @@ export default function RecruitmentDashboard() {
           </tfoot>
         </table>
       </div>
+      {/* TA Performance Chart */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-6">Hiệu suất Người phụ trách (TA)</h3>
+        {typeof window !== 'undefined' && (
+          <Chart
+            options={{
+              chart: {
+                type: 'bar',
+                height: 400,
+                stacked: false,
+                toolbar: { show: false },
+                fontFamily: 'Lexend, sans-serif',
+              },
+              plotOptions: {
+                bar: {
+                  horizontal: false,
+                  columnWidth: '55%',
+                  borderRadius: 4,
+                },
+              },
+              dataLabels: {
+                enabled: false
+              },
+              stroke: {
+                show: true,
+                width: 2,
+                colors: ['transparent']
+              },
+              xaxis: {
+                categories: data.taPerformance.map(ta => ta.taName),
+                labels: {
+                  style: {
+                    fontFamily: 'Lexend, sans-serif',
+                  }
+                }
+              },
+              yaxis: {
+                title: {
+                  text: 'Số lượng ứng viên',
+                  style: {
+                    fontFamily: 'Lexend, sans-serif',
+                  }
+                },
+                labels: {
+                  style: {
+                    fontFamily: 'Lexend, sans-serif',
+                  }
+                }
+              },
+              fill: {
+                opacity: 1
+              },
+              tooltip: {
+                y: {
+                  formatter: (val) => `${val} ứng viên`
+                },
+                style: {
+                  fontFamily: 'Lexend, sans-serif',
+                }
+              },
+              colors: ['#3B82F6', '#10B981', '#F59E0B'],
+              legend: {
+                position: 'top',
+                fontFamily: 'Lexend, sans-serif',
+              }
+            }}
+            series={[
+              {
+                name: 'Ứng viên xử lý',
+                data: data.taPerformance.map(ta => ta.totalCandidates)
+              },
+              {
+                name: 'Ứng viên đạt',
+                data: data.taPerformance.map(ta => ta.passedCandidates)
+              },
+              {
+                name: 'Ứng viên nhận việc',
+                data: data.taPerformance.map(ta => ta.onboardedCandidates)
+              }
+            ]}
+            type="bar"
+            height={400}
+          />
+        )}
+      </div>
+
 
       {/* Charts Row 2: Status Distribution and Monthly Trend */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -672,6 +957,66 @@ export default function RecruitmentDashboard() {
           </div>
         </div>
       </div>
+
+      {/* TA Performance Table */}
+      {data.taPerformance && data.taPerformance.length > 0 && (
+        <div className="mt-6">
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="px-6 py-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">Hiệu suất của TA (Người phụ trách)</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">TA</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vai trò</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng ứng viên</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Đạt (CV đạt, PV đạt, Offer đạt)</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Nhận việc</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tỷ lệ đạt</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {data.taPerformance.map((ta) => {
+                    const processedRate = ta.totalCandidates > 0 ? ((ta.processedCandidates / ta.totalCandidates) * 100).toFixed(1) : '0.0'
+                    const acceptedRate = ta.totalCandidates > 0 ? ((ta.acceptedCandidates / ta.totalCandidates) * 100).toFixed(1) : '0.0'
+                    return (
+                      <tr key={ta.taId} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{ta.taName}</div>
+                          <div className="text-sm text-gray-500">{ta.taEmail}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {ta.taRole === 'USER' ? 'SM' : ta.taRole === 'MANAGER' ? 'AM' : ta.taRole}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900 font-medium">
+                          {ta.totalCandidates}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-blue-600 font-medium">
+                          {ta.processedCandidates} ({processedRate}%)
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-green-600 font-medium">
+                          {ta.acceptedCandidates} ({acceptedRate}%)
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            parseFloat(acceptedRate) >= 50 ? 'bg-green-100 text-green-800' :
+                            parseFloat(acceptedRate) >= 20 ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                            {acceptedRate}%
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -9,13 +9,13 @@ export class AddressesController {
   getRegions() { return this.service.getRegions(); }
 
   @Get('provinces')
-  getProvinces(@Query('regionId') regionId?: string) { 
-    return this.service.getProvinces(regionId ? parseInt(regionId) : undefined); 
+  getProvinces() { 
+    return this.service.getProvinces(); 
   }
 
   @Get('provinces/:code')
   getProvince(@Param('code') code: string) { 
-    return this.service.getProvince(BigInt(code)); 
+    return this.service.getProvince(code); 
   }
 
   @Get('administrative-units')
@@ -27,14 +27,14 @@ export class AddressesController {
     @Query('unitId') unitId?: string
   ) { 
     return this.service.getWards(
-      provinceCode ? BigInt(provinceCode) : undefined,
+      provinceCode,
       unitId ? parseInt(unitId) : undefined
     ); 
   }
 
   @Get('wards/:code')
   getWard(@Param('code') code: string) { 
-    return this.service.getWard(BigInt(code)); 
+    return this.service.getWard(code); 
   }
 
   @Get('hierarchy')
@@ -42,6 +42,6 @@ export class AddressesController {
     @Query('provinceCode') provinceCode: string,
     @Query('wardCode') wardCode: string
   ) {
-    return this.service.getAddressHierarchy(BigInt(provinceCode), BigInt(wardCode));
+    return this.service.getAddressHierarchy(provinceCode, wardCode);
   }
 }

@@ -1,26 +1,122 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 import toast from 'react-hot-toast'
+import { DatePicker } from '@/components/ui/date-picker'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
+import { Search, ChevronDown } from 'lucide-react'
+
+const SearchableSelect = ({ 
+  options, 
+  value, 
+  onChange, 
+  placeholder, 
+}: { 
+  options: { id: string, name: string }[], 
+  value: string, 
+  onChange: (val: string) => void, 
+  placeholder: string,
+}) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const containerRef = React.useRef<HTMLDivElement>(null)
+
+  const filteredOptions = options.filter(opt => 
+    opt.name.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const selectedOption = options.find(opt => opt.id === value)
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full px-3 py-2 border border-gray-300 rounded-md bg-white flex justify-between items-center cursor-pointer focus:ring-2 focus:ring-yellow-500`}
+      >
+        <span className={selectedOption ? 'text-gray-900' : 'text-gray-400'}>
+          {selectedOption ? selectedOption.name : placeholder}
+        </span>
+        <ChevronDown className="h-4 w-4 text-gray-400" />
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg">
+          <div className="p-2 border-b">
+            <div className="relative">
+              <Search className="absolute left-2 top-2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-yellow-500"
+                placeholder="Tìm kiếm..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          </div>
+          <div className="max-h-60 overflow-auto">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((opt) => (
+                <div
+                  key={opt.id}
+                  className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${
+                    value === opt.id ? 'bg-yellow-50 text-yellow-700' : 'text-gray-700'
+                  }`}
+                  onClick={() => {
+                    onChange(opt.id)
+                    setIsOpen(false)
+                    setSearch('')
+                  }}
+                >
+                  {opt.name}
+                </div>
+              ))
+            ) : (
+              <div className="px-3 py-2 text-sm text-gray-500 text-center">
+                Không tìm thấy kết quả
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface Candidate {
   id: string
   fullName: string
   email: string | null
   phone: string
+  currentCity?: string
+  currentWard?: string
+  currentStreet?: string
+  store?: {
+    id: string
+    name: string
+    address: string | null
+  }
 }
 
 interface Employee {
   id: string
   fullName: string
   email: string | null
-  user: {
-    id: string
-    email: string
-    role: string
-  } | null
+  role: string
 }
 
 interface TypeOption {
@@ -47,17 +143,16 @@ export default function CreateInterviewForm({
   const [candidate, setCandidate] = useState<Candidate | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
-  const [interviewTypes, setInterviewTypes] = useState<TypeOption[]>([])
-  const [interviewResults, setInterviewResults] = useState<TypeOption[]>([])
+
+
 
   // Form fields
   const [candidateId, setCandidateId] = useState(candidateIdParam || '')
   const [interviewerId, setInterviewerId] = useState('')
-  const [typeId, setTypeId] = useState('')
-  const [scheduledAt, setScheduledAt] = useState('')
+  const [scheduledDate, setScheduledDate] = useState('')
+  const [scheduledTime, setScheduledTime] = useState('09:00')
   const [location, setLocation] = useState('')
   const [notes, setNotes] = useState('')
-  const [resultId, setResultId] = useState('')
 
   useEffect(() => {
     // Load candidates
@@ -66,27 +161,16 @@ export default function CreateInterviewForm({
       .then((res) => setCandidates(res.data))
       .catch(console.error)
 
-    // Load employees (to get interviewers)
+    // Load users (to get interviewers)
     api
-      .get('/employees')
+      .get('/users')
       .then((res) => {
-        // Filter employees that have users
-        const employeesWithUsers = res.data.filter((emp: Employee) => emp.user !== null)
-        setEmployees(employeesWithUsers)
+        // Use all active users as potential interviewers
+        setEmployees(res.data.filter((u: any) => u.isActive))
       })
       .catch(console.error)
 
-    // Load interview types
-    api
-      .get('/types/by-category/INTERVIEW_TYPE')
-      .then((res) => setInterviewTypes(res.data))
-      .catch(console.error)
 
-    // Load interview results
-    api
-      .get('/types/by-category/INTERVIEW_RESULT')
-      .then((res) => setInterviewResults(res.data))
-      .catch(console.error)
 
     // Load candidate if candidateId is provided
     if (candidateIdParam) {
@@ -107,6 +191,13 @@ export default function CreateInterviewForm({
     }
   }, [candidateId, candidates])
 
+  // Set default location when candidate is loaded
+  useEffect(() => {
+    if (candidate?.store) {
+      setLocation(candidate.store.name)
+    }
+  }, [candidate])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -119,23 +210,23 @@ export default function CreateInterviewForm({
       if (!interviewerId) {
         throw new Error('Vui lòng chọn người phỏng vấn')
       }
-      if (!typeId) {
-        throw new Error('Vui lòng chọn loại phỏng vấn')
+      if (!scheduledDate) {
+        throw new Error('Vui lòng chọn ngày phỏng vấn')
       }
-      if (!scheduledAt) {
-        throw new Error('Vui lòng chọn thời gian phỏng vấn')
-      }
+
+      // Combine date and time
+      const [hours, minutes] = scheduledTime.split(':')
+      const combinedDate = new Date(scheduledDate + 'T00:00:00')
+      combinedDate.setHours(parseInt(hours), parseInt(minutes))
 
       const payload: any = {
         candidateId,
         interviewerId,
-        typeId,
-        scheduledAt: new Date(scheduledAt).toISOString(),
+        scheduledAt: combinedDate.toISOString(),
       }
 
       if (location) payload.location = location
       if (notes) payload.notes = notes
-      if (resultId) payload.resultId = resultId
 
       await api.post('/recruitment/interviews', payload)
       toast.success('Tạo lịch phỏng vấn thành công')
@@ -175,20 +266,28 @@ export default function CreateInterviewForm({
           {error}
         </div>
       )}
-
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Candidate Selection */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+        <div className="space-y-1.5">
+          <Label className="text-sm font-medium text-gray-700">
             Ứng viên <span className="text-red-500">*</span>
-          </label>
+          </Label>
           {(candidateIdParam || initialCandidateId) && candidate ? (
-            <div className="p-3 bg-gray-50 border border-gray-300 rounded-md">
-              <div className="font-medium text-gray-900">{candidate.fullName}</div>
-              <div className="text-sm text-gray-600">{candidate.phone}</div>
-              {candidate.email && (
-                <div className="text-sm text-gray-600">{candidate.email}</div>
-              )}
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded-md">
+              <div className="font-semibold text-gray-900 text-base">{candidate.fullName}</div>
+              <div className="text-sm text-gray-600 mt-1 flex flex-col gap-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">SĐT:</span> {candidate.phone}
+                </div>
+                {(candidate.currentStreet || candidate.currentWard || candidate.currentCity) && (
+                  <div className="flex items-start gap-2">
+                    <span className="font-medium">Địa chỉ:</span>
+                    <span>
+                      {[candidate.currentStreet, candidate.currentWard, candidate.currentCity].filter(Boolean).join(', ')}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <select
@@ -198,9 +297,9 @@ export default function CreateInterviewForm({
               required
             >
               <option value="">Chọn ứng viên</option>
-              {candidates.map((candidate) => (
-                <option key={typeof candidate === 'object' && candidate !== null && 'id' in candidate ? candidate.id : ''} value={typeof candidate === 'object' && candidate !== null && 'id' in candidate ? candidate.id : ''}>
-                  {typeof candidate === 'object' && candidate !== null && 'fullName' in candidate ? candidate.fullName : 'Unknown'} - {typeof candidate === 'object' && candidate !== null && 'phone' in candidate ? candidate.phone : ''}
+              {candidates.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.fullName} - {c.phone}
                 </option>
               ))}
             </select>
@@ -208,128 +307,91 @@ export default function CreateInterviewForm({
         </div>
 
         {/* Interviewer Selection */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+        <div className="space-y-1.5">
+          <Label className="text-sm font-medium text-gray-700">
             Người phỏng vấn <span className="text-red-500">*</span>
-          </label>
-          <select
+          </Label>
+          <SearchableSelect
+            options={employees.map(e => ({ id: e.id, name: `${e.fullName} (${e.email || ''})` }))}
             value={interviewerId}
-            onChange={(e) => setInterviewerId(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
-            required
-          >
-            <option value="">Chọn người phỏng vấn</option>
-            {employees.map((employee) => {
-              const empUser = employee.user && typeof employee.user === 'object' && employee.user !== null ? employee.user : null
-              return (
-                <option key={empUser && 'id' in empUser ? empUser.id : ''} value={empUser && 'id' in empUser ? empUser.id : ''}>
-                  {typeof employee === 'object' && employee !== null && 'fullName' in employee ? String(employee.fullName || 'Unknown') : 'Unknown'} ({empUser && 'email' in empUser ? String(empUser.email || '') : ''})
-                </option>
-              )
-            })}
-          </select>
-        </div>
-
-        {/* Interview Type */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Loại phỏng vấn <span className="text-red-500">*</span>
-          </label>
-          <select
-            value={typeId}
-            onChange={(e) => setTypeId(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
-            required
-          >
-            <option value="">Chọn loại phỏng vấn</option>
-            {interviewTypes.map((type) => (
-              <option key={typeof type === 'object' && type !== null && 'id' in type ? type.id : ''} value={typeof type === 'object' && type !== null && 'id' in type ? type.id : ''}>
-                {typeof type === 'object' && type !== null && 'name' in type ? type.name : 'Unknown'}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Scheduled Date/Time */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Thời gian phỏng vấn <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="datetime-local"
-            value={scheduledAt}
-            onChange={(e) => setScheduledAt(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
-            required
+            onChange={setInterviewerId}
+            placeholder="Tìm người phỏng vấn..."
           />
+        </div>
+
+        {/* Date and Time Pickers */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-gray-700">
+              Ngày phỏng vấn <span className="text-red-500">*</span>
+            </Label>
+            <DatePicker 
+              value={scheduledDate} 
+              onChange={setScheduledDate} 
+              placeholder="Chọn ngày phỏng vấn" 
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-gray-700">
+              Giờ phỏng vấn <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              type="time"
+              value={scheduledTime}
+              onChange={(e) => setScheduledTime(e.target.value)}
+              className="w-full h-10"
+              required
+            />
+          </div>
         </div>
 
         {/* Location */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Địa điểm
-          </label>
-          <input
+        <div className="space-y-1.5">
+          <Label className="text-sm font-medium text-gray-700">
+            Địa điểm phỏng vấn
+          </Label>
+          <Input
             type="text"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
-            placeholder="Ví dụ: Văn phòng KFC, Phòng họp A..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            placeholder="Mặc định: Tại cửa hàng của chiến dịch"
+            className="w-full"
           />
-        </div>
-
-        {/* Notes */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Ghi chú
-          </label>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={4}
-            placeholder="Ghi chú về buổi phỏng vấn..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
-          />
-        </div>
-
-        {/* Interview Result (Optional - for completed interviews) */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Kết quả phỏng vấn (tùy chọn)
-          </label>
-          <select
-            value={resultId}
-            onChange={(e) => setResultId(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
-          >
-            <option value="">Chưa có kết quả</option>
-            {interviewResults.map((result) => (
-              <option key={typeof result === 'object' && result !== null && 'id' in result ? result.id : ''} value={typeof result === 'object' && result !== null && 'id' in result ? result.id : ''}>
-                {typeof result === 'object' && result !== null && 'name' in result ? result.name : 'Unknown'}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-xs text-gray-500">
-            Có thể để trống nếu chưa phỏng vấn
+          <p className="text-xs text-gray-500 italic">
+            * Mặc định là tên cửa hàng của đề xuất tuyển dụng.
           </p>
         </div>
 
+        {/* Notes */}
+        <div className="space-y-1.5">
+          <Label className="text-sm font-medium text-gray-700">
+            Ghi chú
+          </Label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            placeholder="Thêm thông tin bổ sung nếu cần (đổi địa điểm, chuẩn bị hồ sơ...)"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
+          />
+        </div>
+
         {/* Submit Buttons */}
-        <div className="flex justify-end space-x-3 pt-4 border-t">
-          <button
+        <div className="flex justify-end space-x-3 pt-6 border-t">
+          <Button
             type="button"
+            variant="outline"
             onClick={onCancel || (() => router.back())}
-            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
           >
             Hủy
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-yellow-600 text-white hover:bg-yellow-700 min-w-[140px]"
           >
-            {loading ? 'Đang tạo...' : 'Tạo lịch phỏng vấn'}
-          </button>
+            {loading ? 'Đang tạo...' : 'Xác nhận lịch'}
+          </Button>
         </div>
       </form>
     </div>

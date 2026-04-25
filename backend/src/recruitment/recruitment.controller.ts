@@ -28,6 +28,10 @@ export class RecruitmentController {
   // Campaigns
   @Get('campaigns')
   getCampaigns(@CurrentUser() user: any) { return this.service.getCampaigns(user); }
+  @Get('campaigns/link/:link')
+  getCampaignByLink(@Param('link') link: string) {
+    return this.service.getCampaignByLink(decodeURIComponent(link));
+  }
   
   @Get('campaigns/statistics')
   getCampaignStatistics(@Query('campaignId') campaignId?: string) {
@@ -73,6 +77,16 @@ export class RecruitmentController {
     return this.service.transferCampaign(id, data.campaignId, user);
   }
 
+  @Get('users/tas')
+  getTAs() {
+    return this.service.getTAs();
+  }
+
+  @Patch('candidates/:id/assign-pic')
+  assignPIC(@Param('id') id: string, @Body() data: { picId: string }) {
+    return this.service.assignPIC(id, data.picId);
+  }
+
   // Interviews
   @Get('interviews')
   getInterviews() { return this.service.getInterviews(); }
@@ -107,7 +121,23 @@ export class RecruitmentController {
 
   // Dashboard
   @Get('dashboard')
-  getDashboard() { return this.service.getDashboard(); }
+  getDashboard(
+    @Query('campaignId') campaignId?: string,
+    @Query('storeId') storeId?: string,
+    @Query('taId') taId?: string,
+    @Query('statusId') statusId?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) { 
+    return this.service.getDashboard({ 
+      campaignId, 
+      storeId, 
+      taId, 
+      statusId, 
+      dateFrom: dateFrom ? new Date(dateFrom) : undefined,
+      dateTo: dateTo ? new Date(dateTo) : undefined,
+    }); 
+  }
 
   // Sources
   @Get('sources')
@@ -127,4 +157,13 @@ export class RecruitmentController {
 
   @Get('sources/code/:code')
   getSourceByCode(@Param('code') code: string) { return this.service.getSourceByCode(code); }
+
+  @Post('apply')
+  apply(@Body() data: any) { return this.service.apply(data); }
+
+  @Get('public/stores')
+  getPublicStores() { return this.service.getPublicStores(); }
+
+  @Get('public/positions')
+  getPublicPositions() { return this.service.getPublicPositions(); }
 }

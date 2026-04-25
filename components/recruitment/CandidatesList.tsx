@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import api from '@/lib/api'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import { Filter, X } from 'lucide-react'
 import CandidateContextMenu from './CandidateContextMenu'
 import CandidatesKanban from './CandidatesKanban'
 import { useClickOutside } from '@/hooks/useClickOutside'
@@ -16,7 +17,7 @@ import EditCandidateForm from './EditCandidateForm'
 import CreateInterviewForm from './CreateInterviewForm'
 import CandidateDetail from './CandidateDetail'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface Candidate {
   id: string
@@ -41,7 +42,13 @@ export default function CandidatesList() {
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState<string>('')
+  const [statusFilter, setStatusFilter] = useState('__all__')
+  const [campaignFilter, setCampaignFilter] = useState('__all__')
+  const [storeFilter, setStoreFilter] = useState('__all__')
+  const [taFilter, setTaFilter] = useState('__all__')
+  const [campaigns, setCampaigns] = useState<any[]>([])
+  const [stores, setStores] = useState<any[]>([])
+  const [tas, setTas] = useState<any[]>([])
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
   const [newStatus, setNewStatus] = useState('')
   const [contextMenu, setContextMenu] = useState<{
@@ -85,15 +92,19 @@ export default function CandidatesList() {
 
   useEffect(() => {
     loadUser()
+    // Load filter options
+    api.get('/recruitment/campaigns').then(res => setCampaigns(res.data || [])).catch(console.error)
+    api.get('/recruitment/public/stores').then(res => setStores(res.data || [])).catch(console.error)
+    api.get('/recruitment/users/tas').then(res => setTas(res.data || [])).catch(console.error)
   }, [])
 
   useEffect(() => {
     setPage(1) // Reset to page 1 when filter changes
-  }, [statusFilter])
+  }, [statusFilter, campaignFilter, storeFilter, taFilter])
 
   useEffect(() => {
     loadCandidates()
-  }, [statusFilter, page, limit, viewMode])
+  }, [statusFilter, campaignFilter, storeFilter, taFilter, page, limit, viewMode])
 
   const loadUser = () => {
     api
@@ -105,10 +116,19 @@ export default function CandidatesList() {
   const loadCandidates = () => {
     setLoading(true)
     const params: any = { page, limit }
-    if (statusFilter) {
+    if (statusFilter && statusFilter !== '__all__') {
       params.statusId = statusFilter
     }
-    
+    if (campaignFilter && campaignFilter !== '__all__') {
+      params.campaignId = campaignFilter
+    }
+    if (storeFilter && storeFilter !== '__all__') {
+      params.storeId = storeFilter
+    }
+    if (taFilter && taFilter !== '__all__') {
+      params.taId = taFilter
+    }
+
     api
       .get('/recruitment/candidates', { params })
       .then((res) => {
@@ -253,7 +273,7 @@ export default function CandidatesList() {
 
   const getStatusLabel = (status: unknown) => {
     if (!status || typeof status !== 'string' && typeof status !== 'object') return 'Chưa có trạng thái'
-    
+
     // If it's an object from the new relational backend
     if (typeof status === 'object' && status !== null && 'name' in status) {
       return String((status as { name: string }).name || '')
@@ -368,40 +388,113 @@ export default function CandidatesList() {
           <div className="flex border border-gray-200 rounded-lg overflow-hidden shadow-sm">
             <button
               onClick={() => setViewMode('list')}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${
-                viewMode === 'list'
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-50'
-              }`}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${viewMode === 'list'
+                ? 'bg-gray-900 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
             >
               <Icon name="list" size={16} />
               Danh sách
             </button>
             <button
               onClick={() => setViewMode('kanban')}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-l border-gray-200 transition-colors ${
-                viewMode === 'kanban'
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-50'
-              }`}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-l border-gray-200 transition-colors ${viewMode === 'kanban'
+                ? 'bg-gray-900 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
             >
               <Icon name="dashboard" size={16} />
               Kanban
             </button>
           </div>
-{viewMode === 'list' && (
-            <div className="relative">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="pl-9 w-[200px]">
-                  <SelectValue placeholder="Tất cả trạng thái" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">Tất cả trạng thái</SelectItem>
-                  {Object.entries(dynamicGroups).map(([key, group]) => (
-                    <SelectItem key={key} value={key} disabled className="font-medium">{group.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {viewMode === 'list' && (
+            <div className="flex flex-wrap items-center gap-3">
+
+              {/* Chiến dịch */}
+              <div className="relative">
+                <Select value={campaignFilter} onValueChange={setCampaignFilter}>
+                  <SelectTrigger className="pl-9 w-[220px] h-auto min-h-[40px] bg-white [&>span]:line-clamp-none py-2">
+                    <div className="flex items-center gap-2">
+                      <Filter className="w-3.5 h-3.5 text-gray-400" />
+                      <SelectValue placeholder="Chiến dịch" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Tất cả chiến dịch</SelectItem>
+                    {campaigns.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Cửa hàng */}
+              <div className="relative">
+                <Select value={storeFilter} onValueChange={setStoreFilter}>
+                  <SelectTrigger className="pl-9 w-[220px] h-auto min-h-[40px] bg-white [&>span]:line-clamp-none py-2">
+                    <div className="flex items-center gap-2">
+                      <Icon name="store" size={14} className="text-gray-400" />
+                      <SelectValue placeholder="Cửa hàng" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Tất cả cửa hàng</SelectItem>
+                    {Object.entries(
+                      stores.reduce((acc: any, store: any) => {
+                        const city = store.city || 'Khác';
+                        if (!acc[city]) acc[city] = [];
+                        acc[city].push(store);
+                        return acc;
+                      }, {})
+                    ).sort(([cityA], [cityB]) => cityA.localeCompare(cityB)).map(([city, cityStores]: [string, any]) => (
+                      <SelectGroup key={city}>
+                        <SelectItem value={`CITY:${city}`} className="font-bold text-gray-900 bg-gray-100 focus:bg-gray-200 focus:text-gray-900 py-2">
+                          {city.toUpperCase()}
+                        </SelectItem>
+                        {[...cityStores].sort((a, b) => a.code.localeCompare(b.code)).map((s: any) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.code} - {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* TA Phụ trách */}
+              <div className="relative">
+                <Select value={taFilter} onValueChange={setTaFilter}>
+                  <SelectTrigger className="pl-9 w-[220px] h-auto min-h-[40px] bg-white [&>span]:line-clamp-none py-2">
+                    <div className="flex items-center gap-2">
+                      <Icon name="user" size={14} className="text-gray-400" />
+                      <SelectValue placeholder="Người phụ trách" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Tất cả người phụ trách</SelectItem>
+                    {tas.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.fullName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {(campaignFilter !== '__all__' || storeFilter !== '__all__' || taFilter !== '__all__') && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setCampaignFilter('__all__')
+                    setStoreFilter('__all__')
+                    setTaFilter('__all__')
+                  }}
+                  className="text-red-500 hover:text-red-600 hover:bg-red-50 h-10"
+                >
+                  <X className="w-4 h-4 mr-1" />
+                  Xóa lọc
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -443,8 +536,8 @@ export default function CandidatesList() {
             </div>
           )}
 
-          <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-            <ul className="divide-y divide-gray-100">
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
+            <ul className="divide-y divide-gray-100 min-h-[300px]">
               {candidates.length === 0 ? (
                 <li className="px-6 py-16 text-center">
                   <div className="text-gray-300 mb-4 flex justify-center">
@@ -465,71 +558,71 @@ export default function CandidatesList() {
                   )}
                 </li>
               ) : (
-            candidates.map((candidate) => (
-              <li
-                key={candidate.id}
-                onContextMenu={(e) => handleContextMenu(e, candidate)}
-                className="hover:bg-gray-50 transition-colors cursor-pointer"
-                onClick={() => setViewCandidateId(candidate.id)}
-              >
-                <div className="px-6 py-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <span
-                        className="text-base font-semibold text-gray-900 hover:text-gray-700 transition-colors"
-                      >
-                        {candidate.fullName}
-                      </span>
-                      <div className="mt-2 space-y-1.5">
-                        {candidate.email && (
-                          <div className="flex items-center gap-2 text-sm text-gray-600 truncate" title={candidate.email}>
-                            <Icon name="mail" size={14} className="text-gray-400 flex-shrink-0" />
-                            <span className="truncate">{candidate.email}</span>
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2 text-sm text-gray-600" title={candidate.phone}>
-                          <Icon name="phone" size={14} className="text-gray-400 flex-shrink-0" />
-                          <span>{candidate.phone}</span>
-                        </div>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {candidate.position && (
-                            <span className="inline-flex items-center gap-1.5 text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded-md font-medium">
-                              <Icon name="briefcase" size={12} />
-                              {candidate.position}
-                            </span>
-                          )}
-                          {candidate.store && typeof candidate.store === 'object' && candidate.store !== null && 'name' in candidate.store && (
-                            <span className="inline-flex items-center gap-1.5 text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded-md font-medium">
-                              <Icon name="store" size={12} />
-                              {(candidate.store as { name: string }).name}
-                            </span>
-                          )}
-                          <span className="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md font-medium">
-                            <Icon name="campaign" size={12} />
-                            Chiến dịch: {typeof candidate.campaign === 'object' && candidate.campaign !== null && 'name' in candidate.campaign ? candidate.campaign.name : 'Chiến dịch tuyển dụng tổng'}
+                candidates.map((candidate) => (
+                  <li
+                    key={candidate.id}
+                    onContextMenu={(e) => handleContextMenu(e, candidate)}
+                    className="hover:bg-gray-50 transition-colors cursor-pointer"
+                    onClick={() => setViewCandidateId(candidate.id)}
+                  >
+                    <div className="px-6 py-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <span
+                            className="text-base font-semibold text-gray-900 hover:text-gray-700 transition-colors"
+                          >
+                            {candidate.fullName}
                           </span>
-                          {candidate.pic && typeof candidate.pic === 'object' && candidate.pic !== null && 'fullName' in candidate.pic && (
-                            <span className="inline-flex items-center gap-1.5 text-xs bg-purple-50 text-purple-700 px-2.5 py-1 rounded-md font-medium">
-                              <Icon name="user" size={12} />
-                              TA Phụ trách: {(candidate.pic as { fullName: string }).fullName}
-                            </span>
-                          )}
+                          <div className="mt-2 space-y-1.5">
+                            {candidate.email && (
+                              <div className="flex items-center gap-2 text-sm text-gray-600 truncate" title={candidate.email}>
+                                <Icon name="mail" size={14} className="text-gray-400 flex-shrink-0" />
+                                <span className="truncate">{candidate.email}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2 text-sm text-gray-600" title={candidate.phone}>
+                              <Icon name="phone" size={14} className="text-gray-400 flex-shrink-0" />
+                              <span>{candidate.phone}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {candidate.position && (
+                                <span className="inline-flex items-center gap-1.5 text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded-md font-medium">
+                                  <Icon name="briefcase" size={12} />
+                                  {candidate.position}
+                                </span>
+                              )}
+                              {candidate.store && typeof candidate.store === 'object' && candidate.store !== null && 'name' in candidate.store && (
+                                <span className="inline-flex items-center gap-1.5 text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded-md font-medium">
+                                  <Icon name="store" size={12} />
+                                  {(candidate.store as { name: string }).name}
+                                </span>
+                              )}
+                              <span className="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md font-medium">
+                                <Icon name="campaign" size={12} />
+                                Chiến dịch: {typeof candidate.campaign === 'object' && candidate.campaign !== null && 'name' in candidate.campaign ? candidate.campaign.name : 'Chiến dịch tuyển dụng tổng'}
+                              </span>
+                              {candidate.pic && typeof candidate.pic === 'object' && candidate.pic !== null && 'fullName' in candidate.pic && (
+                                <span className="inline-flex items-center gap-1.5 text-xs bg-purple-50 text-purple-700 px-2.5 py-1 rounded-md font-medium">
+                                  <Icon name="user" size={12} />
+                                  TA Phụ trách: {(candidate.pic as { fullName: string }).fullName}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <span
+                            className={`inline-flex items-center px-3 py-1 rounded-md text-xs font-medium ${getStatusColor(
+                              candidate.status
+                            )}`}
+                          >
+                            {getStatusLabel(candidate.status)}
+                          </span>
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                      <span
-                        className={`inline-flex items-center px-3 py-1 rounded-md text-xs font-medium ${getStatusColor(
-                          candidate.status
-                        )}`}
-                      >
-                        {getStatusLabel(candidate.status)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </li>
-            ))
+                  </li>
+                ))
               )}
             </ul>
           </div>
@@ -578,8 +671,8 @@ export default function CandidatesList() {
       )}
 
       {viewMode === 'kanban' && (
-        <CandidatesKanban 
-          candidates={candidates} 
+        <CandidatesKanban
+          candidates={candidates}
           onStatusChange={loadCandidates}
           page={page}
           limit={limit}
@@ -591,6 +684,7 @@ export default function CandidatesList() {
             setPage(1)
           }}
           onTransferCampaign={loadCampaignsForTransfer}
+          onAssignPIC={loadTAsForAssign}
           onViewDetail={(id) => setViewCandidateId(id)}
         />
       )}
@@ -602,7 +696,7 @@ export default function CandidatesList() {
         title="Thêm ứng viên mới"
         maxWidth="max-w-2xl"
       >
-        <CreateCandidateForm 
+        <CreateCandidateForm
           onSuccess={() => {
             setShowCreateModal(false)
             loadCandidates()
@@ -619,9 +713,9 @@ export default function CandidatesList() {
         maxWidth="max-w-5xl"
       >
         {viewCandidateId && (
-          <CandidateDetail 
-            candidateId={viewCandidateId} 
-            isModal={true} 
+          <CandidateDetail
+            candidateId={viewCandidateId}
+            isModal={true}
           />
         )}
       </Modal>
@@ -634,7 +728,7 @@ export default function CandidatesList() {
                 <span className="text-gray-400 hover:text-gray-600 font-bold text-xl">×</span>
               </button>
             </div>
-            
+
             <div className="mb-4">
               <p className="text-sm text-gray-600 mb-4">
                 Ứng viên: <span className="font-semibold text-gray-900">{transferModal.candidate?.fullName}</span>
@@ -654,16 +748,16 @@ export default function CandidatesList() {
                 ))}
               </select>
             </div>
-            
+
             <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-              <button 
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 bg-white text-gray-700" 
+              <button
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 bg-white text-gray-700"
                 onClick={() => setTransferModal(prev => ({ ...prev, isOpen: false }))}
                 disabled={transferModal.loading}
               >
                 Hủy
               </button>
-              <button 
+              <button
                 className="px-4 py-2 bg-yellow-600 text-white rounded-md text-sm hover:bg-yellow-700 disabled:opacity-50 flex items-center gap-2"
                 onClick={submitTransferCampaign}
                 disabled={!transferModal.selectedCampaignId || transferModal.loading}
@@ -731,7 +825,7 @@ export default function CandidatesList() {
                 <span className="text-gray-400 hover:text-gray-600 font-bold text-xl">×</span>
               </button>
             </div>
-            
+
             <div className="mb-4">
               <p className="text-sm text-gray-600 mb-4">
                 Ứng viên: <span className="font-semibold text-gray-900">{picModal.candidate?.fullName}</span>
@@ -751,16 +845,16 @@ export default function CandidatesList() {
                 ))}
               </select>
             </div>
-            
+
             <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-              <button 
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 bg-white text-gray-700" 
+              <button
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 bg-white text-gray-700"
                 onClick={() => setPicModal(prev => ({ ...prev, isOpen: false }))}
                 disabled={picModal.loading}
               >
                 Hủy
               </button>
-              <button 
+              <button
                 className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
                 onClick={submitAssignPIC}
                 disabled={picModal.loading}

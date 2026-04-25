@@ -84,7 +84,6 @@ model Store {
   amName     String?
   omName     String?
   odName     String?
-  taIncharge String?
   group      String?
 
   candidates  Candidate[]
@@ -143,9 +142,10 @@ model Campaign {
   name         String
   description  String?
   formId       String
-  link         String    @unique
-  startDate    DateTime
+  link         String?   @unique
+  startDate    DateTime?
   endDate      DateTime?
+  isUntilFilled Boolean  @default(false)
   isActive     Boolean   @default(true)
   picId        String?
   departmentId String?
@@ -184,6 +184,20 @@ model Candidate {
   dateOfBirth     DateTime?
   cccd           String?
   currentCity    String?
+  currentWard    String?
+  currentStreet  String?
+  permanentSameAsCurrent Boolean? @default(false)
+  permanentCity  String?
+  permanentWard  String?
+  permanentStreet String?
+  appliedPosition String?
+  appliedPositionOther String?
+  availableStartDate DateTime?
+  canWorkTet     String?
+  referrer       String?
+  referrerName   String?
+  preferredLocations String[] @default([])
+  workExperience  String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -221,11 +235,12 @@ model Interview {
   id           String   @id @default(cuid())
   candidateId  String
   interviewerId String
+  typeId       String?
+  resultId     String?
   positionId   String?
   scheduledAt  DateTime
   location    String?
   notes       String?
-  result      String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -250,7 +265,9 @@ model RecruitmentProposal {
   rejectedAt  DateTime?
   campaignId  String?
   departmentId String?
-  requesterId  String?
+  startDate    DateTime?
+  endDate      DateTime?
+  isUntilFilled Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -323,28 +340,57 @@ model Source {
   @@map("sources")
 }
 
-model Province {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  code        String   @unique
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model AdministrativeRegion {
+  id           Int      @id
+  name         String
+  nameEn       String   @map("name_en")
+  codeName     String?  @map("code_name")
+  codeNameEn   String?  @map("code_name_en")
 
-  wards       Ward[]
+  @@map("administrative_regions")
+}
+
+model AdministrativeUnit {
+  id           Int      @id
+  fullName     String?  @map("full_name")
+  fullNameEn   String?  @map("full_name_en")
+  shortName    String?  @map("short_name")
+  shortNameEn  String?  @map("short_name_en")
+  codeName     String?  @map("code_name")
+  codeNameEn   String?  @map("code_name_en")
+  provinces    Province[]
+  wards        Ward[]
+
+  @@map("administrative_units")
+}
+
+model Province {
+  code                  String              @id @db.VarChar(20)
+  name                  String
+  nameEn                String?             @map("name_en")
+  fullName              String              @map("full_name")
+  fullNameEn            String?             @map("full_name_en")
+  codeName              String?             @map("code_name")
+  administrativeUnitId  Int?                @map("administrative_unit_id")
+  
+  administrativeUnit    AdministrativeUnit? @relation(fields: [administrativeUnitId], references: [id])
+  wards                 Ward[]
 
   @@map("provinces")
 }
 
 model Ward {
-  id          String   @id @default(cuid())
-  name        String
-  code        String   @unique
-  provinceId  String
-  province    Province @relation(fields: [provinceId], references: [id], onDelete: Cascade)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  code                  String              @id @db.VarChar(20)
+  name                  String
+  nameEn                String?             @map("name_en")
+  fullName              String?             @map("full_name")
+  fullNameEn            String?             @map("full_name_en")
+  codeName              String?             @map("code_name")
+  provinceCode          String?             @map("province_code") @db.VarChar(20)
+  administrativeUnitId  Int?                @map("administrative_unit_id")
+  
+  province              Province?           @relation(fields: [provinceCode], references: [code])
+  administrativeUnit    AdministrativeUnit? @relation(fields: [administrativeUnitId], references: [id])
 
   @@map("wards")
 }

@@ -14,6 +14,8 @@ interface CandidateDetail {
   phone: string
   cvUrl: string | null
   position: string | null
+  appliedPosition: string | null
+  preferredStoreNames: string[]
   notes: string | null
   status: string | { id: string; name: string; code: string } | null
   form: { id: string; title: string } | null
@@ -63,6 +65,7 @@ export default function CandidateDetail({
   const [newStatus, setNewStatus] = useState('')
   const [statusChangeLoading, setStatusChangeLoading] = useState(false)
   const [provinces, setProvinces] = useState<any[]>([])
+  const [currentWards, setCurrentWards] = useState<any[]>([])
   const { dbStatuses, dynamicGroups } = useCandidateStatuses()
 
   useEffect(() => {
@@ -83,17 +86,43 @@ export default function CandidateDetail({
 
     // Get provinces for resolving city ID to name
     api.get('/locations/provinces')
-      .then(res => setProvinces(res.data || []))
+      .then(res => {
+        const provincesData = res.data || []
+        setProvinces(provincesData)
+        
+        // If we already have candidate, try to load wards
+        if (candidate) {
+          const notes = candidate.notes
+          try {
+            const notesObj = JSON.parse(notes || '{}')
+            const cityId = notesObj.currentCity || candidate.currentCity
+            if (cityId) {
+              // Find province ID if it's a name
+              const province = provincesData.find((p: any) => p.id === cityId || p.name === cityId)
+              if (province) {
+                api.get(`/locations/provinces/${province.id}/wards`)
+                  .then(wRes => setCurrentWards(wRes.data || []))
+                  .catch(console.error)
+              }
+            }
+          } catch (e) {}
+        }
+      })
       .catch(console.error)
-  }, [candidateId])
+  }, [candidateId, candidate?.id])
 
   const getCityName = (cityId: string | null | undefined) => {
     if (!cityId) return 'Chưa có'
-    const province = provinces.find(p => p.id === cityId)
+    const province = provinces.find(p => p.id === cityId || p.name === cityId)
     if (province?.name) return province.name
-    // If not found in provinces, it's likely already a name (not an ID)
-    if (cityId.length < 10) return cityId // ID length is typically long, name is short
     return cityId
+  }
+
+  const getWardName = (wardId: string | null | undefined) => {
+    if (!wardId) return ''
+    const ward = currentWards.find(w => w.id === wardId || w.name === wardId)
+    if (ward?.name) return ward.name
+    return wardId
   }
 
   const getStatusLabel = (status: unknown) => {
@@ -373,16 +402,12 @@ export default function CandidateDetail({
               <p className="mt-1 text-sm text-gray-900">{candidate.phone}</p>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-500">Vị trí</label>
-              <p className="mt-1 text-sm text-gray-900">{candidate.position || 'N/A'}</p>
+              <label className="text-sm font-medium text-gray-500">Vị trí ứng tuyển</label>
+              <p className="mt-1 text-sm text-gray-900">{candidate.appliedPosition || candidate.position || 'N/A'}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Cửa hàng</label>
               <p className="mt-1 text-sm text-gray-900">{typeof candidate.store === 'object' && candidate.store !== null && 'name' in candidate.store ? candidate.store.name : 'Chưa có'}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-500">Form tuyển dụng</label>
-              <p className="mt-1 text-sm text-gray-900">{(candidate as any).form?.title || 'Chưa có'}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Chiến dịch</label>
@@ -390,7 +415,11 @@ export default function CandidateDetail({
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Địa điểm mong muốn làm việc</label>
-              <p className="mt-1 text-sm text-gray-900">{getCityName(candidate.currentCity)}</p>
+              <p className="mt-1 text-sm text-gray-900">
+                {candidate.preferredStoreNames && candidate.preferredStoreNames.length > 0 
+                  ? candidate.preferredStoreNames.join(', ')
+                  : getCityName(candidate.currentCity)}
+              </p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Ngày tạo</label>
@@ -437,10 +466,16 @@ export default function CandidateDetail({
                   if (notesObj && typeof notesObj === 'object') {
                     return (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {notesObj.currentStreet && (
+                        {(notesObj.currentStreet || notesObj.currentWard || notesObj.currentCity) && (
                           <div>
                             <label className="text-sm font-medium text-gray-500">Địa chỉ hiện tại</label>
-                            <p className="mt-1 text-sm text-gray-900">{notesObj.currentStreet}</p>
+                            <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">
+                              {[
+                                notesObj.currentStreet,
+                                getWardName(notesObj.currentWard),
+                                getCityName(notesObj.currentCity)
+                              ].filter(Boolean).join(', ')}
+                            </p>
                           </div>
                         )}
                         {notesObj.availableStartDate && (
@@ -452,7 +487,7 @@ export default function CandidateDetail({
                         {notesObj.preferredWorkShift && (
                           <div>
                             <label className="text-sm font-medium text-gray-500">Ca làm việc mong muốn</label>
-                            <p className="mt-1 text-sm text-gray-900">{notesObj.preferredWorkShift}</p>
+                            <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">{notesObj.preferredWorkShift}</p>
                           </div>
                         )}
                         {notesObj.canWorkTet && (
@@ -472,7 +507,7 @@ export default function CandidateDetail({
                         {notesObj.workExperience && (
                           <div>
                             <label className="text-sm font-medium text-gray-500">Kinh nghiệm làm việc</label>
-                            <p className="mt-1 text-sm text-gray-900">{notesObj.workExperience}</p>
+                            <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">{notesObj.workExperience}</p>
                           </div>
                         )}
                       </div>
@@ -516,7 +551,7 @@ export default function CandidateDetail({
                   <div className="text-sm text-gray-600">
                     <p>Người phỏng vấn: {typeof interview.interviewer === 'object' && 'fullName' in interview.interviewer ? String(interview.interviewer.fullName || 'N/A') : 'N/A'} ({typeof interview.interviewer === 'object' && 'email' in interview.interviewer ? String(interview.interviewer.email || '') : ''})</p>
                     {interview.location && <p>Địa điểm: {String(interview.location || '')}</p>}
-                    {interview.notes && <p className="mt-1">Ghi chú: {String(interview.notes || '')}</p>}
+                    {interview.notes && <p className="mt-1 whitespace-pre-wrap">Ghi chú: {String(interview.notes || '')}</p>}
                   </div>
                 </div>
               ))}

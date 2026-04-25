@@ -93,6 +93,7 @@ async function seedLocations() {
       create: {
         name: location.provinceName,
         code: location.provinceCode,
+        fullName: location.provinceName,
       },
     })
 
@@ -103,7 +104,7 @@ async function seedLocations() {
         create: {
           name: ward.name,
           code: ward.code,
-          provinceId: province.id,
+          provinceCode: province.code,
         },
       })
     }

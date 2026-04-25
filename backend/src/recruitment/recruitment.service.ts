@@ -238,6 +238,18 @@ export class RecruitmentService {
     return campaign;
   }
 
+  async getCampaignByLink(link: string) {
+    const campaign = await this.prisma.campaign.findUnique({
+      where: { link },
+      include: { 
+        form: true,
+        store: true
+      },
+    });
+    if (!campaign) throw new NotFoundException('Campaign not found');
+    return campaign;
+  }
+
   async createCampaign(data: any, user?: any) {
     // Auto-assign store from proposal
     if (data.proposalId) {
@@ -284,7 +296,13 @@ export class RecruitmentService {
       }
     }
     
-    return this.prisma.campaign.create({ data });
+    const campaignData = {
+      ...data,
+      startDate: data.startDate ? new Date(data.startDate) : null,
+      endDate: data.endDate ? new Date(data.endDate) : null,
+    };
+    
+    return this.prisma.campaign.create({ data: campaignData });
   }
 
   async updateCampaign(id: string, data: any, user?: any) {
@@ -312,7 +330,19 @@ export class RecruitmentService {
       where.status = { code: filters.status };
     }
     if (filters?.campaignId) where.campaignId = filters.campaignId;
-    if (filters?.storeId) where.storeId = filters.storeId;
+    
+    if (filters?.storeId) {
+      if (filters.storeId.startsWith('CITY:')) {
+        const city = filters.storeId.replace('CITY:', '');
+        const storeIdsInCity = await this.getStoreIdsByCity(city);
+        where.OR = [
+          { storeId: { in: storeIdsInCity } },
+          { preferredLocations: { hasSome: storeIdsInCity } }
+        ];
+      } else {
+        where.storeId = filters.storeId;
+      }
+    }
 
     // Apply store scoping for SM/AM
     let storeIds: string[] = [];
@@ -337,6 +367,14 @@ export class RecruitmentService {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async getStoreIdsByCity(city: string): Promise<string[]> {
+    const stores = await this.prisma.store.findMany({
+      where: { city, isActive: true },
+      select: { id: true }
+    });
+    return stores.map(s => s.id);
   }
 
   private async getAccessibleStoreIds(user: any): Promise<string[]> {
@@ -376,20 +414,57 @@ export class RecruitmentService {
         proposals: true,
         pic: {
           select: { id: true, fullName: true, email: true }
-        }
+        },
+        form: true
       },
     });
 
+    if (!candidate) throw new NotFoundException('Candidate not found');
+
     // Check access permission
-    if (user && user.role !== 'ADMIN') {
+    if (user && user.role !== 'ADMIN' && user.role !== 'RECRUITER') {
       const storeIds = await this.getAccessibleStoreIds(user);
-      if (!candidate.storeId || !storeIds.includes(candidate.storeId)) {
+      if (candidate.storeId && !storeIds.includes(candidate.storeId)) {
         throw new ForbiddenException('Bạn không có quyền xem ứng viên này');
       }
     }
 
-    if (!candidate) throw new NotFoundException('Candidate not found');
-    return candidate;
+    // Resolve preferred locations names
+    let preferredStoreNames: string[] = [];
+    if (candidate.preferredLocations && candidate.preferredLocations.length > 0) {
+      const stores = await this.prisma.store.findMany({
+        where: { id: { in: candidate.preferredLocations } },
+        select: { name: true }
+      });
+      preferredStoreNames = stores.map(s => s.name);
+    }
+
+    return {
+      ...candidate,
+      preferredStoreNames
+    };
+  }
+
+  async getTAs() {
+    return this.prisma.user.findMany({
+      where: {
+        role: { in: ['ADMIN', 'RECRUITER', 'HEAD_OF_DEPARTMENT'] },
+        isActive: true
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true
+      },
+      orderBy: { fullName: 'asc' }
+    });
+  }
+
+  async assignPIC(candidateId: string, picId: string) {
+    return this.prisma.candidate.update({
+      where: { id: candidateId },
+      data: { picId }
+    });
   }
 
   async createCandidate(data: any, user?: any) {
@@ -502,7 +577,22 @@ export class RecruitmentService {
   }
 
   async createInterview(data: any) {
-    return this.prisma.interview.create({ data });
+    // Robust creation to handle potential schema mismatches during transition
+    const payload: any = {
+      candidateId: data.candidateId,
+      interviewerId: data.interviewerId,
+      scheduledAt: data.scheduledAt,
+      location: data.location,
+      notes: data.notes,
+    };
+
+    // Only include these if they are in the data (will be ignored by Prisma if not in schema, 
+    // but better to be safe with any types)
+    if (data.typeId) payload.typeId = data.typeId;
+    if (data.resultId) payload.resultId = data.resultId;
+    if (data.positionId) payload.positionId = data.positionId;
+
+    return this.prisma.interview.create({ data: payload });
   }
 
   async updateInterview(id: string, data: any) {
@@ -580,25 +670,52 @@ export class RecruitmentService {
   }
 
   // Dashboard stats
-  async getDashboard() {
+  async getDashboard(filters?: {
+    campaignId?: string
+    storeId?: string
+    taId?: string
+    statusId?: string
+    dateFrom?: Date
+    dateTo?: Date
+  }) {
+    const { campaignId, storeId, taId, statusId, dateFrom, dateTo } = filters || {}
+    
+    // Build where clause
+    const candidateWhere: any = {}
+    if (campaignId) candidateWhere.campaignId = campaignId
+    if (storeId) candidateWhere.storeId = storeId
+    if (taId) candidateWhere.picId = taId
+    if (statusId) candidateWhere.statusId = statusId
+    if (dateFrom || dateTo) {
+      candidateWhere.createdAt = {}
+      if (dateFrom) candidateWhere.createdAt.gte = dateFrom
+      if (dateTo) candidateWhere.createdAt.lte = dateTo
+    }
+
     const now = new Date();
     const startOfCurrentMonth = startOfMonth(now);
     const startOfLastMonth = startOfMonth(subMonths(now, 1));
 
-    const totalCandidates = await this.prisma.candidate.count();
+    const totalCandidates = await this.prisma.candidate.count({ where: candidateWhere });
     const totalCampaigns = await this.prisma.campaign.count();
     const totalProposals = await this.prisma.recruitmentProposal.count();
     const totalForms = await this.prisma.recruitmentForm.count();
     const activeCampaigns = await this.prisma.campaign.count({ where: { isActive: true } });
 
+    const dateFilter = dateFrom || dateTo ? { createdAt: { ...candidateWhere.createdAt } } : {}
     const newCandidatesThisMonth = await this.prisma.candidate.count({
-      where: { createdAt: { gte: startOfCurrentMonth } },
+      where: { 
+        ...dateFilter, 
+        ...(campaignId ? { campaignId } : {}),
+        createdAt: { gte: startOfCurrentMonth, ...(dateFrom ? { gte: dateFrom } : {}) } 
+      },
     });
-    const newCandidatesLastMonth = await this.prisma.candidate.count({
+    const newCandidatesLastMonth = await this.prisma.candidate.count({ 
       where: { 
         createdAt: { 
           gte: startOfLastMonth,
-          lt: startOfCurrentMonth
+          lt: startOfCurrentMonth,
+          ...(dateFrom ? { gte: dateFrom } : {}),
         } 
       },
     });
@@ -620,11 +737,29 @@ export class RecruitmentService {
       count: s._count.candidates,
     }));
 
+    // Apply filters to candidatesByStatus
+    const filteredCandidatesByStatus = await this.prisma.candidateStatus.findMany({
+      where: { isActive: true },
+      orderBy: { order: 'asc' },
+      include: {
+        _count: { 
+          select: { 
+            candidates: { where: candidateWhere } 
+          } 
+        } 
+      }
+    });
+    
+    const filteredCountsByStatus = filteredCandidatesByStatus.reduce((acc, s) => {
+      acc[s.id] = s._count.candidates
+      return acc
+    }, {} as Record<string, number>)
+
     // Candidates by Campaign
     const campaignCounts = await this.prisma.campaign.findMany({
       include: {
         form: true,
-        _count: { select: { candidates: true } },
+        _count: { select: { candidates: { where: candidateWhere } } },
       },
       take: 10,
       orderBy: { candidates: { _count: 'desc' } },
@@ -642,6 +777,7 @@ export class RecruitmentService {
       select: {
         id: true,
         name: true,
+        code: true,
         _count: { select: { candidates: true } },
       },
       take: 10,
@@ -651,6 +787,7 @@ export class RecruitmentService {
     const candidatesByStore = storeCounts.map((s) => ({
       storeId: s.id,
       storeName: s.name,
+      storeCode: s.code,
       count: s._count.candidates,
     }));
 
@@ -674,6 +811,60 @@ export class RecruitmentService {
     // Funnel Data (Grouped by application, interview, onboarding)
     const funnelData = await this.getFunnelData(candidatesByStatus);
 
+    // TA Performance (candidates processed by each TA/user)
+    const taPerformance = await this.prisma.user.findMany({
+      where: {
+        role: { in: ['USER', 'MANAGER', 'ADMIN'] },
+        isActive: true,
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        role: true,
+        _count: { select: { picCandidates: true } },
+      },
+    });
+
+    // Get status counts for each user who has candidates assigned
+    const taCandidateCounts = await this.prisma.candidate.groupBy({
+      by: ['picId', 'statusId'],
+      _count: { id: true },
+      where: { picId: { not: null } },
+    });
+
+    // Build TA performance data
+    const taPerformanceData = taPerformance.map(ta => {
+      const taCounts = taCandidateCounts.filter(c => c.picId === ta.id);
+      const total = taCounts.reduce((sum, c) => sum + c._count.id, 0);
+      
+      const passed = taCounts.filter(c => {
+        const status = allStatuses.find(s => s.id === c.statusId);
+        return status && [
+          'CV_PASSED', 
+          'SM_AM_INTERVIEW_PASSED', 
+          'OM_PV_INTERVIEW_PASSED', 
+          'OFFER_ACCEPTED', 
+          'ONBOARDING_ACCEPTED'
+        ].includes(status.code);
+      }).reduce((sum, c) => sum + c._count.id, 0);
+
+      const onboarded = taCounts.filter(c => {
+        const status = allStatuses.find(s => s.id === c.statusId);
+        return status && ['ONBOARDING_ACCEPTED'].includes(status.code);
+      }).reduce((sum, c) => sum + c._count.id, 0);
+
+      return {
+        taId: ta.id,
+        taName: ta.fullName,
+        taEmail: ta.email,
+        taRole: ta.role,
+        totalCandidates: total,
+        passedCandidates: passed,
+        onboardedCandidates: onboarded,
+      };
+    }).filter(ta => ta.totalCandidates > 0).sort((a, b) => b.totalCandidates - a.totalCandidates);
+
     return {
       totalCandidates,
       newCandidatesThisMonth,
@@ -682,11 +873,16 @@ export class RecruitmentService {
       totalCampaigns,
       totalForms,
       totalProposals,
-      candidatesByStatus,
+      candidatesByStatus: this.hasAnyFilter(candidateWhere) ? 
+        allStatuses.map(s => ({
+          ...candidatesByStatus.find(cs => cs.statusId === s.id)!,
+          count: filteredCountsByStatus[s.id] || 0,
+        })) : candidatesByStatus,
       candidatesByCampaign,
       candidatesByStore,
       monthlyData,
       funnelData,
+      taPerformance: taPerformanceData,
     };
   }
 
@@ -799,5 +995,80 @@ export class RecruitmentService {
       ONBOARDING_REJECTED: 'Từ chối nhận việc',
     };
     return names[code] || code;
+  }
+
+  async apply(data: any) {
+    const status = await this.prisma.candidateStatus.findUnique({
+      where: { code: 'CV_FILTERING' }
+    });
+
+    let sourceId = data.sourceId;
+    if (data.sourceCode && !sourceId) {
+      const source = await this.prisma.source.findUnique({
+        where: { code: data.sourceCode }
+      });
+      if (source) sourceId = source.id;
+    }
+
+    const { status: statusName, sourceCode, dateOfBirth, availableStartDate, ...rest } = data;
+    
+    // Convert date strings to DateTime
+    let dateOfBirthDate: Date | undefined;
+    let availableStartDateDate: Date | undefined;
+    
+    if (dateOfBirth) {
+      // Handle both DD/MM/YYYY and YYYY-MM-DD formats
+      if (dateOfBirth.includes('/')) {
+        const [day, month, year] = dateOfBirth.split('/');
+        dateOfBirthDate = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
+      } else {
+        dateOfBirthDate = new Date(`${dateOfBirth}T00:00:00.000Z`);
+      }
+    }
+    
+    if (availableStartDate) {
+      if (availableStartDate.includes('/')) {
+        const [day, month, year] = availableStartDate.split('/');
+        availableStartDateDate = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
+      } else {
+        availableStartDateDate = new Date(`${availableStartDate}T00:00:00.000Z`);
+      }
+    }
+    
+    // Create candidate
+    return this.prisma.candidate.create({
+      data: {
+        ...rest,
+        dateOfBirth: dateOfBirthDate,
+        availableStartDate: availableStartDateDate,
+        sourceId,
+        statusId: status?.id
+      }
+    });
+  }
+
+  async getPublicStores() {
+    return this.prisma.store.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        city: true,
+        address: true
+      },
+      orderBy: { name: 'asc' }
+    });
+  }
+
+  async getPublicPositions() {
+    return this.prisma.position.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' }
+    });
+  }
+
+  private hasAnyFilter(filter: Record<string, unknown>): boolean {
+    return Object.keys(filter).length > 0
   }
 }

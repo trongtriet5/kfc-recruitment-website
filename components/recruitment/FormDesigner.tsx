@@ -510,7 +510,7 @@ export default function FormDesigner({ formId, formData, fields: initialFields, 
                 {designData.formTitle || 'Ứng tuy��n KFC'}
               </h1>
               <p
-                className="mt-2 text-sm"
+                className="mt-2 text-sm whitespace-pre-wrap"
                 style={{ color: designData.textColor || '#6B7280' }}
               >
                 {designData.formContent || 'Điền thông tin để hoàn tất đơn ứng tuyển'}

@@ -178,17 +178,13 @@ export class OrganizationService {
   }
 
   // Provinces (Tỉnh/Thành)
-  async getProvinces(regionId?: number) {
-    let results: any[];
-    if (regionId) {
-      results = await this.prisma.$queryRaw`SELECT * FROM provinces WHERE administrative_region_id = ${regionId} ORDER BY name`;
-    } else {
-      results = await this.prisma.$queryRaw`SELECT * FROM provinces ORDER BY name`;
-    }
+  async getProvinces() {
+    // Note: administrative_region_id is not in the new schema, so we return all provinces
+    const results: any[] = await this.prisma.$queryRaw`SELECT * FROM provinces ORDER BY name`;
     return results.map((r: any) => this.convertBigInt(r));
   }
 
-  async getProvince(code: bigint) {
+  async getProvince(code: string) {
     const results: any[] = await this.prisma.$queryRaw`SELECT * FROM provinces WHERE code = ${code}`;
     return results[0] ? this.convertBigInt(results[0]) : null;
   }
@@ -200,7 +196,7 @@ export class OrganizationService {
   }
 
   // Wards (Phường/Xã)
-  async getWards(provinceCode?: bigint, unitId?: number) {
+  async getWards(provinceCode?: string, unitId?: number) {
     let results: any[];
     if (provinceCode && unitId) {
       results = await this.prisma.$queryRaw`SELECT * FROM wards WHERE province_code = ${provinceCode} AND administrative_unit_id = ${unitId} ORDER BY name`;
@@ -212,13 +208,13 @@ export class OrganizationService {
     return results.map((r: any) => this.convertBigInt(r));
   }
 
-  async getWard(code: bigint) {
+  async getWard(code: string) {
     const results: any[] = await this.prisma.$queryRaw`SELECT * FROM wards WHERE code = ${code}`;
     return results[0] ? this.convertBigInt(results[0]) : null;
   }
 
   // Get full address hierarchy
-  async getAddressHierarchy(provinceCode: bigint, wardCode: bigint) {
+  async getAddressHierarchy(provinceCode: string, wardCode: string) {
     const province = await this.getProvince(provinceCode);
     const ward = await this.getWard(wardCode);
     const unit = province?.administrative_unit_id 

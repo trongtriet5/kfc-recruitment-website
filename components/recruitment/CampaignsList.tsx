@@ -6,6 +6,7 @@ import { useClickOutside } from '@/hooks/useClickOutside'
 import Icon from '@/components/icons/Icon'
 import { toast } from 'sonner'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
+import Modal from '@/components/common/Modal'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
@@ -13,7 +14,7 @@ interface Campaign {
   id: string
   name: string
   description: string | null
-  link: string
+  link: string | null
   startDate: string
   endDate: string | null
   isActive: boolean
@@ -55,10 +56,12 @@ export default function CampaignsList() {
     description: '',
     formId: '',
     storeId: '',
+    proposalId: '',
     startDate: '',
     endDate: '',
     isActive: true,
   })
+  const [proposals, setProposals] = useState<any[]>([])
   const createFormRef = useRef<HTMLDivElement>(null)
   const editModalRef = useRef<HTMLDivElement>(null)
 
@@ -70,6 +73,7 @@ export default function CampaignsList() {
         description: '',
         formId: '',
         storeId: '',
+        proposalId: '',
         startDate: '',
         endDate: '',
         isActive: true,
@@ -86,6 +90,7 @@ export default function CampaignsList() {
     loadUser()
     loadCampaigns()
     loadForms()
+    loadProposals()
     loadStores()
     loadStatistics()
   }, [])
@@ -114,11 +119,23 @@ export default function CampaignsList() {
       .catch(console.error)
   }
 
+  const loadProposals = () => {
+    api
+      .get('/recruitment/proposals')
+      .then((res) => setProposals(res.data))
+      .catch(console.error)
+  }
+
   const loadStores = () => {
     api
       .get('/stores')
       .then((res) => setStores(res.data))
       .catch(console.error)
+  }
+
+  const getProposalDetails = (proposalId: string) => {
+    const proposal = proposals.find(p => p.id === proposalId)
+    return proposal ? { quantity: proposal.quantity, position: proposal.position?.name } : null
   }
 
   const handleContextMenu = (e: React.MouseEvent, campaign: Campaign) => {
@@ -133,6 +150,7 @@ export default function CampaignsList() {
       description: campaign.description || '',
       formId: campaign.form?.id || '',
       storeId: campaign.store?.id || '',
+      proposalId: (campaign as any).proposalId || '',
       startDate: campaign.startDate?.split('T')[0] || '',
       endDate: campaign.endDate?.split('T')[0] || '',
       isActive: campaign.isActive,
@@ -206,13 +224,18 @@ export default function CampaignsList() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      await api.post('/recruitment/campaigns', formData)
+      const submitData = {
+        ...formData,
+        proposalId: formData.proposalId || undefined,
+      }
+      await api.post('/recruitment/campaigns', submitData)
       setShowCreateForm(false)
       setFormData({
         name: '',
         description: '',
         formId: '',
         storeId: '',
+        proposalId: '',
         startDate: '',
         endDate: '',
         isActive: true,
@@ -332,122 +355,145 @@ export default function CampaignsList() {
         </select>
       </div>
 
-      {showCreateForm && (
-        <div ref={createFormRef} className="mb-6 bg-white shadow rounded-lg p-6">
-          <h3 className="text-lg font-medium mb-4">Tạo chiến dịch mới</h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
+      <Modal isOpen={showCreateForm} onClose={() => setShowCreateForm(false)} title="Tạo chiến dịch tuyển dụng mới" maxWidth="max-w-2xl">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Tên chiến dịch <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              rows={3}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tên chiến dịch <span className="text-red-500">*</span>
+                Form tuyển dụng <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.formId}
+                onChange={(e) => setFormData({ ...formData, formId: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                required
+              >
+                <option value="">Chọn form</option>
+                {forms.map((form) => (
+                  <option key={form.id} value={form.id}>
+                    {form.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Cửa hàng
+              </label>
+              <select
+                value={formData.storeId}
+                onChange={(e) => setFormData({ ...formData, storeId: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              >
+                <option value="">Chọn cửa hàng</option>
+                {stores.map((store) => (
+                  <option key={store.id} value={store.id}>
+                    {store.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Đề xuất tuyển dụng (không bắt buộc)
+            </label>
+            <select
+              value={formData.proposalId}
+              onChange={(e) => {
+                const proposalId = e.target.value
+                const details = getProposalDetails(proposalId)
+                setFormData({ 
+                  ...formData, 
+                  proposalId,
+                  name: details && !formData.name ? `${details.position} - ${details.quantity} NV` : formData.name,
+                  storeId: details && !formData.storeId ? proposals.find(p => p.id === proposalId)?.storeId : formData.storeId
+                })
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+            >
+              <option value="">Chọn đề xuất (không bắt buộc)</option>
+              {proposals.filter(p => p.quantity).map((proposal) => (
+                <option key={proposal.id} value={proposal.id}>
+                  {proposal.title} - {proposal.quantity} NV - {proposal.position?.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Ngày bắt đầu <span className="text-red-500">*</span>
               </label>
               <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                type="date"
+                value={formData.startDate}
+                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                rows={3}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Form tuyển dụng <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.formId}
-                  onChange={(e) => setFormData({ ...formData, formId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  required
-                >
-                  <option value="">Chọn form</option>
-                  {forms.map((form) => (
-                    <option key={form.id} value={form.id}>
-                      {form.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Cửa hàng
-                </label>
-                <select
-                  value={formData.storeId}
-                  onChange={(e) => setFormData({ ...formData, storeId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                >
-                  <option value="">Chọn cửa hàng</option>
-                  {stores.map((store) => (
-                    <option key={store.id} value={store.id}>
-                      {store.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ngày bắt đầu <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ngày kết thúc</label>
-                <input
-                  type="date"
-                  value={formData.endDate}
-                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  min={formData.startDate}
-                />
-              </div>
-            </div>
-            <div className="flex items-center">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Ngày kết thúc</label>
               <input
-                type="checkbox"
-                id="isActive"
-                checked={formData.isActive}
-                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                className="mr-2"
+                type="date"
+                value={formData.endDate}
+                onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                min={formData.startDate}
               />
-              <label htmlFor="isActive" className="text-sm text-gray-700">
-                Kích hoạt
-              </label>
             </div>
-            <div className="flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={() => setShowCreateForm(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md"
-              >
-                Hủy
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
-              >
-                Tạo
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="isActive"
+              checked={formData.isActive}
+              onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+              className="mr-2"
+            />
+            <label htmlFor="isActive" className="text-sm text-gray-700">
+              Kích hoạt
+            </label>
+          </div>
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <button
+              type="button"
+              onClick={() => setShowCreateForm(false)}
+              className="px-4 py-2 border border-gray-300 rounded-md"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+            >
+              Tạo
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       <div className="bg-white shadow overflow-hidden sm:rounded-md">
         <ul className="divide-y divide-gray-200">
@@ -490,24 +536,12 @@ export default function CampaignsList() {
                           ` - ${new Date(campaign.endDate).toLocaleDateString('vi-VN')}`}
                       </span>
                       <span>Ứng viên: {campaign._count?.candidates || 0}</span>
-                      <span>Link: {campaign.link}</span>
+
                     </div>
                   </div>
                   <div className="ml-4 flex items-center space-x-2">
-                    <button
-                      onClick={() => copyLink(campaign.link)}
-                      className="text-sm text-yellow-600 hover:text-yellow-700 px-3 py-1 border border-yellow-300 rounded-md hover:bg-yellow-50 flex items-center gap-1"
-                    >
-                      <Icon name="copy" size={16} />
-                      Copy link
-                    </button>
-                    <button
-                      onClick={() => openForm(campaign.link)}
-                      className="text-sm text-green-600 hover:text-green-700 px-3 py-1 border border-green-300 rounded-md hover:bg-green-50 flex items-center gap-1"
-                    >
-                      <Icon name="eye" size={16} />
-                      Mở form
-                    </button>
+                    
+                    
                     {canManage && (
                       <>
                         <button

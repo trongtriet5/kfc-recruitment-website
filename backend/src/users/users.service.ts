@@ -29,7 +29,7 @@ export class UsersService {
   }
 
   async create(data: any) {
-    return this.prisma.user.create({
+    const user = await this.prisma.user.create({
       data: {
         email: data.email,
         password: data.password || 'kfc@123',
@@ -39,6 +39,45 @@ export class UsersService {
         isActive: data.isActive !== undefined ? data.isActive : true,
       }
     });
+
+    await this.assignUserToStores(user);
+    return user;
+  }
+
+  private async assignUserToStores(user: any) {
+    if (user.role === 'MANAGER') {
+      // Assign AM to stores based on amName matching user's fullName
+      await this.prisma.store.updateMany({
+        where: { amName: user.fullName },
+        data: { amId: user.id }
+      });
+    } else if (user.role === 'USER') {
+      // Assign SM to store based on email pattern: sm.{code}@kfcvietnam.com.vn
+      // or if it matches the store code directly in a field (if we had one)
+      const match = user.email.match(/^sm\.([a-z0-9.]+)\@kfcvietnam\.com\.vn$/i);
+      if (match) {
+        // match[1] is the slugified code (e.g. "002.bdn" from "002-BDN")
+        const slug = match[1].toLowerCase();
+        
+        // Find store where slugified code matches
+        const stores = await this.prisma.store.findMany({
+          where: { smId: null },
+          select: { id: true, code: true }
+        });
+
+        const store = stores.find(s => {
+          const storeSlug = s.code.toLowerCase().replace(/[^a-z0-9]/g, '.');
+          return storeSlug === slug;
+        });
+
+        if (store) {
+          await this.prisma.store.update({
+            where: { id: store.id },
+            data: { smId: user.id }
+          });
+        }
+      }
+    }
   }
 
   async update(id: string, data: any) {
@@ -78,7 +117,7 @@ export class UsersService {
             }
           });
         } else {
-          await this.prisma.user.create({
+          const newUser = await this.prisma.user.create({
             data: {
               email: user.email,
               password: user.password || 'kfc@123',
@@ -88,6 +127,7 @@ export class UsersService {
               isActive: user.isActive !== undefined ? user.isActive : true,
             }
           });
+          await this.assignUserToStores(newUser);
         }
         results.success++;
       } catch (error) {

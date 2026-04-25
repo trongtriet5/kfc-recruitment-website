@@ -5,6 +5,7 @@ import api from '@/lib/api'
 import { useClickOutside } from '@/hooks/useClickOutside'
 import toast from 'react-hot-toast'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
+import Modal from '@/components/common/Modal'
 
 interface Proposal {
   id: string
@@ -22,6 +23,9 @@ interface Proposal {
   campaign: { id: string; name: string; form: { title: string } } | null
   createdAt: string
   isUnplanned: boolean
+  startDate: string | null
+  endDate: string | null
+  isUntilFilled: boolean
   _count: { candidates: number }
 }
 
@@ -43,7 +47,9 @@ export default function ProposalsList() {
     positionId: '',
     quantity: 1,
     reason: '',
-    isUnplanned: false,
+    startDate: '',
+    endDate: '',
+    isUntilFilled: false,
   })
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null)
   const [action, setAction] = useState<'approve' | 'reject' | 'create-campaign' | null>(null)
@@ -56,29 +62,11 @@ export default function ProposalsList() {
     name: '',
     description: '',
     formId: '',
-    startDate: '',
-    endDate: '',
     isActive: true,
   })
   const [forms, setForms] = useState<any[]>([])
-  const createFormRef = useRef<HTMLDivElement>(null)
   const campaignFormRef = useRef<HTMLDivElement>(null)
   const actionFormRef = useRef<HTMLDivElement>(null)
-
-  useClickOutside(createFormRef, () => {
-    if (showCreateForm) {
-      setShowCreateForm(false)
-      setFormData({
-        title: '',
-        description: '',
-        storeId: '',
-        positionId: '',
-        quantity: 1,
-        reason: '',
-        isUnplanned: false,
-      })
-    }
-  }, showCreateForm)
 
   useClickOutside(campaignFormRef, () => {
     if (showCreateCampaign) {
@@ -87,8 +75,6 @@ export default function ProposalsList() {
         name: '',
         description: '',
         formId: '',
-        startDate: '',
-        endDate: '',
         isActive: true,
       })
     }
@@ -125,13 +111,23 @@ export default function ProposalsList() {
   }
 
   const loadStores = () => {
-    // Assuming there's a stores endpoint
     api.get('/stores').then((res) => setStores(res.data)).catch(() => setStores([]))
   }
 
   const loadPositions = () => {
     api.get('/organization/positions').then((res) => setPositions(res.data)).catch(() => setPositions([]))
   }
+
+  const generateTitle = (storeId: string, positionId: string) => {
+    const store = stores.find(s => s.id === storeId)
+    const position = positions.find(p => p.id === positionId)
+    if (store && position) {
+      return `${store.code} - ${position.name} (${store.name})`
+    }
+    return ''
+  }
+
+  const canEditTitle = user && (user.role === 'ADMIN' || user.role === 'HEAD_OF_DEPARTMENT' || user.role === 'MANAGER')
 
   const loadProposals = () => {
     api
@@ -153,7 +149,9 @@ export default function ProposalsList() {
         positionId: '',
         quantity: 1,
         reason: '',
-        isUnplanned: false,
+        startDate: '',
+        endDate: '',
+        isUntilFilled: false,
       })
       loadProposals()
       toast.success('Tạo đề xuất thành công')
@@ -223,13 +221,25 @@ export default function ProposalsList() {
   const canCreateCampaign = user && (user.role === 'ADMIN' || user.role === 'HEAD_OF_DEPARTMENT')
 
   const handleCreateCampaign = async () => {
-    if (!selectedProposal || !campaignFormData.name || !campaignFormData.formId || !campaignFormData.startDate) {
+    // If formId is missing, pick the first available form as default
+    let effectiveFormId = campaignFormData.formId;
+    if (!effectiveFormId && forms.length > 0) {
+      effectiveFormId = forms[0].id;
+    }
+
+    if (!selectedProposal || !campaignFormData.name || !effectiveFormId) {
       toast.error('Vui lòng điền đầy đủ thông tin')
       return
     }
+
     try {
       await api.post('/recruitment/campaigns', {
         ...campaignFormData,
+        formId: effectiveFormId,
+        // Inherit timing from proposal
+        startDate: selectedProposal.isUntilFilled ? null : selectedProposal.startDate,
+        endDate: selectedProposal.isUntilFilled ? null : selectedProposal.endDate,
+        isUntilFilled: selectedProposal.isUntilFilled,
         proposalId: selectedProposal.id,
       })
       setShowCreateCampaign(false)
@@ -239,8 +249,6 @@ export default function ProposalsList() {
         name: '',
         description: '',
         formId: '',
-        startDate: '',
-        endDate: '',
         isActive: true,
       })
       loadProposals()
@@ -271,14 +279,13 @@ export default function ProposalsList() {
         </button>
       </div>
 
-      {showCreateForm && (
-        <div ref={createFormRef} className="mb-6 bg-white shadow rounded-lg p-6">
-          <h3 className="text-lg font-medium mb-4">Tạo đề xuất mới</h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tiêu đề <span className="text-red-500">*</span>
-              </label>
+      <Modal isOpen={showCreateForm} onClose={() => setShowCreateForm(false)} title="Tạo đề xuất tuyển dụng mới" maxWidth="max-w-2xl">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Tiêu đề <span className="text-red-500">*</span>
+            </label>
+            {canEditTitle ? (
               <input
                 type="text"
                 value={formData.title}
@@ -286,100 +293,141 @@ export default function ProposalsList() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 required
               />
+            ) : (
+              <input
+                type="text"
+                value={formData.title}
+                readOnly
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100"
+              />
+            )}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              rows={3}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Cửa hàng <span className="text-red-500">*</span></label>
+              <select
+                value={formData.storeId}
+                onChange={(e) => {
+                  const storeId = e.target.value
+                  setFormData({ ...formData, storeId, title: !canEditTitle ? generateTitle(storeId, formData.positionId) : formData.title })
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                required
+              >
+                <option value="">Chọn cửa hàng</option>
+                {stores.map((store) => (
+                  <option key={store.id} value={store.id}>
+                    {store.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              <label className="block text-sm font-medium text-gray-700 mb-1">Vị trí <span className="text-red-500">*</span></label>
+              <select
+                value={formData.positionId}
+                onChange={(e) => {
+                  const positionId = e.target.value
+                  setFormData({ ...formData, positionId, title: !canEditTitle ? generateTitle(formData.storeId, positionId) : formData.title })
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                rows={3}
+              >
+                <option value="">Chọn vị trí</option>
+                {positions.map((position) => (
+                  <option key={position.id} value={position.id}>
+                    {position.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Số lượng <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={formData.quantity}
+                onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                required
               />
             </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Lý do</label>
+            <textarea
+              value={formData.reason}
+              onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              rows={2}
+            />
+          </div>
+
+          <div className="flex items-center gap-2 py-2">
+            <input
+              type="checkbox"
+              id="propUntilFilled"
+              checked={formData.isUntilFilled}
+              onChange={(e) => setFormData({ ...formData, isUntilFilled: e.target.checked })}
+              className="w-4 h-4 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+            />
+            <label htmlFor="propUntilFilled" className="text-sm font-medium text-gray-700">
+              Tuyển đến khi đủ (Không giới hạn thời gian)
+            </label>
+          </div>
+
+          {!formData.isUntilFilled && (
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cửa hàng</label>
-                <select
-                  value={formData.storeId}
-                  onChange={(e) => setFormData({ ...formData, storeId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                >
-                  <option value="">Chọn cửa hàng</option>
-                  {stores.map((store) => (
-                    <option key={store.id} value={store.id}>
-                      {store.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Vị trí</label>
-                <select
-                  value={formData.positionId}
-                  onChange={(e) => setFormData({ ...formData, positionId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                >
-                  <option value="">Chọn vị trí</option>
-                  {positions.map((position) => (
-                    <option key={position.id} value={position.id}>
-                      {position.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Số lượng <span className="text-red-500">*</span>
+                  Ngày bắt đầu <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="number"
-                  min="1"
-                  value={formData.quantity}
-                  onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) })}
+                  type="date"
+                  value={formData.startDate}
+                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
                   required
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ngày kết thúc</label>
+                <input
+                  type="date"
+                  value={formData.endDate}
+                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Lý do</label>
-              <textarea
-                value={formData.reason}
-                onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                rows={2}
-              />
-            </div>
-            <div className="flex items-center mt-2">
-              <input
-                type="checkbox"
-                id="isUnplanned"
-                checked={formData.isUnplanned}
-                onChange={(e) => setFormData({ ...formData, isUnplanned: e.target.checked })}
-                className="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded"
-              />
-              <label htmlFor="isUnplanned" className="ml-2 block text-sm text-gray-900">
-                Tuyển dụng không theo định biên (đột xuất)
-              </label>
-            </div>
-            <div className="flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={() => setShowCreateForm(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md"
-              >
-                Hủy
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
-              >
-                Tạo
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+          )}
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <button
+              type="button"
+              onClick={() => setShowCreateForm(false)}
+              className="px-4 py-2 border border-gray-300 rounded-md"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+            >
+              Tạo
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {selectedProposal && action === 'reject' && (
         <div ref={actionFormRef} className="mb-4 bg-white shadow rounded-lg p-4">
@@ -414,11 +462,16 @@ export default function ProposalsList() {
         </div>
       )}
 
-      {showCreateCampaign && selectedProposal && (
-        <div ref={campaignFormRef} className="mb-6 bg-white shadow rounded-lg p-6">
-          <h3 className="text-lg font-medium mb-4">
-            Tạo chiến dịch cho đề xuất: {selectedProposal.title}
-          </h3>
+      <Modal 
+        isOpen={showCreateCampaign && !!selectedProposal} 
+        onClose={() => {
+          setShowCreateCampaign(false)
+          setAction(null)
+          setSelectedProposal(null)
+        }} 
+        title={`Tạo chiến dịch cho đề xuất: ${selectedProposal?.title}`}
+        maxWidth="max-w-2xl"
+      >
           <form
             onSubmit={(e) => {
               e.preventDefault()
@@ -447,48 +500,8 @@ export default function ProposalsList() {
                 rows={3}
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Form ứng tuyển <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={campaignFormData.formId}
-                onChange={(e) => setCampaignFormData({ ...campaignFormData, formId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                required
-              >
-                <option value="">Chọn form</option>
-                {forms.map((form) => (
-<option key={form.id} value={form.id}>
-                      {form.title}
-                    </option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ngày bắt đầu <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={campaignFormData.startDate}
-                  onChange={(e) => setCampaignFormData({ ...campaignFormData, startDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ngày kết thúc</label>
-                <input
-                  type="date"
-                  value={campaignFormData.endDate}
-                  onChange={(e) => setCampaignFormData({ ...campaignFormData, endDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-              </div>
-            </div>
-            <div className="flex justify-end space-x-3">
+
+            <div className="flex justify-end space-x-3 pt-4 border-t">
               <button
                 type="button"
                 onClick={() => {
@@ -508,8 +521,7 @@ export default function ProposalsList() {
               </button>
             </div>
           </form>
-        </div>
-      )}
+      </Modal>
 
       <div className="bg-white shadow overflow-hidden sm:rounded-md">
         <ul className="divide-y divide-gray-200">
