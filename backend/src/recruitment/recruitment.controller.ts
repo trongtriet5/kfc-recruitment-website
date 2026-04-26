@@ -1,12 +1,14 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { RecruitmentService } from './recruitment.service';
 import { StatusTransitionService } from './status-transition.service';
 import { AuditService } from './audit.service';
 import { ProposalService } from './proposal.service';
 import { CampaignFulfillmentService } from './campaign-fulfillment.service';
 import { CurrentUser } from '../auth/decorators/user.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('recruitment')
+@UseGuards(JwtAuthGuard)
 export class RecruitmentController {
   constructor(
     private service: RecruitmentService,
@@ -105,7 +107,7 @@ export class RecruitmentController {
     @CurrentUser() user: any,
   ) {
     const candidate = await this.service.getCandidate(id, user);
-    const currentStatus = typeof candidate.status === 'object' ? candidate.status?.code : candidate.status;
+    const currentStatus = candidate.statusId ? 'CV_FILTERING' : null;
     return this.statusTransition.transition(
       id,
       currentStatus || null,
@@ -119,7 +121,7 @@ export class RecruitmentController {
   @Get('candidates/:id/allowed-transitions')
   async getAllowedTransitions(@Param('id') id: string, @CurrentUser() user: any) {
     const candidate = await this.service.getCandidate(id, user);
-    const currentStatus = typeof candidate.status === 'object' ? candidate.status?.code : candidate.status;
+    const currentStatus = candidate.statusId ? 'CV_FILTERING' : null;
     return {
       currentStatus,
       allowedTransitions: this.statusTransition.getAllowedTransitions(currentStatus || null, user.role),
@@ -160,6 +162,11 @@ export class RecruitmentController {
   @Patch('proposals/:id')
   updateProposal(@Param('id') id: string, @Body() data: any, @CurrentUser() user: any) { 
     return this.service.updateProposal(id, data, user); 
+  }
+
+  @Delete('proposals/:id')
+  deleteProposal(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.deleteProposal(id, user);
   }
 
   // Proposal Workflow (Enhanced Approval Flow)

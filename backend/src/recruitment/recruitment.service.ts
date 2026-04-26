@@ -211,7 +211,8 @@ export class RecruitmentService {
       include: { 
         form: true, 
         candidates: true,
-        store: { select: { id: true, name: true, code: true } }
+        store: { select: { id: true, name: true, code: true } },
+        _count: { select: { candidates: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -296,6 +297,10 @@ export class RecruitmentService {
       }
     }
     
+    // Convert empty strings to null for date fields
+    if (data.startDate === '') data.startDate = null;
+    if (data.endDate === '') data.endDate = null;
+
     const campaignData = {
       ...data,
       startDate: data.startDate ? new Date(data.startDate) : null,
@@ -308,6 +313,10 @@ export class RecruitmentService {
   async updateCampaign(id: string, data: any, user?: any) {
     const campaign = await this.prisma.campaign.findUnique({ where: { id } });
     if (!campaign) throw new NotFoundException('Chiến dịch không tồn tại');
+
+    // Convert empty strings to null for date fields
+    if (data.startDate === '') data.startDate = null;
+    if (data.endDate === '') data.endDate = null;
 
     // Check access
     if (user && user.role !== 'ADMIN') {
@@ -329,7 +338,11 @@ export class RecruitmentService {
     if (filters?.status) {
       where.status = { code: filters.status };
     }
+    if (filters?.statusId) {
+      where.statusId = filters.statusId;
+    }
     if (filters?.campaignId) where.campaignId = filters.campaignId;
+    if (filters?.taId) where.picId = filters.taId;
     
     if (filters?.storeId) {
       if (filters.storeId.startsWith('CITY:')) {
@@ -353,20 +366,38 @@ export class RecruitmentService {
       }
     }
 
-    return this.prisma.candidate.findMany({
-      where,
-      include: { 
-        campaign: true, 
-        store: true, 
-        form: true,
-        source: true,
-        status: true,
-        pic: {
-          select: { id: true, fullName: true, email: true }
-        }
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    // Pagination
+    const page = filters?.page ? parseInt(filters.page, 10) : 1;
+    const limit = filters?.limit ? parseInt(filters.limit, 10) : 10;
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      this.prisma.candidate.findMany({
+        where,
+        include: { 
+          campaign: true, 
+          store: true, 
+          form: true,
+          source: true,
+          status: true,
+          pic: {
+            select: { id: true, fullName: true, email: true }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.candidate.count({ where }),
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async getStoreIdsByCity(city: string): Promise<string[]> {
@@ -411,7 +442,7 @@ export class RecruitmentService {
         interviews: { include: { interviewer: { select: { id: true, fullName: true } } } },
         status: true,
         source: true,
-        proposals: true,
+        proposal: true,
         pic: {
           select: { id: true, fullName: true, email: true }
         },
@@ -448,13 +479,14 @@ export class RecruitmentService {
   async getTAs() {
     return this.prisma.user.findMany({
       where: {
-        role: { in: ['ADMIN', 'RECRUITER', 'HEAD_OF_DEPARTMENT'] },
+        role: { in: ['ADMIN', 'RECRUITER', 'HEAD_OF_DEPARTMENT', 'MANAGER'] },
         isActive: true
       },
       select: {
         id: true,
         fullName: true,
-        email: true
+        email: true,
+        role: true
       },
       orderBy: { fullName: 'asc' }
     });
@@ -597,7 +629,7 @@ export class RecruitmentService {
   async transferCampaign(candidateId: string, campaignId: string, user?: any) {
     const campaign = await this.prisma.campaign.findUnique({ 
       where: { id: campaignId },
-      include: { store: true, department: true }
+      include: { store: true, department: true, proposal: true }
     });
     if (!campaign) throw new NotFoundException('Chiến dịch không tồn tại');
     
@@ -613,6 +645,7 @@ export class RecruitmentService {
       where: { id: candidateId },
       data: { 
         campaignId,
+        proposalId: campaign.proposalId || undefined,
         storeId: campaign.storeId,
         departmentId: campaign.departmentId
       }
@@ -657,15 +690,8 @@ export class RecruitmentService {
 
   // Proposals
   async getProposals(user?: any) {
-    const where: any = {};
-    
-    if (user && user.role !== 'ADMIN') {
-      const storeIds = await this.getAccessibleStoreIds(user);
-      where.storeId = { in: storeIds };
-    }
-
+    // Debug: Return all proposals without filtering
     return this.prisma.recruitmentProposal.findMany({
-      where,
       include: { store: true, position: true, candidates: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -696,6 +722,11 @@ export class RecruitmentService {
         data.storeId = storeIds[0];
       }
     }
+    
+    // Convert empty strings to null for date fields
+    if (data.startDate === '') data.startDate = null;
+    if (data.endDate === '') data.endDate = null;
+    
     return this.prisma.recruitmentProposal.create({ data });
   }
 
@@ -704,6 +735,10 @@ export class RecruitmentService {
     const proposal = await this.prisma.recruitmentProposal.findUnique({ where: { id } });
     if (!proposal) throw new NotFoundException('Đề xuất không tồn tại');
 
+    // Convert empty strings to null for date fields
+    if (data.startDate === '') data.startDate = null;
+    if (data.endDate === '') data.endDate = null;
+
     if (user && user.role !== 'ADMIN') {
       const storeIds = await this.getAccessibleStoreIds(user);
       if (!proposal.storeId || !storeIds.includes(proposal.storeId)) {
@@ -711,6 +746,21 @@ export class RecruitmentService {
       }
     }
     return this.prisma.recruitmentProposal.update({ where: { id }, data });
+  }
+
+  async deleteProposal(id: string, user?: any) {
+    const proposal = await this.prisma.recruitmentProposal.findUnique({ where: { id } });
+    if (!proposal) throw new NotFoundException('Đề xuất không tồn tại');
+
+    if (user && user.role !== 'ADMIN') {
+      const storeIds = await this.getAccessibleStoreIds(user);
+      if (!proposal.storeId || !storeIds.includes(proposal.storeId)) {
+        throw new ForbiddenException('Bạn không có quyền xóa đề xuất này');
+      }
+    }
+
+    await this.prisma.recruitmentProposal.delete({ where: { id } });
+    return { success: true };
   }
 
   // Headcounts
@@ -780,7 +830,13 @@ export class RecruitmentService {
     const allStatuses = await this.prisma.candidateStatus.findMany({
       where: { isActive: true },
       orderBy: { order: 'asc' },
-      include: {
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        order: true,
+        color: true,
+        group: true,
         _count: { select: { candidates: true } }
       }
     });
@@ -871,10 +927,10 @@ export class RecruitmentService {
     // Funnel Data (Grouped by application, interview, onboarding)
     const funnelData = await this.getFunnelData(candidatesByStatus);
 
-    // TA Performance (candidates processed by each TA/user)
+    // TA Performance (candidates processed by each TA/user with PIC assigned)
     const taPerformance = await this.prisma.user.findMany({
       where: {
-        role: { in: ['USER', 'MANAGER', 'ADMIN'] },
+        role: { in: ['USER', 'MANAGER', 'ADMIN', 'RECRUITER', 'HEAD_OF_DEPARTMENT'] },
         isActive: true,
       },
       select: {
@@ -886,6 +942,15 @@ export class RecruitmentService {
       },
     });
 
+    // Get status ORDER from DB to map status_order to IDs
+    // status_id 1 = CV_FILTERING (not processed), >= 2 = processed
+    // passed status_ids: 10, 12, 15, 16, 17, 18, 19, 20
+    // accepted status_id: 20 (ONBOARDING_ACCEPTED)
+    const statusOrderMap = allStatuses.reduce((acc, s) => {
+      acc[s.id] = s.order;
+      return acc;
+    }, {} as Record<string, number>);
+
     // Get status counts for each user who has candidates assigned
     const taCandidateCounts = await this.prisma.candidate.groupBy({
       by: ['picId', 'statusId'],
@@ -893,25 +958,39 @@ export class RecruitmentService {
       where: { picId: { not: null } },
     });
 
+    // Passed status codes - statuses where candidate PASSED (manager result is "đạt")
+    // User's status_ids: 10, 12, 15, 16, 17, 18, 19, 20 (based on order field in seed)
+    const PASSED_STATUS_CODES = [
+      'SM_AM_INTERVIEW_PASSED',  // order 10 - SM/AM interview passed
+      'NO_INTERVIEW',             // order 15 - showed up (considered passed)
+      'OFFER_SENT',               // order 16 - offer sent (candidate was selected)
+      'OFFER_ACCEPTED',           // order 17 - accepted offer
+      'WAITING_ONBOARDING',       // order 19 - waiting to start (passed all stages)
+      'ONBOARDING_ACCEPTED',      // order 20 - actually started working
+    ];
+    // Accepted = actually onboarded successfully (đồng ý nhận việc thành công)
+    const ACCEPTED_STATUS_CODES = ['ONBOARDING_ACCEPTED'];
+    const FIRST_STATUS_CODES = ['CV_FILTERING']; // status_id 1 = not processed
+
     // Build TA performance data
     const taPerformanceData = taPerformance.map(ta => {
       const taCounts = taCandidateCounts.filter(c => c.picId === ta.id);
       const total = taCounts.reduce((sum, c) => sum + c._count.id, 0);
+
+      // Processed = any status != CV_FILTERING (first status)
+      const processed = taCounts.filter(c => {
+        const status = allStatuses.find(s => s.id === c.statusId);
+        return status && !FIRST_STATUS_CODES.includes(status.code);
+      }).reduce((sum, c) => sum + c._count.id, 0);
       
       const passed = taCounts.filter(c => {
         const status = allStatuses.find(s => s.id === c.statusId);
-        return status && [
-          'CV_PASSED', 
-          'SM_AM_INTERVIEW_PASSED', 
-          'OM_PV_INTERVIEW_PASSED', 
-          'OFFER_ACCEPTED', 
-          'ONBOARDING_ACCEPTED'
-        ].includes(status.code);
+        return status && PASSED_STATUS_CODES.includes(status.code);
       }).reduce((sum, c) => sum + c._count.id, 0);
 
       const onboarded = taCounts.filter(c => {
         const status = allStatuses.find(s => s.id === c.statusId);
-        return status && ['ONBOARDING_ACCEPTED'].includes(status.code);
+        return status && ACCEPTED_STATUS_CODES.includes(status.code);
       }).reduce((sum, c) => sum + c._count.id, 0);
 
       return {
@@ -920,6 +999,7 @@ export class RecruitmentService {
         taEmail: ta.email,
         taRole: ta.role,
         totalCandidates: total,
+        processedCandidates: processed,
         passedCandidates: passed,
         onboardedCandidates: onboarded,
       };

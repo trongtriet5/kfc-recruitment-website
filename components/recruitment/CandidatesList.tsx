@@ -316,11 +316,45 @@ export default function CandidatesList() {
     return 'bg-blue-50 text-blue-700 border border-blue-200'
   }
 
-  if (loading) {
+  if (loading && candidates.length === 0) {
     return (
-      <div className="text-center py-12">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-600"></div>
-        <p className="mt-4 text-gray-600">Đang tải danh sách ứng viên...</p>
+      <div className="relative pt-6 space-y-8 animate-pulse">
+        {/* Header skeleton */}
+        <div className="pb-2">
+          <div className="h-8 bg-gray-200 rounded w-56 mb-2" />
+          <div className="h-4 bg-gray-100 rounded w-80" />
+        </div>
+        {/* Toolbar skeleton */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex flex-wrap gap-2">
+            <div className="h-10 bg-gray-200 rounded-lg w-32" />
+            <div className="h-10 bg-gray-200 rounded-lg w-24" />
+            <div className="h-10 bg-gray-200 rounded-md w-[220px]" />
+            <div className="h-10 bg-gray-200 rounded-md w-[220px]" />
+            <div className="h-10 bg-gray-200 rounded-md w-[250px]" />
+          </div>
+        </div>
+        {/* List skeleton */}
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
+          <ul className="divide-y divide-gray-100">
+            {[1,2,3,4,5,6,7,8].map(i => (
+              <li key={i} className="px-6 py-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="h-5 bg-gray-200 rounded w-48" />
+                    <div className="h-4 bg-gray-100 rounded w-64" />
+                    <div className="flex gap-2 mt-2">
+                      <div className="h-6 bg-gray-100 rounded-md w-24" />
+                      <div className="h-6 bg-gray-100 rounded-md w-32" />
+                      <div className="h-6 bg-blue-50 rounded-md w-28" />
+                    </div>
+                  </div>
+                  <div className="h-7 bg-gray-100 rounded-md w-28 flex-shrink-0" />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     )
   }

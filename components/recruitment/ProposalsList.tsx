@@ -6,6 +6,7 @@ import { useClickOutside } from '@/hooks/useClickOutside'
 import toast from 'react-hot-toast'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import Modal from '@/components/common/Modal'
+import Icon from '@/components/icons/Icon'
 
 interface Proposal {
   id: string
@@ -40,6 +41,7 @@ export default function ProposalsList() {
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [stores, setStores] = useState<any[]>([])
   const [positions, setPositions] = useState<any[]>([])
+  const [forms, setForms] = useState<any[]>([])
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -52,41 +54,27 @@ export default function ProposalsList() {
     isUntilFilled: false,
   })
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null)
-  const [action, setAction] = useState<'approve' | 'reject' | 'create-campaign' | null>(null)
-  const [rejectionReason, setRejectionReason] = useState('')
-  const [showCreateCampaign, setShowCreateCampaign] = useState(false)
   const [confirmApprove, setConfirmApprove] = useState(false)
   const [confirmReject, setConfirmReject] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; proposal: Proposal } | null>(null)
+  const [showCreateCampaign, setShowCreateCampaign] = useState(false)
   const [campaignFormData, setCampaignFormData] = useState({
     name: '',
     description: '',
     formId: '',
     isActive: true,
+    startDate: '',
+    endDate: '',
   })
-  const [forms, setForms] = useState<any[]>([])
   const campaignFormRef = useRef<HTMLDivElement>(null)
-  const actionFormRef = useRef<HTMLDivElement>(null)
 
   useClickOutside(campaignFormRef, () => {
     if (showCreateCampaign) {
       setShowCreateCampaign(false)
-      setCampaignFormData({
-        name: '',
-        description: '',
-        formId: '',
-        isActive: true,
-      })
     }
-  }, showCreateCampaign)
-
-  useClickOutside(actionFormRef, () => {
-    if (action && action !== 'create-campaign') {
-      setSelectedProposal(null)
-      setAction(null)
-      setRejectionReason('')
-    }
-  }, !!action && action !== 'create-campaign')
+  })
 
   useEffect(() => {
     loadUser()
@@ -97,17 +85,11 @@ export default function ProposalsList() {
   }, [])
 
   const loadForms = () => {
-    api
-      .get('/recruitment/forms')
-      .then((res) => setForms(res.data))
-      .catch(console.error)
+    api.get('/recruitment/forms').then((res) => setForms(res.data)).catch(console.error)
   }
 
   const loadUser = () => {
-    api
-      .get('/auth/me')
-      .then((res) => setUser(res.data))
-      .catch(console.error)
+    api.get('/auth/me').then((res) => setUser(res.data)).catch(console.error)
   }
 
   const loadStores = () => {
@@ -115,70 +97,64 @@ export default function ProposalsList() {
   }
 
   const loadPositions = () => {
-    api.get('/organization/positions').then((res) => setPositions(res.data)).catch(() => setPositions([]))
+    api.get('/recruitment/positions').then((res) => setPositions(res.data)).catch(() => setPositions([]))
   }
 
-  const generateTitle = (storeId: string, positionId: string) => {
-    const store = stores.find(s => s.id === storeId)
-    const position = positions.find(p => p.id === positionId)
-    if (store && position) {
-      return `${store.code} - ${position.name} (${store.name})`
-    }
-    return ''
+  const loadProposals = () => {
+    api.get('/recruitment/proposals').then((res) => setProposals(res.data || [])).catch(console.error).finally(() => setLoading(false))
   }
 
   const canEditTitle = user && (user.role === 'ADMIN' || user.role === 'HEAD_OF_DEPARTMENT' || user.role === 'MANAGER')
-
-  const loadProposals = () => {
-    api
-      .get('/recruitment/proposals')
-      .then((res) => setProposals(res.data))
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
       await api.post('/recruitment/proposals', formData)
       setShowCreateForm(false)
-      setFormData({
-        title: '',
-        description: '',
-        storeId: '',
-        positionId: '',
-        quantity: 1,
-        reason: '',
-        startDate: '',
-        endDate: '',
-        isUntilFilled: false,
-      })
+      setFormData({ title: '', description: '', storeId: '', positionId: '', quantity: 1, reason: '', startDate: '', endDate: '', isUntilFilled: false })
       loadProposals()
-      toast.success('Tạo đề xuất thành công')
+      toast.success('Tạo đề xuất thành công!')
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Có lỗi xảy ra')
     }
   }
 
+  const handleContextMenu = (e: React.MouseEvent, proposal: Proposal) => {
+    e.preventDefault()
+    setContextMenu({ x: e.clientX, y: e.clientY, proposal })
+  }
+
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null)
+    window.addEventListener('click', handleClick)
+    return () => window.removeEventListener('click', handleClick)
+  }, [])
+
+  const handleDeleteProposal = async () => {
+    if (!selectedProposal) return
+    setActionLoading(true)
+    try {
+      await api.delete(`/recruitment/proposals/${selectedProposal.id}`)
+      toast.success('Xóa đề xuất thành công')
+      loadProposals()
+      setConfirmDelete(false)
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const canApprove = user && ['ADMIN', 'HEAD_OF_DEPARTMENT'].includes(user.role)
+
   const handleApprove = async () => {
     if (!selectedProposal) return
     setActionLoading(true)
     try {
-      // Fetch APPROVED status ID
-      const statuses = await api.get('/types/by-category/PROPOSAL_STATUS')
-      const approvedStatus = statuses.data.find((s: any) => s.code === 'APPROVED')
-      if (!approvedStatus) {
-        toast.error('Không tìm thấy trạng thái APPROVED')
-        return
-      }
-      await api.patch(`/recruitment/proposals/${selectedProposal.id}`, {
-        status: approvedStatus.code,
-      })
-      setSelectedProposal(null)
-      setAction(null)
-      setConfirmApprove(false)
-      toast.success('Đã duyệt đề xuất')
+      await api.post(`/recruitment/proposals/${selectedProposal.id}/approve`)
+      toast.success('Duyệt đề xuất thành công')
       loadProposals()
+      setConfirmApprove(false)
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Có lỗi xảy ra')
     } finally {
@@ -187,29 +163,13 @@ export default function ProposalsList() {
   }
 
   const handleReject = async () => {
-    if (!selectedProposal || !rejectionReason.trim()) {
-      toast.error('Vui lòng nhập lý do từ chối')
-      return
-    }
+    if (!selectedProposal) return
     setActionLoading(true)
     try {
-      // Fetch REJECTED status ID
-      const statuses = await api.get('/types/by-category/PROPOSAL_STATUS')
-      const rejectedStatus = statuses.data.find((s: any) => s.code === 'REJECTED')
-      if (!rejectedStatus) {
-        toast.error('Không tìm thấy trạng thái REJECTED')
-        return
-      }
-      await api.patch(`/recruitment/proposals/${selectedProposal.id}`, {
-        status: rejectedStatus.code,
-        rejectionReason: rejectionReason,
-      })
-      setSelectedProposal(null)
-      setAction(null)
-      setRejectionReason('')
-      setConfirmReject(false)
-      toast.success('Đã từ chối đề xuất')
+      await api.post(`/recruitment/proposals/${selectedProposal.id}/reject`, { reason: '' })
+      toast.success('Từ chối đề xuất thành công')
       loadProposals()
+      setConfirmReject(false)
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Có lỗi xảy ra')
     } finally {
@@ -217,64 +177,17 @@ export default function ProposalsList() {
     }
   }
 
-  const canApprove = user && (user.role === 'ADMIN' || user.role === 'HEAD_OF_DEPARTMENT' || user.role === 'MANAGER')
-  const canCreateCampaign = user && (user.role === 'ADMIN' || user.role === 'HEAD_OF_DEPARTMENT')
-
-  const handleCreateCampaign = async () => {
-    // If formId is missing, pick the first available form as default
-    let effectiveFormId = campaignFormData.formId;
-    if (!effectiveFormId && forms.length > 0) {
-      effectiveFormId = forms[0].id;
-    }
-
-    if (!selectedProposal || !campaignFormData.name || !effectiveFormId) {
-      toast.error('Vui lòng điền đầy đủ thông tin')
-      return
-    }
-
-    try {
-      await api.post('/recruitment/campaigns', {
-        ...campaignFormData,
-        formId: effectiveFormId,
-        // Inherit timing from proposal
-        startDate: selectedProposal.isUntilFilled ? null : selectedProposal.startDate,
-        endDate: selectedProposal.isUntilFilled ? null : selectedProposal.endDate,
-        isUntilFilled: selectedProposal.isUntilFilled,
-        proposalId: selectedProposal.id,
-      })
-      setShowCreateCampaign(false)
-      setAction(null)
-      setSelectedProposal(null)
-      setCampaignFormData({
-        name: '',
-        description: '',
-        formId: '',
-        isActive: true,
-      })
-      loadProposals()
-      toast.success('Tạo chiến dịch thành công!')
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi tạo chiến dịch')
-    }
-  }
-
-  if (loading) {
-    return <div className="text-center py-4">Đang tải...</div>
-  }
+  const canCreateCampaign = user && ['ADMIN', 'HEAD_OF_DEPARTMENT', 'MANAGER'].includes(user.role)
 
   return (
     <div className="pt-6 space-y-8">
-      {/* Page Header */}
       <div className="pb-2">
         <h1 className="text-2xl font-bold text-gray-900">Đề xuất tuyển dụng</h1>
         <p className="text-gray-600 mt-2">Quản lý đề xuất tuyển dụng từ các cửa hàng, phê duyệt và tạo chiến dịch</p>
       </div>
 
       <div className="flex justify-between items-center">
-        <button
-          onClick={() => setShowCreateForm(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium shadow-sm"
-        >
+        <button onClick={() => setShowCreateForm(true)} className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium">
           + Tạo đề xuất
         </button>
       </div>
@@ -282,372 +195,95 @@ export default function ProposalsList() {
       <Modal isOpen={showCreateForm} onClose={() => setShowCreateForm(false)} title="Tạo đề xuất tuyển dụng mới" maxWidth="max-w-2xl">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Tiêu đề <span className="text-red-500">*</span>
-            </label>
-            {canEditTitle ? (
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                required
-              />
-            ) : (
-              <input
-                type="text"
-                value={formData.title}
-                readOnly
-                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100"
-              />
-            )}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
-              rows={3}
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tiêu đề <span className="text-red-500">*</span></label>
+            <input type="text" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Cửa hàng <span className="text-red-500">*</span></label>
-              <select
-                value={formData.storeId}
-                onChange={(e) => {
-                  const storeId = e.target.value
-                  setFormData({ ...formData, storeId, title: !canEditTitle ? generateTitle(storeId, formData.positionId) : formData.title })
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                required
-              >
+              <select value={formData.storeId} onChange={e => setFormData({ ...formData, storeId: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required>
                 <option value="">Chọn cửa hàng</option>
-                {stores.map((store) => (
-                  <option key={store.id} value={store.id}>
-                    {store.name}
-                  </option>
-                ))}
+                {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Vị trí <span className="text-red-500">*</span></label>
-              <select
-                value={formData.positionId}
-                onChange={(e) => {
-                  const positionId = e.target.value
-                  setFormData({ ...formData, positionId, title: !canEditTitle ? generateTitle(formData.storeId, positionId) : formData.title })
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-              >
+              <select value={formData.positionId} onChange={e => setFormData({ ...formData, positionId: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required>
                 <option value="">Chọn vị trí</option>
-                {positions.map((position) => (
-                  <option key={position.id} value={position.id}>
-                    {position.name}
-                  </option>
-                ))}
+                {positions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Số lượng <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Số lượng <span className="text-red-500">*</span></label>
+              <input type="number" min="1" value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })} className="w-full px-3 py-2 border rounded-lg" required />
+            </div>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 mt-6">
+                <input type="checkbox" checked={formData.isUntilFilled} onChange={e => setFormData({ ...formData, isUntilFilled: e.target.checked })} />
+                <span className="text-sm">Tuyển đến khi đủ</span>
               </label>
-              <input
-                type="number"
-                min="1"
-                value={formData.quantity}
-                onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                required
-              />
             </div>
           </div>
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
+            <textarea value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} className="w-full px-3 py-2 border rounded-lg" rows={3} />
+          </div>
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Lý do</label>
-            <textarea
-              value={formData.reason}
-              onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
-              rows={2}
-            />
+            <textarea value={formData.reason} onChange={e => setFormData({ ...formData, reason: e.target.value })} className="w-full px-3 py-2 border rounded-lg" rows={2} />
           </div>
-
-          <div className="flex items-center gap-2 py-2">
-            <input
-              type="checkbox"
-              id="propUntilFilled"
-              checked={formData.isUntilFilled}
-              onChange={(e) => setFormData({ ...formData, isUntilFilled: e.target.checked })}
-              className="w-4 h-4 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
-            />
-            <label htmlFor="propUntilFilled" className="text-sm font-medium text-gray-700">
-              Tuyển đến khi đủ (Không giới hạn thời gian)
-            </label>
-          </div>
-
-          {!formData.isUntilFilled && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ngày bắt đầu <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ngày kết thúc</label>
-                <input
-                  type="date"
-                  value={formData.endDate}
-                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-              </div>
-            </div>
-          )}
-          <div className="flex justify-end space-x-3 pt-4 border-t">
-            <button
-              type="button"
-              onClick={() => setShowCreateForm(false)}
-              className="px-4 py-2 border border-gray-300 rounded-md"
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
-            >
-              Tạo
-            </button>
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={() => setShowCreateForm(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Hủy</button>
+            <button type="submit" className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800">Tạo</button>
           </div>
         </form>
       </Modal>
 
-      {selectedProposal && action === 'reject' && (
-        <div ref={actionFormRef} className="mb-4 bg-white shadow rounded-lg p-4">
-          <h3 className="font-medium mb-2">Từ chối đề xuất: {selectedProposal.title}</h3>
-          <div className="mb-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Lý do từ chối</label>
-            <textarea
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
-              rows={2}
-            />
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setConfirmReject(true)}
-              className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700"
-            >
-              Xác nhận
-            </button>
-            <button
-              onClick={() => {
-                setSelectedProposal(null)
-                setAction(null)
-                setRejectionReason('')
-              }}
-              className="px-4 py-2 border border-gray-300 rounded-md"
-            >
-              Hủy
-            </button>
-          </div>
-        </div>
-      )}
-
-      <Modal 
-        isOpen={showCreateCampaign && !!selectedProposal} 
-        onClose={() => {
-          setShowCreateCampaign(false)
-          setAction(null)
-          setSelectedProposal(null)
-        }} 
-        title={`Tạo chiến dịch cho đề xuất: ${selectedProposal?.title}`}
-        maxWidth="max-w-2xl"
-      >
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              handleCreateCampaign()
-            }}
-            className="space-y-4"
-          >
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tên chiến dịch <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={campaignFormData.name}
-                onChange={(e) => setCampaignFormData({ ...campaignFormData, name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
-              <textarea
-                value={campaignFormData.description}
-                onChange={(e) => setCampaignFormData({ ...campaignFormData, description: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                rows={3}
-              />
-            </div>
-
-            <div className="flex justify-end space-x-3 pt-4 border-t">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCreateCampaign(false)
-                  setAction(null)
-                  setSelectedProposal(null)
-                }}
-                className="px-4 py-2 border border-gray-300 rounded-md"
-              >
-                Hủy
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
-              >
-                Tạo chiến dịch
-              </button>
-            </div>
-          </form>
-      </Modal>
-
       <div className="bg-white shadow overflow-hidden sm:rounded-md">
-        <ul className="divide-y divide-gray-200">
-          {proposals.length === 0 ? (
+        <ul className="divide-y divide-gray-200 min-h-[300px]">
+          {loading ? (
+            <li className="px-4 py-5 text-center text-gray-500">Đang tải...</li>
+          ) : proposals.length === 0 ? (
             <li className="px-4 py-5 text-center text-gray-500">Chưa có đề xuất nào</li>
           ) : (
-            proposals.map((proposal) => (
-              <li key={proposal.id} className="px-4 py-4 sm:px-6">
+            proposals.map(proposal => (
+              <li key={proposal.id} className="px-4 py-5 sm:px-6 hover:bg-gray-50 cursor-pointer border-b border-gray-100" onContextMenu={e => handleContextMenu(e, proposal)}>
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className="flex items-center">
-                      <h3 className="text-sm font-medium text-gray-900">
-                        {proposal.title}
-                        {proposal.isUnplanned && (
-                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
-                            Đột xuất
-                          </span>
-                        )}
-                      </h3>
-                      <span
-                        className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          (typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'APPROVED'
-                            ? 'bg-green-100 text-green-800'
-                            : (typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'REJECTED'
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}
-                      >
-                        {typeof proposal.status === 'object' 
-                          ? proposal.status?.name 
-                          : proposal.status === 'APPROVED'
-                          ? 'Đã duyệt'
-                          : proposal.status === 'REJECTED'
-                          ? 'Từ chối'
-                          : 'Chờ duyệt'}
+                      <h3 className="text-sm font-medium text-gray-900">{proposal.title}</h3>
+                      {proposal.isUnplanned && <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">Đột xuất</span>}
+                    </div>
+                    <div className="mt-1">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        (typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'APPROVED'
+                          ? 'bg-green-100 text-green-800'
+                          : (typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'REJECTED'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {typeof proposal.status === 'object' ? proposal.status?.name : proposal.status === 'APPROVED' ? 'Đã duyệt' : proposal.status === 'REJECTED' ? 'Từ chối' : 'Chờ duyệt'}
                       </span>
                     </div>
                     <p className="mt-1 text-sm text-gray-500">{proposal.description}</p>
                     <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
-                      {proposal.store && typeof proposal.store === 'object' && proposal.store !== null && 'name' in proposal.store && <span>Cửa hàng: {(proposal.store as { name: string }).name}</span>}
-                      {proposal.position && typeof proposal.position === 'object' && proposal.position !== null && 'name' in proposal.position && <span>Vị trí: {(proposal.position as { name: string }).name}</span>}
+                      {proposal.store && <span>Cửa hàng: {proposal.store.name}</span>}
+                      {proposal.position && <span>Vị trí: {proposal.position.name}</span>}
                       <span>Số lượng: {proposal.quantity}</span>
                       <span>Ứng viên: {proposal._count?.candidates || 0}</span>
                     </div>
-                    {proposal.approver && typeof proposal.approver === 'object' && proposal.approver !== null && 'fullName' in proposal.approver && (
-                      <div className="mt-1 text-xs text-gray-500">
-                        {(typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'APPROVED'
-                          ? `Đã duyệt bởi ${(proposal.approver as { fullName: string }).fullName}`
-                          : (typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'REJECTED'
-                          ? `Từ chối bởi ${(proposal.approver as { fullName: string }).fullName}`
-                          : ''}
-                      </div>
-                    )}
-                    {proposal.campaign && typeof proposal.campaign === 'object' && proposal.campaign !== null && 'name' in proposal.campaign && (
-                      <div className="mt-1 text-xs text-blue-600">
-                        ✓ Đã có chiến dịch: {(proposal.campaign as { name: string }).name} (Form: {proposal.campaign.form && typeof proposal.campaign.form === 'object' && 'title' in proposal.campaign ? (proposal.campaign.form as { title: string }).title : 'N/A'})
-                      </div>
-                    )}
                   </div>
                   <div className="ml-4 flex gap-2">
                     {canApprove && (typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'PENDING' && (
                       <>
-                        <button
-                          onClick={() => {
-                            setSelectedProposal(proposal)
-                            setConfirmApprove(true)
-                          }}
-                          className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
-                        >
-                          Duyệt
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedProposal(proposal)
-                            setAction('reject')
-                          }}
-                          className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
-                        >
-                          Từ chối
-                        </button>
+                        <button onClick={() => { setSelectedProposal(proposal); setConfirmApprove(true) }} className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700">Duyệt</button>
+                        <button onClick={() => { setSelectedProposal(proposal); setConfirmReject(true) }} className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700">Từ chối</button>
                       </>
                     )}
-
-      <ConfirmDialog
-        isOpen={confirmApprove && !!selectedProposal}
-        title="Duyệt đề xuất"
-        message={
-          selectedProposal
-            ? `Bạn có chắc chắn muốn duyệt đề xuất "${selectedProposal.title}"?`
-            : ''
-        }
-        confirmText="Duyệt"
-        isLoading={actionLoading}
-        onClose={() => setConfirmApprove(false)}
-        onConfirm={handleApprove}
-      />
-
-      <ConfirmDialog
-        isOpen={confirmReject && !!selectedProposal}
-        title="Từ chối đề xuất"
-        message="Xác nhận từ chối đề xuất này?"
-        confirmText="Từ chối"
-        destructive
-        isLoading={actionLoading}
-        onClose={() => setConfirmReject(false)}
-        onConfirm={handleReject}
-      />
-                    {canCreateCampaign && 
-                     (typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'APPROVED' && 
-                     !proposal.campaign && (
-                      <button
-                        onClick={() => {
-                          setSelectedProposal(proposal)
-                          setAction('create-campaign')
-                          setShowCreateCampaign(true)
-                          setCampaignFormData({
-                            name: `${proposal.title} - Chiến dịch`,
-                            description: proposal.description || '',
-                            formId: '',
-                            startDate: new Date().toISOString().split('T')[0],
-                            endDate: '',
-                            isActive: true,
-                          })
-                        }}
-                        className="px-3 py-1 bg-yellow-600 text-white rounded text-sm hover:bg-yellow-700"
-                      >
+                    {canCreateCampaign && (typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'APPROVED' && !proposal.campaign && (
+                      <button onClick={() => { setSelectedProposal(proposal); setShowCreateCampaign(true); setCampaignFormData({ name: `${proposal.title} - Chiến dịch`, description: proposal.description || '', formId: forms[0]?.id || '', isActive: true, startDate: '', endDate: '' }) }} className="px-3 py-1 bg-yellow-600 text-white rounded text-sm hover:bg-yellow-700">
                         Tạo chiến dịch
                       </button>
                     )}
@@ -658,7 +294,54 @@ export default function ProposalsList() {
           )}
         </ul>
       </div>
+
+      {contextMenu && (
+        <div className="fixed bg-white shadow-lg rounded-md border py-1 z-50" style={{ top: contextMenu.y, left: contextMenu.x }}>
+          <button onClick={() => { setSelectedProposal(contextMenu.proposal); setContextMenu(null); setConfirmDelete(true) }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-red-600">
+            <Icon name="trash" size={14} /> Xóa
+          </button>
+        </div>
+      )}
+
+      <Modal isOpen={showCreateCampaign} onClose={() => setShowCreateCampaign(false)} title="Tạo chiến dịch" maxWidth="max-w-lg">
+        <form onSubmit={async e => {
+          e.preventDefault()
+          if (!selectedProposal || !campaignFormData.name || !campaignFormData.formId) {
+            toast.error('Vui lòng điền đầy đủ thông tin')
+            return
+          }
+          try {
+            await api.post('/recruitment/campaigns', { ...campaignFormData, proposalId: selectedProposal.id, startDate: selectedProposal.isUntilFilled ? null : selectedProposal.startDate, endDate: selectedProposal.isUntilFilled ? null : selectedProposal.endDate, isUntilFilled: selectedProposal.isUntilFilled })
+            setShowCreateCampaign(false)
+            loadProposals()
+            toast.success('Tạo chiến dịch thành công!')
+          } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Có lỗi xảy ra')
+          }
+        }} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tên chiến dịch <span className="text-red-500">*</span></label>
+            <input type="text" value={campaignFormData.name} onChange={e => setCampaignFormData({ ...campaignFormData, name: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Form <span className="text-red-500">*</span></label>
+            <select value={campaignFormData.formId} onChange={e => setCampaignFormData({ ...campaignFormData, formId: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required>
+              <option value="">Chọn form</option>
+              {forms.map(f => <option key={f.id} value={f.id}>{f.title}</option>)}
+            </select>
+          </div>
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={() => setShowCreateCampaign(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Hủy</button>
+            <button type="submit" className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800">Tạo</button>
+          </div>
+        </form>
+      </Modal>
+
+      <ConfirmDialog isOpen={confirmDelete} title="Xóa đề xuất" message={`Bạn có chắc muốn xóa đề xuất "${selectedProposal?.title}"?`} confirmText="Xóa" onConfirm={handleDeleteProposal} onClose={() => setConfirmDelete(false)} isLoading={actionLoading} destructive />
+
+      <ConfirmDialog isOpen={confirmApprove} title="Duyệt đề xuất" message={selectedProposal ? `Bạn có chắc muốn duyệt đề xuất "${selectedProposal.title}"?` : ''} confirmText="Duyệt" onConfirm={handleApprove} onClose={() => setConfirmApprove(false)} isLoading={actionLoading} />
+
+      <ConfirmDialog isOpen={confirmReject} title="Từ chối đề xuất" message="Xác nhận từ chối đề xuất này?" confirmText="Từ chối" onConfirm={handleReject} onClose={() => setConfirmReject(false)} isLoading={actionLoading} destructive />
     </div>
   )
 }
-

@@ -158,7 +158,7 @@ export default function CreateInterviewForm({
     // Load candidates
     api
       .get('/recruitment/candidates')
-      .then((res) => setCandidates(res.data))
+      .then((res) => setCandidates(res.data.candidates || res.data || []))
       .catch(console.error)
 
     // Load users (to get interviewers)

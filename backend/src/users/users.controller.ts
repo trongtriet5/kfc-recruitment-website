@@ -1,7 +1,6 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Res } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { Response } from 'express';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
@@ -16,6 +15,11 @@ export class UsersController {
   @Get('select')
   getForSelect() {
     return this.usersService.getForSelect();
+  }
+
+  @Get('stores-for-assign')
+  getStoresForAssign() {
+    return this.usersService.getStoresForAssign();
   }
 
   @Post()

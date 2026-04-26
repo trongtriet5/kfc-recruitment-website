@@ -450,30 +450,60 @@ export class ProposalService {
     const page = filters?.page || 1;
     const limit = filters?.limit || 20;
 
-    const [proposals, total] = await Promise.all([
-      this.prisma.recruitmentProposal.findMany({
-        where,
-        include: {
-          store: true,
-          position: true,
-          department: true,
-          approver: { select: { id: true, fullName: true } },
-          workflowHistory: { orderBy: { createdAt: 'desc' }, take: 5 },
-          fulfillment: true,
-          candidates: { select: { id: true } },
-        },
-        orderBy: [
-          { urgency: 'asc' },
-          { createdAt: 'desc' },
-        ],
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      this.prisma.recruitmentProposal.count({ where }),
-    ]);
+    const proposals = await this.prisma.recruitmentProposal.findMany({
+      where,
+      include: {
+        store: true,
+        position: true,
+        department: true,
+        approver: { select: { id: true, fullName: true } },
+        workflowHistory: { orderBy: { createdAt: 'desc' }, take: 5 },
+        fulfillment: true,
+      },
+      orderBy: [
+        { urgency: 'asc' },
+        { createdAt: 'desc' },
+      ],
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    // Get counts - both direct proposalId and via campaign
+    const proposalIds = proposals.map(p => p.id);
+    const campaignIds = proposals.filter(p => p.campaignId).map(p => p.campaignId);
+    
+    const directCounts = await this.prisma.candidate.groupBy({
+      by: ['proposalId'],
+      _count: { id: true },
+      where: { proposalId: { in: proposalIds } }
+    });
+
+    const campaignCounts = await this.prisma.candidate.groupBy({
+      by: ['campaignId'],
+      _count: { id: true },
+      where: { campaign: { proposalId: { in: proposalIds } } }
+    });
+
+    const countMap: Record<string, number> = {};
+    directCounts.forEach(c => {
+      if (c.proposalId) countMap[c.proposalId] = (countMap[c.proposalId] || 0) + c._count.id;
+    });
+    campaignCounts.forEach(c => {
+      const proposal = proposals.find(p => p.campaignId === c.campaignId);
+      if (proposal) {
+        countMap[proposal.id] = (countMap[proposal.id] || 0) + c._count.id;
+      }
+    });
+
+    const proposalsWithCount = proposals.map(p => ({
+      ...p,
+      _count: { candidates: countMap[p.id] || 0 }
+    }));
+
+    const total = await this.prisma.recruitmentProposal.count({ where });
 
     return {
-      data: proposals,
+      data: proposalsWithCount,
       total,
       page,
       totalPages: Math.ceil(total / limit),

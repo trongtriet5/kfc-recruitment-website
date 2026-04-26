@@ -93,7 +93,7 @@ function adjustColor(color: string | null, amount: number): string {
 export default function RecruitmentDashboard() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
-  
+
   // Filter states
   const [campaignId, setCampaignId] = useState<string>('ALL')
   const [storeId, setStoreId] = useState<string>('ALL')
@@ -101,7 +101,7 @@ export default function RecruitmentDashboard() {
   const [statusId, setStatusId] = useState<string>('ALL')
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined })
   const [showFilters, setShowFilters] = useState(false)
-  
+
   // Filter options
   const [campaigns, setCampaigns] = useState<any[]>([])
   const [stores, setStores] = useState<any[]>([])
@@ -162,11 +162,56 @@ export default function RecruitmentDashboard() {
 
 
 
+  // Skeleton loading UI
+  if (loading && !data) {
+    return (
+      <div className="pt-6 space-y-8 animate-pulse">
+        <div className="pb-2">
+          <div className="h-8 bg-gray-200 rounded w-72 mb-2" />
+          <div className="h-4 bg-gray-100 rounded w-96" />
+        </div>
+        {/* Filter skeleton */}
+        <div className="flex gap-3 pb-6 border-b border-gray-100">
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-10 bg-gray-200 rounded-md w-[220px]" />)}
+        </div>
+        {/* KPI cards skeleton */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map(i => (
+            <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="h-3 bg-gray-200 rounded w-28 mb-3" />
+                  <div className="h-8 bg-gray-200 rounded w-16" />
+                </div>
+                <div className="w-10 h-10 bg-gray-100 rounded-lg" />
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Chart skeleton */}
+        <div className="bg-white shadow rounded-lg">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="h-5 bg-gray-200 rounded w-48" />
+          </div>
+          <div className="p-6">
+            <div className="h-[300px] bg-gray-100 rounded" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[1, 2].map(i => (
+            <div key={i} className="bg-white shadow rounded-lg p-6">
+              <div className="h-5 bg-gray-200 rounded w-40 mb-4" />
+              <div className="h-[280px] bg-gray-100 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   if (!data) {
     return <div className="text-center py-8 text-red-600">Không thể tải dữ liệu dashboard</div>
   }
-
-  // Using getBrandLabel from brand-utils
 
   // Prepare chart data
   const candidatesByStatus = data?.candidatesByStatus || []
@@ -175,19 +220,32 @@ export default function RecruitmentDashboard() {
   const candidatesByStore = data?.candidatesByStore || []
   const funnelData = data?.funnelData || []
   const taPerformance = data?.taPerformance || []
-  
+
+  // KPI: Đã xử lý = status khác CV_FILTERING (status đầu tiên)
+  const processedCount = candidatesByStatus
+    ?.filter((s: any) => s.statusCode !== 'CV_FILTERING')
+    .reduce((sum: number, s: any) => sum + (s.count || 0), 0);
+
+  // KPI: Ứng viên đạt = các status: HR_INTERVIEW_PASSED, SM_AM_INTERVIEW_PASSED,
+  //   OM_PV_INTERVIEW_PASSED, OFFER_SENT, OFFER_ACCEPTED, WAITING_ONBOARDING,
+  //   ONBOARDING_ACCEPTED, ONBOARDING_REJECTED (status_id tương ứng 10,12,15,16,17,18,19,20)
+  const PASSED_STATUS_CODES = [
+    'HR_INTERVIEW_PASSED',
+    'SM_AM_INTERVIEW_PASSED',
+    'OM_PV_INTERVIEW_PASSED',
+    'OFFER_SENT',
+    'OFFER_ACCEPTED',
+    'WAITING_ONBOARDING',
+    'ONBOARDING_ACCEPTED',
+    'ONBOARDING_REJECTED',
+  ];
   const cvPassedCount = candidatesByStatus
-    ?.filter((s: any) => [
-      'SM_AM_INTERVIEW_PASSED',
-      'OM_PV_INTERVIEW_PASSED',
-      'OFFER_SENT',
-      'OFFER_ACCEPTED',
-      'OFFER_REJECTED',
-      'WAITING_ONBOARDING',
-      'ONBOARDING_ACCEPTED',
-      'ONBOARDING_REJECTED'
-    ].includes(s.statusCode))
-    .reduce((sum, s) => sum + (s.count || 0), 0);
+    ?.filter((s: any) => PASSED_STATUS_CODES.includes(s.statusCode))
+    .reduce((sum: number, s: any) => sum + (s.count || 0), 0);
+
+  // KPI: Đồng ý nhận việc = ONBOARDING_ACCEPTED (status_id 20)
+  const acceptedCount = candidatesByStatus
+    ?.find((s: any) => s.statusCode === 'ONBOARDING_ACCEPTED')?.count || 0;
 
   const statusChartData = {
     series: candidatesByStatus
@@ -472,7 +530,7 @@ export default function RecruitmentDashboard() {
             </Select>
           </div>
 
-          
+
 
           {/* TA phụ trách */}
           <div className="w-[220px]">
@@ -494,7 +552,7 @@ export default function RecruitmentDashboard() {
 
           {/* Date Picker */}
           <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-md px-2 h-10 shadow-sm">
-             <Popover>
+            <Popover>
               <PopoverTrigger asChild>
                 <button className="text-xs font-medium text-gray-600 hover:text-gray-900 flex items-center gap-1.5 px-1">
                   {dateRange.from ? dateRange.from.toLocaleDateString('vi-VN') : 'Từ ngày'}
@@ -525,12 +583,12 @@ export default function RecruitmentDashboard() {
                 />
               </PopoverContent>
             </Popover>
-</div>
+          </div>
+        </div>
       </div>
-    </div>
-        
-    {/* Summary Cards */}
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -540,25 +598,6 @@ export default function RecruitmentDashboard() {
             <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
               <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Ứng viên mới</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{data.newCandidatesThisMonth}</p>
-              {data.newCandidatesLastMonth > 0 && (
-                <p className="text-xs text-gray-400 mt-1">
-                  Tháng trước: {data.newCandidatesLastMonth}
-                </p>
-              )}
-            </div>
-            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
               </svg>
             </div>
           </div>
@@ -596,13 +635,28 @@ export default function RecruitmentDashboard() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Ứng viên đạt</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                {cvPassedCount}
-              </p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Đã xử lý</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{processedCount}</p>
+              <p className="text-xs text-gray-400 mt-1 italic">* Khác trạng thái Lọc CV</p>
             </div>
-            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Ứng viên đạt</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{cvPassedCount}</p>
+              <p className="text-xs text-gray-400 mt-1 italic">* Quản lý trả kết quả đạt</p>
+
+            </div>
+            <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
@@ -612,13 +666,12 @@ export default function RecruitmentDashboard() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Trúng tuyển</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                {candidatesByStatus.find((s) => s.statusCode === 'ONBOARDING_ACCEPTED')?.count || 0}
-              </p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Đồng ý nhận việc</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{acceptedCount}</p>
+              <p className="text-xs text-gray-400 mt-1 italic">* Trạng thái Đồng ý nhận việc</p>
             </div>
-            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
@@ -851,7 +904,7 @@ export default function RecruitmentDashboard() {
                   fontFamily: 'Lexend, sans-serif',
                 }
               },
-              colors: ['#3B82F6', '#10B981', '#F59E0B'],
+              colors: ['#10B981', '#F59E0B'],
               legend: {
                 position: 'top',
                 fontFamily: 'Lexend, sans-serif',
@@ -859,16 +912,16 @@ export default function RecruitmentDashboard() {
             }}
             series={[
               {
-                name: 'Số lượng xử lý',
-                data: data.taPerformance.map(ta => ta.totalCandidates)
+                name: 'Đã xử lý',
+                data: data.taPerformance.map((ta: any) => ta.processedCandidates ?? ta.totalCandidates)
               },
               {
-                name: 'Số lượng ứng viên đạt',
-                data: data.taPerformance.map(ta => ta.passedCandidates)
+                name: 'Ứng viên đạt',
+                data: data.taPerformance.map((ta: any) => ta.passedCandidates)
               },
               {
-                name: 'Số lượng nhận việc',
-                data: data.taPerformance.map(ta => ta.onboardedCandidates)
+                name: 'Đồng ý nhận việc',
+                data: data.taPerformance.map((ta: any) => ta.onboardedCandidates)
               }
             ]}
             type="bar"
@@ -876,6 +929,70 @@ export default function RecruitmentDashboard() {
           />
         )}
       </div>
+
+      {/* TA Performance Table */}
+      {data.taPerformance && data.taPerformance.length > 0 && (
+        <div className="mt-6">
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="px-6 py-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">Hiệu suất của TA (Người phụ trách)</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">TA</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vai trò</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng UV</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Đã xử lý</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ứng viên đạt</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Đồng ý nhận việc</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tỷ lệ đạt</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {data.taPerformance.map((ta: any) => {
+                    const processed = ta.processedCandidates ?? ta.totalCandidates
+                    const passedRate = ta.totalCandidates > 0 ? ((ta.passedCandidates / ta.totalCandidates) * 100).toFixed(1) : '0.0'
+                    const onboardedRate = ta.totalCandidates > 0 ? ((ta.onboardedCandidates / ta.totalCandidates) * 100).toFixed(1) : '0.0'
+                    return (
+                      <tr key={ta.taId} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{ta.taName}</div>
+                          <div className="text-sm text-gray-500">{ta.taEmail}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {ta.taRole === 'USER' ? 'SM' : ta.taRole === 'MANAGER' ? 'AM' : ta.taRole === 'RECRUITER' ? 'Recruiter' : ta.taRole}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900 font-medium">
+                          {ta.totalCandidates}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-indigo-600 font-medium">
+                          {processed}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-blue-600 font-medium">
+                          {ta.passedCandidates} ({passedRate}%)
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-green-600 font-medium">
+                          {ta.onboardedCandidates} ({onboardedRate}%)
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${parseFloat(onboardedRate) >= 50 ? 'bg-green-100 text-green-800' :
+                            parseFloat(onboardedRate) >= 20 ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                            {onboardedRate}%
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
 
       {/* Charts Row 2: Status Distribution and Monthly Trend */}
@@ -957,66 +1074,7 @@ export default function RecruitmentDashboard() {
           </div>
         </div>
       </div>
-
-      {/* TA Performance Table */}
-      {data.taPerformance && data.taPerformance.length > 0 && (
-        <div className="mt-6">
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="px-6 py-4 border-b">
-              <h3 className="text-lg font-semibold text-gray-900">Hiệu suất của TA (Người phụ trách)</h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">TA</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vai trò</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng ứng viên</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Đạt (CV đạt, PV đạt, Offer đạt)</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Nhận việc</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tỷ lệ đạt</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {data.taPerformance.map((ta) => {
-                    const passedRate = ta.totalCandidates > 0 ? ((ta.passedCandidates / ta.totalCandidates) * 100).toFixed(1) : '0.0'
-                    const onboardedRate = ta.totalCandidates > 0 ? ((ta.onboardedCandidates / ta.totalCandidates) * 100).toFixed(1) : '0.0'
-                    return (
-                      <tr key={ta.taId} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{ta.taName}</div>
-                          <div className="text-sm text-gray-500">{ta.taEmail}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {ta.taRole === 'USER' ? 'SM' : ta.taRole === 'MANAGER' ? 'AM' : ta.taRole}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900 font-medium">
-                          {ta.totalCandidates}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-blue-600 font-medium">
-                          {ta.passedCandidates} ({passedRate}%)
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-green-600 font-medium">
-                          {ta.onboardedCandidates} ({onboardedRate}%)
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            parseFloat(onboardedRate) >= 50 ? 'bg-green-100 text-green-800' :
-                            parseFloat(onboardedRate) >= 20 ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
-                            {onboardedRate}%
-                          </span>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
+

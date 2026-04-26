@@ -21,6 +21,20 @@ interface Campaign {
   form: { id: string; title: string; brand: string }
   store?: { id: string; name: string; code: string }
   _count: { candidates: number }
+  proposalId?: string
+  targetQty?: number
+  fulfilledQty?: number
+  hiredQty?: number
+  offerAcceptedQty?: number
+}
+
+interface Candidate {
+  id: string
+  fullName: string
+  email: string | null
+  phone: string
+  status: { id: string; name: string; code: string; color: string }
+  createdAt: string
 }
 
 export default function CampaignsList() {
@@ -64,6 +78,12 @@ export default function CampaignsList() {
   const [proposals, setProposals] = useState<any[]>([])
   const createFormRef = useRef<HTMLDivElement>(null)
   const editModalRef = useRef<HTMLDivElement>(null)
+  
+  // Detail modal
+  const [showDetailModal, setShowDetailModal] = useState(false)
+  const [detailCampaign, setDetailCampaign] = useState<Campaign | null>(null)
+  const [campaignCandidates, setCampaignCandidates] = useState<Candidate[]>([])
+  const [loadingCandidates, setLoadingCandidates] = useState(false)
 
   useClickOutside(createFormRef, () => {
     if (showCreateForm) {
@@ -110,6 +130,19 @@ export default function CampaignsList() {
       .get('/auth/me')
       .then((res) => setUser(res.data))
       .catch(console.error)
+  }
+
+  const loadCampaignCandidates = async (campaignId: string) => {
+    setLoadingCandidates(true)
+    try {
+      const res = await api.get(`/recruitment/candidates?campaignId=${campaignId}&limit=100`)
+      setCampaignCandidates(res.data.candidates || [])
+    } catch (err) {
+      console.error('Failed to load candidates:', err)
+      setCampaignCandidates([])
+    } finally {
+      setLoadingCandidates(false)
+    }
   }
 
   const loadForms = () => {
@@ -505,7 +538,12 @@ export default function CampaignsList() {
               .map((campaign) => (
               <li 
                   key={campaign.id} 
-                  className="px-4 py-4 sm:px-6 hover:bg-gray-50 cursor-context-menu"
+                  className="px-4 py-4 sm:px-6 hover:bg-gray-50 cursor-pointer"
+                  onClick={() => {
+                    setDetailCampaign(campaign)
+                    setShowDetailModal(true)
+                    loadCampaignCandidates(campaign.id)
+                  }}
                   onContextMenu={(e) => handleContextMenu(e, campaign)}
                 >
                 <div className="flex items-center justify-between">
@@ -531,9 +569,8 @@ export default function CampaignsList() {
                     <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
                       <span>Form: {campaign.form?.title}</span>
                       <span>
-                        {new Date(campaign.startDate).toLocaleDateString('vi-VN')}
-                        {campaign.endDate &&
-                          ` - ${new Date(campaign.endDate).toLocaleDateString('vi-VN')}`}
+                        {campaign.startDate ? new Date(campaign.startDate).toLocaleDateString('vi-VN') : 'Chưa có'}
+                        {campaign.endDate && ` - ${new Date(campaign.endDate).toLocaleDateString('vi-VN')}`}
                       </span>
                       <span>Ứng viên: {campaign._count?.candidates || 0}</span>
 
@@ -578,6 +615,17 @@ export default function CampaignsList() {
           className="fixed bg-white shadow-lg rounded-md border py-1 z-50"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
+          <button
+            onClick={() => {
+              setDetailCampaign(contextMenu.campaign)
+              setShowDetailModal(true)
+              loadCampaignCandidates(contextMenu.campaign.id)
+              setContextMenu(null)
+            }}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+          >
+            <Icon name="eye" size={16} /> Xem chi tiết
+          </button>
           <button
             onClick={() => handleEdit(contextMenu.campaign)}
             className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
@@ -711,6 +759,89 @@ export default function CampaignsList() {
           </div>
         </div>
       )}
+
+      {/* Detail Modal */}
+      <Modal isOpen={showDetailModal} onClose={() => setShowDetailModal(false)} title={`Chiến dịch: ${detailCampaign?.name || ''}`} maxWidth="max-w-4xl">
+        {detailCampaign && (
+          <div className="space-y-6">
+            {/* Campaign Info */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-xs text-gray-500">Trạng thái</p>
+                  <p className={`font-medium ${detailCampaign.isActive ? 'text-green-600' : 'text-gray-600'}`}>
+                    {detailCampaign.isActive ? 'Đang hoạt động' : 'Tạm dừng'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Cửa hàng</p>
+                  <p className="font-medium">{detailCampaign.store?.name || 'Chưa gán'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Ngày bắt đầu</p>
+                  <p className="font-medium">{detailCampaign.startDate ? new Date(detailCampaign.startDate).toLocaleDateString('vi-VN') : 'Chưa có'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Ngày kết thúc</p>
+                  <p className="font-medium">{detailCampaign.endDate ? new Date(detailCampaign.endDate).toLocaleDateString('vi-VN') : 'Chưa có'}</p>
+                </div>
+              </div>
+              {detailCampaign.description && (
+                <div className="mt-4">
+                  <p className="text-xs text-gray-500">Mô tả</p>
+                  <p className="text-sm">{detailCampaign.description}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Candidates Table */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-900 mb-3">
+                Danh sách ứng viên ({campaignCandidates.length})
+              </h4>
+              {loadingCandidates ? (
+                <div className="text-center py-8 text-gray-500">Đang tải...</div>
+              ) : campaignCandidates.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">Chưa có ứng viên nào</div>
+              ) : (
+                <div className="overflow-x-auto border rounded-lg">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">STT</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Họ tên</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Email</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">SĐT</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Trạng thái</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Ngày tạo</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {campaignCandidates.map((candidate, index) => (
+                        <tr key={candidate.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-2 text-sm">{index + 1}</td>
+                          <td className="px-4 py-2 text-sm font-medium">{candidate.fullName}</td>
+                          <td className="px-4 py-2 text-sm">{candidate.email || '-'}</td>
+                          <td className="px-4 py-2 text-sm">{candidate.phone}</td>
+                          <td className="px-4 py-2">
+                            <span 
+                              className="inline-flex px-2 py-0.5 rounded text-xs font-medium"
+                              style={{ backgroundColor: candidate.status?.color + '20', color: candidate.status?.color }}
+                            >
+                              {candidate.status?.name || 'Chưa có'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-sm">{new Date(candidate.createdAt).toLocaleDateString('vi-VN')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

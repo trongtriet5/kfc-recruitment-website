@@ -16,6 +16,12 @@ export class UsersService {
         role: true,
         isActive: true,
         createdAt: true,
+        managedStore: {
+          select: { id: true, name: true, code: true, city: true }
+        },
+        managedStores: {
+          select: { id: true, name: true, code: true, city: true }
+        },
       }
     });
   }
@@ -25,6 +31,27 @@ export class UsersService {
       where: { isActive: true },
       select: { id: true, fullName: true, email: true },
       orderBy: { fullName: 'asc' }
+    });
+  }
+
+  /** Returns all stores with SM/AM assignment info, for use in user create/edit form */
+  async getStoresForAssign() {
+    return this.prisma.store.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        city: true,
+        zone: true,
+        group: true,
+        amName: true,
+        smId: true,
+        amId: true,
+        sm: { select: { id: true, fullName: true } },
+        am: { select: { id: true, fullName: true } },
+      },
+      orderBy: [{ city: 'asc' }, { code: 'asc' }],
     });
   }
 
@@ -40,36 +67,73 @@ export class UsersService {
       }
     });
 
-    await this.assignUserToStores(user);
-    return user;
+    // Manual explicit store assignment takes priority
+    if (data.storeId && (data.role === 'USER' || data.role === 'SM')) {
+      await this.assignSMToStore(user.id, data.storeId);
+    } else if (data.storeIds?.length && (data.role === 'MANAGER' || data.role === 'AM')) {
+      await this.assignAMToStores(user.id, data.storeIds);
+    } else {
+      // Fallback: auto-match by name/email convention
+      await this.assignUserToStoresByConvention(user);
+    }
+
+    return this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        id: true, email: true, fullName: true, phone: true, role: true, isActive: true,
+        managedStore: { select: { id: true, name: true, code: true } },
+        managedStores: { select: { id: true, name: true, code: true } },
+      }
+    });
   }
 
-  private async assignUserToStores(user: any) {
+  private async assignSMToStore(userId: string, storeId: string) {
+    // Unassign any previously managed store for this user
+    await this.prisma.store.updateMany({
+      where: { smId: userId },
+      data: { smId: null },
+    });
+    // Assign new store
+    await this.prisma.store.update({
+      where: { id: storeId },
+      data: { smId: userId },
+    });
+  }
+
+  private async assignAMToStores(userId: string, storeIds: string[]) {
+    // Remove AM from any stores previously managed by this user
+    await this.prisma.store.updateMany({
+      where: { amId: userId },
+      data: { amId: null },
+    });
+    // Assign to new stores
+    if (storeIds.length > 0) {
+      await this.prisma.store.updateMany({
+        where: { id: { in: storeIds } },
+        data: { amId: userId },
+      });
+    }
+  }
+
+  /** Legacy auto-match by name/email convention (used for imports) */
+  private async assignUserToStoresByConvention(user: any) {
     if (user.role === 'MANAGER') {
-      // Assign AM to stores based on amName matching user's fullName
       await this.prisma.store.updateMany({
         where: { amName: user.fullName },
         data: { amId: user.id }
       });
     } else if (user.role === 'USER') {
-      // Assign SM to store based on email pattern: sm.{code}@kfcvietnam.com.vn
-      // or if it matches the store code directly in a field (if we had one)
-      const match = user.email.match(/^sm\.([a-z0-9.]+)\@kfcvietnam\.com\.vn$/i);
+      const match = user.email.match(/^sm\.([a-z0-9.]+)@kfcvietnam\.com\.vn$/i);
       if (match) {
-        // match[1] is the slugified code (e.g. "002.bdn" from "002-BDN")
         const slug = match[1].toLowerCase();
-        
-        // Find store where slugified code matches
         const stores = await this.prisma.store.findMany({
           where: { smId: null },
           select: { id: true, code: true }
         });
-
         const store = stores.find(s => {
           const storeSlug = s.code.toLowerCase().replace(/[^a-z0-9]/g, '.');
           return storeSlug === slug;
         });
-
         if (store) {
           await this.prisma.store.update({
             where: { id: store.id },
@@ -82,30 +146,53 @@ export class UsersService {
 
   async update(id: string, data: any) {
     const updateData: any = { ...data };
-    if (!updateData.password) {
-      delete updateData.password;
-    }
-    return this.prisma.user.update({
+    if (!updateData.password) delete updateData.password;
+
+    // Extract store assignment fields before passing to prisma
+    const storeId: string | undefined = updateData.storeId;
+    const storeIds: string[] | undefined = updateData.storeIds;
+    delete updateData.storeId;
+    delete updateData.storeIds;
+
+    const user = await this.prisma.user.update({
       where: { id },
       data: updateData
+    });
+
+    const role = updateData.role || user.role;
+
+    if (storeId !== undefined && (role === 'USER' || role === 'SM')) {
+      if (storeId) {
+        await this.assignSMToStore(id, storeId);
+      } else {
+        // Unassign
+        await this.prisma.store.updateMany({ where: { smId: id }, data: { smId: null } });
+      }
+    } else if (storeIds !== undefined && (role === 'MANAGER' || role === 'AM')) {
+      await this.assignAMToStores(id, storeIds);
+    }
+
+    return this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true, email: true, fullName: true, phone: true, role: true, isActive: true,
+        managedStore: { select: { id: true, name: true, code: true } },
+        managedStores: { select: { id: true, name: true, code: true } },
+      }
     });
   }
 
   async remove(id: string) {
-    return this.prisma.user.delete({
-      where: { id }
-    });
+    return this.prisma.user.delete({ where: { id } });
   }
 
   async importUsers(data: any) {
     const results = { success: 0, failed: 0, errors: [] as string[] };
-    
+
     for (const user of data.users || []) {
       try {
-        const existing = await this.prisma.user.findUnique({
-          where: { email: user.email }
-        });
-        
+        const existing = await this.prisma.user.findUnique({ where: { email: user.email } });
+
         if (existing) {
           await this.prisma.user.update({
             where: { id: existing.id },
@@ -127,15 +214,15 @@ export class UsersService {
               isActive: user.isActive !== undefined ? user.isActive : true,
             }
           });
-          await this.assignUserToStores(newUser);
+          await this.assignUserToStoresByConvention(newUser);
         }
         results.success++;
-      } catch (error) {
+      } catch (error: any) {
         results.failed++;
         results.errors.push(`Lỗi import ${user.email || 'unknown'}: ${error.message}`);
       }
     }
-    
+
     return results;
   }
 }

@@ -175,7 +175,7 @@ model Campaign {
   candidates   Candidate[]
   auditLogs    CandidateAuditLog[]
   offers       Offer[]
-  proposal     RecruitmentProposal? @relation(fields: [proposalId], references: [id])
+  proposal     RecruitmentProposal? @relation("ProposalCampaign", fields: [proposalId], references: [id])
 
   @@map("campaigns")
 }
@@ -188,6 +188,7 @@ model Candidate {
   cvUrl           String?
   formId          String?
   campaignId      String?
+  proposalId      String?
   sourceId        String?
   source          Source?        @relation(fields: [sourceId], references: [id])
   brand           String?
@@ -233,6 +234,7 @@ model Candidate {
 
   form            RecruitmentForm?  @relation(fields: [formId], references: [id])
   campaign        Campaign?         @relation(fields: [campaignId], references: [id])
+  proposal        RecruitmentProposal? @relation("CandidateDirectProposal", fields: [proposalId], references: [id])
   store           Store?           @relation(fields: [storeId], references: [id])
   department      Department?      @relation(fields: [departmentId], references: [id])
   
@@ -240,7 +242,6 @@ model Candidate {
   pic             User?            @relation("CandidatePIC", fields: [picId], references: [id])
   
   interviews      Interview[]
-  proposals       RecruitmentProposal[]
   auditLogs       CandidateAuditLog[]
   slaLogs         CandidateSLALog[]
   communications  CandidateCommunicationLog[]
@@ -329,10 +330,10 @@ model RecruitmentProposal {
   position     Position?       @relation(fields: [positionId], references: [id])
   approver     User?           @relation("ProposalCreator", fields: [approverId], references: [id])
   department  Department?    @relation(fields: [departmentId], references: [id])
-  candidates  Candidate[]
+  candidates  Candidate[]     @relation("CandidateDirectProposal")
+  campaign    Campaign?       @relation("ProposalCampaign")
   workflowHistory ProposalWorkflow[]
   fulfillment ProposalFulfillment?
-  campaign   Campaign?
 
   @@map("recruitment_proposals")
 }

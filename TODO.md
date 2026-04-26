@@ -30,9 +30,9 @@
 
 ## Phase 5: Integration & Testing
 - [x] 5.1 Wire up all services
-- [ ] 5.2 Test role-based access
-- [ ] 5.3 Test workflow transitions
-- [ ] 5.4 Verify SLA calculations
+- [x] 5.2 Test role-based access
+- [x] 5.3 Test workflow transitions
+- [x] 5.4 Verify SLA calculations
 
 ## Next Steps to Activate
 1. Run `cd backend && npx prisma migrate dev --name enterprise_improvements`

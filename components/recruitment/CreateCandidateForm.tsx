@@ -21,6 +21,7 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
   const [stores, setStores] = useState<Store[]>([])
   const [statuses, setStatuses] = useState<any[]>([])
   const [campaigns, setCampaigns] = useState<any[]>([])
+  const [proposals, setProposals] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -34,6 +35,7 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
     position: '',
     storeId: '',
     campaignId: '',
+    proposalId: '',
     status: '',
     picId: '',
     notes: '',
@@ -45,17 +47,19 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
 
   const loadData = async () => {
     try {
-      const [storesRes, statusesRes, campaignsRes, usersRes] = await Promise.all([
+      const [storesRes, statusesRes, campaignsRes, usersRes, proposalsRes] = await Promise.all([
         api.get('/stores').catch(() => ({ data: [] })),
         api.get('/types/by-category/CANDIDATE_STATUS').catch(() => ({ data: [] })),
         api.get('/recruitment/campaigns').catch(() => ({ data: [] })),
         api.get('/users/select').catch(() => ({ data: [] })),
+        api.get('/recruitment/proposals').catch(() => ({ data: { data: [] } })),
       ])
 
       setStores(storesRes.data)
       setStatuses(statusesRes.data)
       setCampaigns(campaignsRes.data)
       setUsers(usersRes.data)
+      setProposals(proposalsRes.data.data || [])
 
       const defaultStatus = statusesRes.data.find((s: any) => s.code === 'CV_FILTERING')
       if (defaultStatus) {
@@ -91,6 +95,7 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
       if (formData.position) payload.position = formData.position
       if (formData.storeId) payload.storeId = formData.storeId
       if (formData.campaignId) payload.campaignId = formData.campaignId
+      if (formData.proposalId) payload.proposalId = formData.proposalId
       if (formData.notes) payload.notes = formData.notes
 
       const res = await api.post('/recruitment/candidates', payload)
@@ -211,7 +216,25 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
               <option value="">Chọn chiến dịch (tùy chọn)</option>
               {campaigns.map((campaign) => (
                 <option key={campaign.id} value={campaign.id}>
-                  {campaign.title}
+                  {campaign.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Đề xuất tuyển dụng
+            </label>
+            <select
+              value={formData.proposalId}
+              onChange={(e) => setFormData({ ...formData, proposalId: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            >
+              <option value="">Chọn đề xuất (tùy chọn)</option>
+              {proposals.filter(p => p.status === 'APPROVED').map((proposal) => (
+                <option key={proposal.id} value={proposal.id}>
+                  {proposal.title} - {proposal.quantity} người
                 </option>
               ))}
             </select>

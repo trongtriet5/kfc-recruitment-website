@@ -230,12 +230,15 @@ export class StatusTransitionService {
       });
       if (campaign) {
         const updateData: any = {};
+        // OFFER_ACCEPTED and related = Trúng tuyển
         if (statusCode === 'OFFER_ACCEPTED') {
           updateData.offerAcceptedQty = { increment: 1 };
+          updateData.fulfilledQty = { increment: 1 }; // Trúng tuyển
         }
+        // ONBOARDING_ACCEPTED = Đồng ý nhận việc
         if (statusCode === 'ONBOARDING_ACCEPTED') {
           updateData.hiredQty = { increment: 1 };
-          updateData.fulfilledQty = { increment: 1 };
+          // Don't increment fulfilledQty again since this is already counted in OFFER_ACCEPTED
         }
         await this.prisma.campaign.update({
           where: { id: campaign.id },
@@ -245,11 +248,16 @@ export class StatusTransitionService {
     }
 
     // Update proposal fulfillment
-    const proposals = await this.prisma.recruitmentProposal.findMany({
-      where: { candidates: { some: { id: candidate.id } } },
+    const candidateProposals = await this.prisma.recruitmentProposal.findMany({
+      where: { 
+        OR: [
+          { candidates: { some: { id: candidate.id } } },
+          { id: candidate.proposalId }
+        ]
+      },
     });
 
-    for (const proposal of proposals) {
+    for (const proposal of candidateProposals) {
       const fulfillment = await this.prisma.proposalFulfillment.findUnique({
         where: { proposalId: proposal.id },
       });

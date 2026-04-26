@@ -21,15 +21,18 @@ export class CampaignFulfillmentService {
     if (!campaign) return;
 
     const candidates = campaign.candidates;
+    // OFFER_ACCEPTED = Trúng tuyển (manager selected, candidate accepted offer)
     const offerAcceptedQty = candidates.filter(c =>
       ['OFFER_ACCEPTED', 'WAITING_ONBOARDING', 'ONBOARDING_ACCEPTED', 'ONBOARDING_REJECTED'].includes(c.status?.code || '')
     ).length;
 
+    // ONBOARDING_ACCEPTED = Đồng ý nhận việc (actually started working)
     const hiredQty = candidates.filter(c =>
       ['ONBOARDING_ACCEPTED'].includes(c.status?.code || '')
     ).length;
 
-    const fulfilledQty = hiredQty;
+    // fulfilledQty = Trúng tuyển (OFFER_ACCEPTED and related statuses)
+    const fulfilledQty = offerAcceptedQty;
 
     // Auto-update campaign status if fulfilled
     let status = campaign.status;
