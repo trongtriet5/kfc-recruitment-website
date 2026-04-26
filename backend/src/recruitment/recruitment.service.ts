@@ -434,9 +434,9 @@ export class RecruitmentService {
     if (candidate.preferredLocations && candidate.preferredLocations.length > 0) {
       const stores = await this.prisma.store.findMany({
         where: { id: { in: candidate.preferredLocations } },
-        select: { name: true }
+        select: { name: true, code: true }
       });
-      preferredStoreNames = stores.map(s => s.name);
+      preferredStoreNames = stores.map(s => `${s.name}${s.code ? ` (${s.code})` : ''}`);
     }
 
     return {
@@ -468,6 +468,16 @@ export class RecruitmentService {
   }
 
   async createCandidate(data: any, user?: any) {
+    // Blacklist check
+    if (data.phone || data.email) {
+      const blacklistEntry = await this.checkBlacklist(data.phone, data.email);
+      if (blacklistEntry) {
+        throw new ForbiddenException(
+          `Ứng viên nằm trong danh sách đen. Lý do: ${blacklistEntry.reason}`
+        );
+      }
+    }
+
     const status = await this.prisma.candidateStatus.findUnique({
       where: { code: data.status || 'CV_FILTERING' }
     });
@@ -480,14 +490,60 @@ export class RecruitmentService {
       if (source) sourceId = source.id;
     }
     
+    // Calculate SLA due date
+    const slaDueDate = status?.slaHours 
+      ? new Date(Date.now() + status.slaHours * 60 * 60 * 1000)
+      : null;
+    
     const { status: statusName, sourceCode, ...rest } = data;
-    return this.prisma.candidate.create({
+    
+    const candidate = await this.prisma.candidate.create({
       data: {
         ...rest,
         sourceId,
-        statusId: status?.id
+        statusId: status?.id,
+        slaDueDate,
+        priority: data.priority || 'NORMAL',
       }
     });
+
+    // Create initial SLA log
+    if (status) {
+      await this.prisma.candidateSLALog.create({
+        data: {
+          candidateId: candidate.id,
+          statusCode: status.code,
+          enteredAt: new Date(),
+          slaHours: status.slaHours || 0,
+        }
+      });
+    }
+
+    return candidate;
+  }
+
+  private async checkBlacklist(phone?: string, email?: string) {
+    if (!phone && !email) return null;
+    
+    const where: any[] = [];
+    if (phone) where.push({ phone });
+    if (email) where.push({ email });
+    
+    const blacklistEntry = await this.prisma.blacklist.findFirst({
+      where: {
+        OR: where,
+        AND: [
+          {
+            OR: [
+              { isPermanent: true },
+              { expiryDate: { gt: new Date() } }
+            ]
+          }
+        ]
+      }
+    });
+    
+    return blacklistEntry;
   }
 
   async updateCandidate(id: string, data: any, user?: any) {
@@ -759,7 +815,11 @@ export class RecruitmentService {
     const campaignCounts = await this.prisma.campaign.findMany({
       include: {
         form: true,
-        _count: { select: { candidates: { where: candidateWhere } } },
+        _count: { 
+          select: { 
+            candidates: Object.keys(candidateWhere).length > 0 ? { where: candidateWhere } : true 
+          } 
+        },
       },
       take: 10,
       orderBy: { candidates: { _count: 'desc' } },
@@ -998,6 +1058,16 @@ export class RecruitmentService {
   }
 
   async apply(data: any) {
+    // Blacklist check for public applications
+    if (data.phone || data.email) {
+      const blacklistEntry = await this.checkBlacklist(data.phone, data.email);
+      if (blacklistEntry) {
+        throw new ForbiddenException(
+          `Ứng viên nằm trong danh sách đen. Lý do: ${blacklistEntry.reason}`
+        );
+      }
+    }
+
     const status = await this.prisma.candidateStatus.findUnique({
       where: { code: 'CV_FILTERING' }
     });
@@ -1009,6 +1079,11 @@ export class RecruitmentService {
       });
       if (source) sourceId = source.id;
     }
+
+    // Calculate SLA due date
+    const slaDueDate = status?.slaHours 
+      ? new Date(Date.now() + status.slaHours * 60 * 60 * 1000)
+      : null;
 
     const { status: statusName, sourceCode, dateOfBirth, availableStartDate, ...rest } = data;
     
@@ -1035,16 +1110,32 @@ export class RecruitmentService {
       }
     }
     
-    // Create candidate
-    return this.prisma.candidate.create({
+    // Create candidate with SLA tracking
+    const candidate = await this.prisma.candidate.create({
       data: {
         ...rest,
         dateOfBirth: dateOfBirthDate,
         availableStartDate: availableStartDateDate,
         sourceId,
-        statusId: status?.id
+        statusId: status?.id,
+        slaDueDate,
+        priority: 'NORMAL',
       }
     });
+
+    // Create initial SLA log
+    if (status) {
+      await this.prisma.candidateSLALog.create({
+        data: {
+          candidateId: candidate.id,
+          statusCode: status.code,
+          enteredAt: new Date(),
+          slaHours: status.slaHours || 0,
+        }
+      });
+    }
+
+    return candidate;
   }
 
   async getPublicStores() {
@@ -1070,5 +1161,45 @@ export class RecruitmentService {
 
   private hasAnyFilter(filter: Record<string, unknown>): boolean {
     return Object.keys(filter).length > 0
+  }
+
+  // Notifications
+  async getNotifications(userId: string, unreadOnly: boolean = false) {
+    const where: any = { recipientId: userId };
+    if (unreadOnly) {
+      where.isRead = false;
+    }
+    return this.prisma.notification.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+  }
+
+  async markNotificationRead(notificationId: string, userId: string) {
+    const notification = await this.prisma.notification.findUnique({
+      where: { id: notificationId },
+    });
+    if (!notification || notification.recipientId !== userId) {
+      throw new ForbiddenException('Không có quyền cập nhật thông báo này');
+    }
+    return this.prisma.notification.update({
+      where: { id: notificationId },
+      data: { isRead: true, readAt: new Date() },
+    });
+  }
+
+  async markAllNotificationsRead(userId: string) {
+    return this.prisma.notification.updateMany({
+      where: { recipientId: userId, isRead: false },
+      data: { isRead: true, readAt: new Date() },
+    });
+  }
+
+  async getUnreadNotificationCount(userId: string) {
+    const count = await this.prisma.notification.count({
+      where: { recipientId: userId, isRead: false },
+    });
+    return { count };
   }
 }

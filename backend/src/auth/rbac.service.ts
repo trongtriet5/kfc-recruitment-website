@@ -1,9 +1,116 @@
 import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
+export type PermissionAction =
+  | 'CANDIDATE_CREATE'
+  | 'CANDIDATE_READ'
+  | 'CANDIDATE_UPDATE'
+  | 'CANDIDATE_DELETE'
+  | 'CANDIDATE_STATUS_CHANGE'
+  | 'CANDIDATE_ASSIGN_PIC'
+  | 'CANDIDATE_TRANSFER_CAMPAIGN'
+  | 'CANDIDATE_BLACKLIST'
+  | 'PROPOSAL_CREATE'
+  | 'PROPOSAL_READ'
+  | 'PROPOSAL_UPDATE'
+  | 'PROPOSAL_DELETE'
+  | 'PROPOSAL_SUBMIT'
+  | 'PROPOSAL_REVIEW'
+  | 'PROPOSAL_APPROVE'
+  | 'PROPOSAL_REJECT'
+  | 'PROPOSAL_CANCEL'
+  | 'CAMPAIGN_CREATE'
+  | 'CAMPAIGN_READ'
+  | 'CAMPAIGN_UPDATE'
+  | 'CAMPAIGN_DELETE'
+  | 'CAMPAIGN_MANAGE'
+  | 'INTERVIEW_CREATE'
+  | 'INTERVIEW_READ'
+  | 'INTERVIEW_UPDATE'
+  | 'INTERVIEW_DELETE'
+  | 'OFFER_CREATE'
+  | 'OFFER_READ'
+  | 'OFFER_UPDATE'
+  | 'OFFER_DELETE'
+  | 'OFFER_SEND'
+  | 'REPORT_VIEW'
+  | 'REPORT_EXPORT'
+  | 'SETTINGS_MANAGE'
+  | 'USER_MANAGE';
+
+export const PERMISSION_MATRIX: Record<string, PermissionAction[]> = {
+  ADMIN: [
+    'CANDIDATE_CREATE', 'CANDIDATE_READ', 'CANDIDATE_UPDATE', 'CANDIDATE_DELETE',
+    'CANDIDATE_STATUS_CHANGE', 'CANDIDATE_ASSIGN_PIC', 'CANDIDATE_TRANSFER_CAMPAIGN', 'CANDIDATE_BLACKLIST',
+    'PROPOSAL_CREATE', 'PROPOSAL_READ', 'PROPOSAL_UPDATE', 'PROPOSAL_DELETE',
+    'PROPOSAL_SUBMIT', 'PROPOSAL_REVIEW', 'PROPOSAL_APPROVE', 'PROPOSAL_REJECT', 'PROPOSAL_CANCEL',
+    'CAMPAIGN_CREATE', 'CAMPAIGN_READ', 'CAMPAIGN_UPDATE', 'CAMPAIGN_DELETE', 'CAMPAIGN_MANAGE',
+    'INTERVIEW_CREATE', 'INTERVIEW_READ', 'INTERVIEW_UPDATE', 'INTERVIEW_DELETE',
+    'OFFER_CREATE', 'OFFER_READ', 'OFFER_UPDATE', 'OFFER_DELETE', 'OFFER_SEND',
+    'REPORT_VIEW', 'REPORT_EXPORT',
+    'SETTINGS_MANAGE', 'USER_MANAGE',
+  ],
+  HEAD_OF_DEPARTMENT: [
+    'CANDIDATE_CREATE', 'CANDIDATE_READ', 'CANDIDATE_UPDATE',
+    'CANDIDATE_STATUS_CHANGE', 'CANDIDATE_ASSIGN_PIC', 'CANDIDATE_TRANSFER_CAMPAIGN',
+    'PROPOSAL_CREATE', 'PROPOSAL_READ', 'PROPOSAL_UPDATE',
+    'PROPOSAL_SUBMIT', 'PROPOSAL_REVIEW', 'PROPOSAL_APPROVE', 'PROPOSAL_REJECT',
+    'CAMPAIGN_CREATE', 'CAMPAIGN_READ', 'CAMPAIGN_UPDATE', 'CAMPAIGN_MANAGE',
+    'INTERVIEW_CREATE', 'INTERVIEW_READ', 'INTERVIEW_UPDATE',
+    'OFFER_CREATE', 'OFFER_READ', 'OFFER_UPDATE', 'OFFER_SEND',
+    'REPORT_VIEW', 'REPORT_EXPORT',
+  ],
+  RECRUITER: [
+    'CANDIDATE_CREATE', 'CANDIDATE_READ', 'CANDIDATE_UPDATE',
+    'CANDIDATE_STATUS_CHANGE', 'CANDIDATE_ASSIGN_PIC', 'CANDIDATE_TRANSFER_CAMPAIGN',
+    'PROPOSAL_READ',
+    'CAMPAIGN_READ', 'CAMPAIGN_UPDATE',
+    'INTERVIEW_CREATE', 'INTERVIEW_READ', 'INTERVIEW_UPDATE',
+    'OFFER_CREATE', 'OFFER_READ', 'OFFER_UPDATE', 'OFFER_SEND',
+    'REPORT_VIEW',
+  ],
+  MANAGER: [ // Area Manager
+    'CANDIDATE_READ', 'CANDIDATE_UPDATE',
+    'CANDIDATE_STATUS_CHANGE',
+    'PROPOSAL_CREATE', 'PROPOSAL_READ', 'PROPOSAL_UPDATE',
+    'PROPOSAL_SUBMIT', 'PROPOSAL_REVIEW', 'PROPOSAL_APPROVE', 'PROPOSAL_REJECT', 'PROPOSAL_CANCEL',
+    'CAMPAIGN_READ',
+    'INTERVIEW_CREATE', 'INTERVIEW_READ', 'INTERVIEW_UPDATE',
+    'OFFER_READ',
+    'REPORT_VIEW',
+  ],
+  USER: [ // Store Manager
+    'CANDIDATE_READ',
+    'CANDIDATE_STATUS_CHANGE',
+    'PROPOSAL_CREATE', 'PROPOSAL_READ', 'PROPOSAL_UPDATE',
+    'PROPOSAL_SUBMIT', 'PROPOSAL_CANCEL',
+    'CAMPAIGN_READ',
+    'INTERVIEW_READ',
+    'OFFER_READ',
+    'REPORT_VIEW',
+  ],
+};
+
 @Injectable()
 export class RbacService {
   constructor(private prisma: PrismaService) {}
+
+  /**
+   * Check if user has a specific permission
+   */
+  hasPermission(userRole: string, action: PermissionAction): boolean {
+    const permissions = PERMISSION_MATRIX[userRole] || [];
+    return permissions.includes(action);
+  }
+
+  /**
+   * Assert permission or throw ForbiddenException
+   */
+  assertPermission(userRole: string, action: PermissionAction): void {
+    if (!this.hasPermission(userRole, action)) {
+      throw new ForbiddenException(`Bạn không có quyền thực hiện hành động: ${action}`);
+    }
+  }
 
   async getUserWithRelations(userId: string) {
     return this.prisma.user.findUnique({
@@ -94,8 +201,6 @@ export class RbacService {
   }
 
   // Get proposal IDs visible to a user (including hierarchical view)
-  // AM can see all proposals from their stores
-  // SM can see proposals created by themselves AND all proposals from their AM's zone
   async getVisibleProposalIds(userId: string, userRole: string): Promise<string[]> {
     const myStoreIds = await this.getAccessibleStoreIds(userId, userRole);
     
@@ -104,7 +209,6 @@ export class RbacService {
       return allProposals.map(p => p.id);
     }
 
-    // AM (MANAGER role): can see ALL proposals from their managed stores
     if (userRole === 'MANAGER' && myStoreIds.length > 0) {
       const proposals = await this.prisma.recruitmentProposal.findMany({
         where: { storeId: { in: myStoreIds } },
@@ -113,16 +217,12 @@ export class RbacService {
       return proposals.map(p => p.id);
     }
 
-    // SM (USER role): can see:
-    // 1. Their own store's proposals
-    // 2. All proposals from their AM's zone (their AM's managed stores)
     if (userRole === 'USER' && myStoreIds.length > 0) {
       const myStore = await this.prisma.store.findFirst({
         where: { id: { in: myStoreIds } },
         select: { amId: true }
       });
 
-      // Get proposals from my store AND from AM's zone
       const amStoreIds = myStore?.amId 
         ? (await this.prisma.store.findMany({
             where: { amId: myStore.amId },
@@ -149,7 +249,6 @@ export class RbacService {
   }
 
   // Get user IDs whose proposals the current user can view
-  // For example: AM can see proposals from all SMs in their zone
   async getProposalViewableUserIds(userId: string, userRole: string): Promise<string[]> {
     if (userRole === 'ADMIN') {
       const allUsers = await this.prisma.user.findMany({ select: { id: true } });
@@ -157,7 +256,6 @@ export class RbacService {
     }
 
     if (userRole === 'MANAGER') {
-      // AM can see proposals from all SMs in their zone
       const myStoreIds = await this.getAccessibleStoreIds(userId, userRole);
       const smIds = await this.prisma.store.findMany({
         where: { id: { in: myStoreIds }, smId: { not: null } },
@@ -166,7 +264,6 @@ export class RbacService {
       return smIds.map(s => s.smId!).filter(Boolean);
     }
 
-// SM can only see from their zone (AM + other SMs)
     if (userRole === 'USER') {
       const myUser = await this.prisma.user.findUnique({
         where: { id: userId },
@@ -175,7 +272,6 @@ export class RbacService {
       
       if (!myUser?.managedStore?.amId) return [userId];
       
-      // Get all stores under the same AM, then get SMs for those stores
       const storesUnderAM = await this.prisma.store.findMany({
         where: { amId: myUser.managedStore.amId },
         select: { smId: true }
@@ -206,10 +302,7 @@ export class RbacService {
 
   // Check if interview result is allowed for user role
   isAllowedInterviewResult(result: string, userRole: string): boolean {
-    // ADMIN can do anything
     if (userRole === 'ADMIN') return true;
-
-    // Only SM/AM (USER, MANAGER) can use limited results
     return Object.keys(this.ALLOWED_INTERVIEW_RESULTS).includes(result);
   }
 
@@ -228,4 +321,68 @@ export class RbacService {
       name,
     }));
   }
+
+  /**
+   * Get allowed status transitions for a user
+   */
+  getAllowedStatusTransitions(userRole: string, currentStatus: string | null): string[] {
+    // This is a simplified version - the full logic is in StatusTransitionService
+    const allTransitions: Record<string, string[]> = {
+      ADMIN: ['CV_FILTERING', 'CV_PASSED', 'CV_FAILED', 'BLACKLIST', 'CANNOT_CONTACT', 'AREA_NOT_RECRUITING', 'WAITING_INTERVIEW', 'HR_INTERVIEW_PASSED', 'HR_INTERVIEW_FAILED', 'SM_AM_INTERVIEW_PASSED', 'SM_AM_INTERVIEW_FAILED', 'SM_AM_NO_SHOW', 'OM_PV_INTERVIEW_PASSED', 'OM_PV_INTERVIEW_FAILED', 'OM_PV_NO_SHOW', 'OFFER_SENT', 'OFFER_ACCEPTED', 'OFFER_REJECTED', 'WAITING_ONBOARDING', 'ONBOARDING_ACCEPTED', 'ONBOARDING_REJECTED'],
+      HEAD_OF_DEPARTMENT: ['CV_FILTERING', 'CV_PASSED', 'CV_FAILED', 'BLACKLIST', 'CANNOT_CONTACT', 'AREA_NOT_RECRUITING', 'WAITING_INTERVIEW', 'HR_INTERVIEW_PASSED', 'HR_INTERVIEW_FAILED', 'SM_AM_INTERVIEW_PASSED', 'SM_AM_INTERVIEW_FAILED', 'SM_AM_NO_SHOW', 'OM_PV_INTERVIEW_PASSED', 'OM_PV_INTERVIEW_FAILED', 'OM_PV_NO_SHOW', 'OFFER_SENT', 'OFFER_ACCEPTED', 'OFFER_REJECTED', 'WAITING_ONBOARDING', 'ONBOARDING_ACCEPTED', 'ONBOARDING_REJECTED'],
+      RECRUITER: ['CV_FILTERING', 'CV_PASSED', 'CV_FAILED', 'CANNOT_CONTACT', 'AREA_NOT_RECRUITING', 'WAITING_INTERVIEW', 'HR_INTERVIEW_PASSED', 'HR_INTERVIEW_FAILED', 'OFFER_SENT', 'OFFER_ACCEPTED', 'OFFER_REJECTED', 'WAITING_ONBOARDING', 'ONBOARDING_ACCEPTED', 'ONBOARDING_REJECTED'],
+      MANAGER: ['SM_AM_INTERVIEW_PASSED', 'SM_AM_INTERVIEW_FAILED', 'SM_AM_NO_SHOW', 'OM_PV_INTERVIEW_PASSED', 'OM_PV_INTERVIEW_FAILED', 'OM_PV_NO_SHOW'],
+      USER: ['SM_AM_INTERVIEW_PASSED', 'SM_AM_INTERVIEW_FAILED', 'SM_AM_NO_SHOW'],
+    };
+
+    return allTransitions[userRole] || [];
+  }
+
+  /**
+   * Check if user can perform proposal action
+   */
+  canPerformProposalAction(userRole: string, action: 'create' | 'submit' | 'review' | 'approve' | 'reject' | 'cancel', proposalStatus?: string): boolean {
+    const matrix: Record<string, Record<string, string[]>> = {
+      ADMIN: {
+        create: ['*'], submit: ['*'], review: ['*'], approve: ['*'], reject: ['*'], cancel: ['*'],
+      },
+      HEAD_OF_DEPARTMENT: {
+        create: ['*'], submit: ['*'], review: ['*'], approve: ['*'], reject: ['*'], cancel: ['DRAFT', 'SUBMITTED'],
+      },
+      MANAGER: {
+        create: ['*'], submit: ['DRAFT'], review: ['SUBMITTED'], approve: ['SUBMITTED', 'AM_REVIEWED'], reject: ['SUBMITTED', 'AM_REVIEWED'], cancel: ['DRAFT', 'SUBMITTED'],
+      },
+      USER: {
+        create: ['*'], submit: ['DRAFT'], cancel: ['DRAFT', 'SUBMITTED'],
+      },
+    };
+
+    const roleMatrix = matrix[userRole];
+    if (!roleMatrix) return false;
+
+    const allowedStatuses = roleMatrix[action];
+    if (!allowedStatuses) return false;
+
+    if (allowedStatuses.includes('*')) return true;
+    if (!proposalStatus) return true;
+
+    return allowedStatuses.includes(proposalStatus);
+  }
+
+  /**
+   * Check if user can manage offer
+   */
+  canManageOffer(userRole: string, action: 'create' | 'send' | 'update' | 'delete'): boolean {
+    const matrix: Record<string, string[]> = {
+      ADMIN: ['create', 'send', 'update', 'delete'],
+      HEAD_OF_DEPARTMENT: ['create', 'send', 'update'],
+      RECRUITER: ['create', 'send', 'update'],
+      MANAGER: ['read'],
+      USER: ['read'],
+    };
+
+    const allowed = matrix[userRole] || [];
+    return allowed.includes(action) || allowed.includes('read');
+  }
 }
+

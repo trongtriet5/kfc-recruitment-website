@@ -6,6 +6,8 @@ import Link from 'next/link'
 import api from '@/lib/api'
 import Icon from '@/components/icons/Icon'
 import { useCandidateStatuses } from '@/lib/useCandidateStatuses'
+import EditCandidateForm from '@/components/recruitment/EditCandidateForm'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 interface CandidateDetail {
   id: string
@@ -20,7 +22,7 @@ interface CandidateDetail {
   status: string | { id: string; name: string; code: string } | null
   form: { id: string; title: string } | null
   campaign: { id: string; name: string } | null
-  store: { id: string; name: string } | null
+  store: { id: string; name: string; code?: string } | null
   [key: string]: any
   interviews: Array<{
     id: string
@@ -62,6 +64,7 @@ export default function CandidateDetail({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showStatusChange, setShowStatusChange] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
   const [newStatus, setNewStatus] = useState('')
   const [statusChangeLoading, setStatusChangeLoading] = useState(false)
   const [provinces, setProvinces] = useState<any[]>([])
@@ -284,15 +287,15 @@ export default function CandidateDetail({
           >
             {getStatusLabel(candidate.status)}
           </span>
-          <Link
-            href={`/recruitment/candidates/${candidateId}/edit`}
+          <button
+            onClick={() => setShowEditModal(true)}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
           >
             <span className="flex items-center gap-1">
               <Icon name="edit" size={16} />
               Chỉnh sửa
             </span>
-          </Link>
+          </button>
           {allowedStatuses.length > 0 && (
             <button
               onClick={() => setShowStatusChange(!showStatusChange)}
@@ -407,11 +410,13 @@ export default function CandidateDetail({
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Cửa hàng</label>
-              <p className="mt-1 text-sm text-gray-900">{typeof candidate.store === 'object' && candidate.store !== null && 'name' in candidate.store ? candidate.store.name : 'Chưa có'}</p>
+              <p className="mt-1 text-sm text-gray-900">{typeof candidate.store === 'object' && candidate.store !== null && 'name' in candidate.store 
+                ? `${candidate.store.name}${candidate.store.code ? ` (${candidate.store.code})` : ''}`.trim() 
+                : 'Chưa có'}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Chiến dịch</label>
-              <p className="mt-1 text-sm text-gray-900">{typeof candidate.campaign === 'object' && candidate.campaign !== null && 'name' in candidate.campaign ? candidate.campaign.name : 'Chưa có'}</p>
+              <p className="mt-1 text-sm text-gray-900">{typeof candidate.campaign === 'object' && candidate.campaign !== null && 'name' in candidate.campaign ? (candidate.campaign as { name: string }).name.replace(/^Chiến dịch\s*[-–]?\s*|\s*[-–]?\s*Chiến dịch\s*$/gi, '').trim() : 'Chưa có'}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Địa điểm mong muốn làm việc</label>
@@ -594,6 +599,23 @@ export default function CandidateDetail({
           </div>
         </div>
       )}
+
+      {/* Edit Candidate Modal */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Chỉnh sửa ứng viên</DialogTitle>
+          </DialogHeader>
+          <EditCandidateForm 
+            candidateId={candidateId} 
+            onSuccess={() => {
+              setShowEditModal(false)
+              api.get(`/recruitment/candidates/${candidateId}`).then(res => setCandidate(res.data))
+            }}
+            onCancel={() => setShowEditModal(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

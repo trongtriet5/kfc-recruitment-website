@@ -407,7 +407,7 @@ export default function CandidatesList() {
               Kanban
             </button>
           </div>
-          {viewMode === 'list' && (
+          {(viewMode === 'list' || viewMode === 'kanban') && (
             <div className="flex flex-wrap items-center gap-3">
 
               {/* Chiến dịch */}
@@ -465,7 +465,7 @@ export default function CandidatesList() {
               {/* TA Phụ trách */}
               <div className="relative">
                 <Select value={taFilter} onValueChange={setTaFilter}>
-                  <SelectTrigger className="pl-9 w-[220px] h-auto min-h-[40px] bg-white [&>span]:line-clamp-none py-2">
+                  <SelectTrigger className="pl-9 w-[250px] h-auto min-h-[40px] bg-white [&>span]:line-clamp-none py-2">
                     <div className="flex items-center gap-2">
                       <Icon name="user" size={14} className="text-gray-400" />
                       <SelectValue placeholder="Người phụ trách" />
@@ -599,7 +599,7 @@ export default function CandidatesList() {
                               )}
                               <span className="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md font-medium">
                                 <Icon name="campaign" size={12} />
-                                Chiến dịch: {typeof candidate.campaign === 'object' && candidate.campaign !== null && 'name' in candidate.campaign ? candidate.campaign.name : 'Chiến dịch tuyển dụng tổng'}
+                                {typeof candidate.campaign === 'object' && candidate.campaign !== null && 'name' in candidate.campaign ? (candidate.campaign as { name: string }).name.replace(/^Chiến dịch\s*[-–]?\s*|\s*[-–]?\s*Chiến dịch\s*$/gi, '').trim() : 'Chiến dịch tuyển dụng tổng'}
                               </span>
                               {candidate.pic && typeof candidate.pic === 'object' && candidate.pic !== null && 'fullName' in candidate.pic && (
                                 <span className="inline-flex items-center gap-1.5 text-xs bg-purple-50 text-purple-700 px-2.5 py-1 rounded-md font-medium">

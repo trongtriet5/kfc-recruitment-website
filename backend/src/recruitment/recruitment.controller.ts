@@ -1,10 +1,20 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query } from '@nestjs/common';
 import { RecruitmentService } from './recruitment.service';
+import { StatusTransitionService } from './status-transition.service';
+import { AuditService } from './audit.service';
+import { ProposalService } from './proposal.service';
+import { CampaignFulfillmentService } from './campaign-fulfillment.service';
 import { CurrentUser } from '../auth/decorators/user.decorator';
 
 @Controller('recruitment')
 export class RecruitmentController {
-  constructor(private service: RecruitmentService) {}
+  constructor(
+    private service: RecruitmentService,
+    private statusTransition: StatusTransitionService,
+    private audit: AuditService,
+    private proposalService: ProposalService,
+    private campaignFulfillment: CampaignFulfillmentService,
+  ) {}
 
   // Forms
   @Get('forms')
@@ -87,6 +97,46 @@ export class RecruitmentController {
     return this.service.assignPIC(id, data.picId);
   }
 
+  // Status Transition (Workflow Engine)
+  @Post('candidates/:id/transition')
+  async transitionStatus(
+    @Param('id') id: string,
+    @Body() data: { toStatus: string; reason?: string },
+    @CurrentUser() user: any,
+  ) {
+    const candidate = await this.service.getCandidate(id, user);
+    const currentStatus = typeof candidate.status === 'object' ? candidate.status?.code : candidate.status;
+    return this.statusTransition.transition(
+      id,
+      currentStatus || null,
+      data.toStatus,
+      user.id,
+      user.role,
+      data.reason,
+    );
+  }
+
+  @Get('candidates/:id/allowed-transitions')
+  async getAllowedTransitions(@Param('id') id: string, @CurrentUser() user: any) {
+    const candidate = await this.service.getCandidate(id, user);
+    const currentStatus = typeof candidate.status === 'object' ? candidate.status?.code : candidate.status;
+    return {
+      currentStatus,
+      allowedTransitions: this.statusTransition.getAllowedTransitions(currentStatus || null, user.role),
+    };
+  }
+
+  // Audit Logs
+  @Get('candidates/:id/audit-logs')
+  getCandidateAuditLogs(@Param('id') id: string, @Query('limit') limit?: string) {
+    return this.audit.getAuditLogs(id, { limit: limit ? parseInt(limit) : 50 });
+  }
+
+  @Get('campaigns/:id/audit-logs')
+  getCampaignAuditLogs(@Param('id') id: string, @Query('limit') limit?: string) {
+    return this.audit.getAuditLogsByCampaign(id, { limit: limit ? parseInt(limit) : 50 });
+  }
+
   // Interviews
   @Get('interviews')
   getInterviews() { return this.service.getInterviews(); }
@@ -110,6 +160,53 @@ export class RecruitmentController {
   @Patch('proposals/:id')
   updateProposal(@Param('id') id: string, @Body() data: any, @CurrentUser() user: any) { 
     return this.service.updateProposal(id, data, user); 
+  }
+
+  // Proposal Workflow (Enhanced Approval Flow)
+  @Post('proposals/:id/submit')
+  submitProposal(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.proposalService.submitProposal(id, user.id, user.role);
+  }
+
+  @Post('proposals/:id/review')
+  reviewProposal(@Param('id') id: string, @Body() data: { notes?: string }, @CurrentUser() user: any) {
+    return this.proposalService.reviewProposal(id, user.id, user.role, data.notes);
+  }
+
+  @Post('proposals/:id/hr-accept')
+  hrAcceptProposal(@Param('id') id: string, @Body() data: { notes?: string }, @CurrentUser() user: any) {
+    return this.proposalService.hrAcceptProposal(id, user.id, user.role, data.notes);
+  }
+
+  @Post('proposals/:id/approve')
+  approveProposal(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.proposalService.approveProposal(id, user.id, user.role);
+  }
+
+  @Post('proposals/:id/reject')
+  rejectProposal(@Param('id') id: string, @Body() data: { reason: string }, @CurrentUser() user: any) {
+    return this.proposalService.rejectProposal(id, user.id, user.role, data.reason);
+  }
+
+  @Post('proposals/:id/cancel')
+  cancelProposal(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.proposalService.cancelProposal(id, user.id, user.role);
+  }
+
+  // Campaign Fulfillment
+  @Get('campaigns/:id/fulfillment')
+  getCampaignFulfillment(@Param('id') id: string) {
+    return this.campaignFulfillment.getFulfillmentMetrics(id);
+  }
+
+  @Get('campaigns/:id/aging')
+  getCampaignAging(@Param('id') id: string) {
+    return this.campaignFulfillment.getCampaignAgingReport(id);
+  }
+
+  @Post('campaigns/:id/refresh-fulfillment')
+  refreshCampaignFulfillment(@Param('id') id: string) {
+    return this.campaignFulfillment.updateCampaignFulfillment(id);
   }
 
   // Headcounts
@@ -166,4 +263,25 @@ export class RecruitmentController {
 
   @Get('public/positions')
   getPublicPositions() { return this.service.getPublicPositions(); }
+
+  // Notifications
+  @Get('notifications')
+  getNotifications(@CurrentUser() user: any, @Query('unreadOnly') unreadOnly?: string) {
+    return this.service.getNotifications(user.id, unreadOnly === 'true');
+  }
+
+  @Patch('notifications/:id/read')
+  markNotificationRead(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.markNotificationRead(id, user.id);
+  }
+
+  @Post('notifications/mark-all-read')
+  markAllNotificationsRead(@CurrentUser() user: any) {
+    return this.service.markAllNotificationsRead(user.id);
+  }
+
+  @Get('notifications/unread-count')
+  getUnreadNotificationCount(@CurrentUser() user: any) {
+    return this.service.getUnreadNotificationCount(user.id);
+  }
 }

@@ -470,7 +470,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
                       <div className="flex items-center gap-1 text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
                         <Icon name="campaign" size={10} />
                         <span className="truncate">
-                          {typeof candidate.campaign === 'object' && candidate.campaign !== null && 'name' in candidate.campaign ? candidate.campaign.name : 'Chiến dịch tuyển dụng tổng'}
+                          {typeof candidate.campaign === 'object' && candidate.campaign !== null && 'name' in candidate.campaign ? (candidate.campaign as { name: string }).name.replace(/^Chiến dịch\s*[-–]?\s*|\s*[-–]?\s*Chiến dịch\s*$/gi, '').trim() : 'Chiến dịch tuyển dụng tổng'}
                         </span>
                       </div>
                     </div>

@@ -26,6 +26,12 @@ model User {
 
   managedStores Store[]    @relation("StoreAM")
 
+  auditLogs     CandidateAuditLog[]
+  communications CandidateCommunicationLog[]
+  notifications Notification[] @relation("NotificationRecipient")
+  sentNotifications Notification[] @relation("NotificationSender")
+  proposalWorkflows ProposalWorkflow[]
+
   @@map("users")
 }
 
@@ -150,7 +156,15 @@ model Campaign {
   picId        String?
   departmentId String?
   storeId      String?
-  proposalId   String?
+  proposalId   String?   @unique
+  
+  // Fulfillment tracking
+  targetQty    Int       @default(0)
+  fulfilledQty Int       @default(0)
+  hiredQty     Int       @default(0)
+  offerAcceptedQty Int   @default(0)
+  status       String    @default("ACTIVE") // ACTIVE, PAUSED, COMPLETED, CANCELLED
+  
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -159,6 +173,9 @@ model Campaign {
   department   Department?     @relation(fields: [departmentId], references: [id])
   store        Store?          @relation(fields: [storeId], references: [id])
   candidates   Candidate[]
+  auditLogs    CandidateAuditLog[]
+  offers       Offer[]
+  proposal     RecruitmentProposal? @relation(fields: [proposalId], references: [id])
 
   @@map("campaigns")
 }
@@ -198,6 +215,19 @@ model Candidate {
   referrerName   String?
   preferredLocations String[] @default([])
   workExperience  String?
+  
+  // SLA & Priority
+  priority       String    @default("NORMAL") // URGENT, HIGH, NORMAL, LOW
+  slaDueDate     DateTime?
+  slaBreachFlag  Boolean   @default(false)
+  
+  // Blacklist tracking
+  isBlacklisted  Boolean   @default(false)
+  blacklistedAt  DateTime?
+  blacklistReason String?
+  blacklistId    String?
+  blacklist      Blacklist? @relation(fields: [blacklistId], references: [id])
+  
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -211,6 +241,10 @@ model Candidate {
   
   interviews      Interview[]
   proposals       RecruitmentProposal[]
+  auditLogs       CandidateAuditLog[]
+  slaLogs         CandidateSLALog[]
+  communications  CandidateCommunicationLog[]
+  offers          Offer[]
 
   @@map("candidates")
 }
@@ -223,6 +257,7 @@ model CandidateStatus {
   group       String?
   order       Int      @default(0)
   isActive    Boolean  @default(true)
+  slaHours    Int?     // SLA duration in hours for this stage
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -239,8 +274,10 @@ model Interview {
   resultId     String?
   positionId   String?
   scheduledAt  DateTime
+  completedAt  DateTime?
   location    String?
   notes       String?
+  rating      Int?     // 1-5 scale
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -259,10 +296,27 @@ model RecruitmentProposal {
   positionId   String?
   quantity     Int
   reason       String?
-  status       String   @default("PENDING")
+  businessReason String? // e.g., EXPANSION, REPLACEMENT, SEASONAL, NEW_OPENING
+  replacementFor String? // Employee ID or name being replaced
+  
+  // Enhanced request fields
+  urgency      String   @default("NORMAL") // LOW, NORMAL, HIGH, CRITICAL
+  budget       Float?   // Monthly budget per head
+  targetJoinDate DateTime?
+  isUnplanned  Boolean  @default(false)
+  
+  // Workflow tracking
+  status       String   @default("DRAFT") // DRAFT, SUBMITTED, AM_REVIEWED, HR_ACCEPTED, APPROVED, REJECTED, CANCELLED
+  requestedById String?
+  amReviewedAt DateTime?
+  hrAssignedAt DateTime?
   approverId   String?
   approvedAt  DateTime?
   rejectedAt  DateTime?
+  rejectionReason String?
+  cancelledAt DateTime?
+  cancelledById String?
+  
   campaignId  String?
   departmentId String?
   startDate    DateTime?
@@ -276,8 +330,49 @@ model RecruitmentProposal {
   approver     User?           @relation("ProposalCreator", fields: [approverId], references: [id])
   department  Department?    @relation(fields: [departmentId], references: [id])
   candidates  Candidate[]
+  workflowHistory ProposalWorkflow[]
+  fulfillment ProposalFulfillment?
+  campaign   Campaign?
 
   @@map("recruitment_proposals")
+}
+
+model ProposalWorkflow {
+  id          String   @id @default(cuid())
+  proposalId  String
+  proposal    RecruitmentProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  
+  fromStatus  String
+  toStatus    String
+  action      String   // SUBMIT, REVIEW, APPROVE, REJECT, CANCEL, ASSIGN
+  actorId     String?
+  actor       User?    @relation(fields: [actorId], references: [id])
+  actorRole   String   // SM, AM, HR, ADMIN
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@map("proposal_workflows")
+}
+
+model ProposalFulfillment {
+  id           String   @id @default(cuid())
+  proposalId   String   @unique
+  proposal     RecruitmentProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  
+  requestedQty Int
+  cvReceivedQty Int    @default(0)
+  screenedQty  Int      @default(0)
+  interviewedQty Int    @default(0)
+  offeredQty   Int      @default(0)
+  offerAcceptedQty Int  @default(0)
+  hiredQty     Int      @default(0)
+  onboardedQty Int      @default(0)
+  
+  completionRate Float  @default(0)
+  avgTimeToHire  Int?   // Days
+  lastUpdatedAt  DateTime @updatedAt
+
+  @@map("proposal_fulfillments")
 }
 
 model Headcount {
@@ -340,6 +435,164 @@ model Source {
   @@map("sources")
 }
 
+// Audit trail for all candidate changes
+model CandidateAuditLog {
+  id          String   @id @default(cuid())
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  
+  actorId     String?
+  actor       User?     @relation(fields: [actorId], references: [id])
+  
+  action      String    // STATUS_CHANGE, PIC_ASSIGN, CAMPAIGN_TRANSFER, INTERVIEW_SCHEDULED, OFFER_SENT, etc.
+  fromValue   String?
+  toValue     String?
+  metadata    Json?     // Additional context
+  notes       String?
+  
+  campaignId  String?
+  campaign    Campaign? @relation(fields: [campaignId], references: [id])
+  
+  createdAt   DateTime @default(now())
+
+  @@index([candidateId, createdAt])
+  @@map("candidate_audit_logs")
+}
+
+// SLA tracking per candidate status transition
+model CandidateSLALog {
+  id          String   @id @default(cuid())
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  
+  statusCode  String
+  enteredAt   DateTime
+  exitedAt    DateTime?
+  slaHours    Int      // Expected SLA for this stage
+  breached    Boolean  @default(false)
+  breachHours Int?     // How many hours over SLA
+  
+  createdAt   DateTime @default(now())
+
+  @@index([candidateId, statusCode])
+  @@map("candidate_sla_logs")
+}
+
+// Blacklist management
+model Blacklist {
+  id          String   @id @default(cuid())
+  phoneHash   String?  @unique  // Hashed phone for lookup
+  emailHash   String?  @unique  // Hashed email for lookup
+  phone       String?           // Original (encrypted or raw based on policy)
+  email       String?
+  fullName    String?
+  reason      String            // NO_SHOW, FAKE_INFO, VIOLATION, OTHER
+  reasonDetail String?
+  recruiterNote String?
+  expiryDate  DateTime?         // Auto-expire blacklist entry
+  isPermanent Boolean  @default(false)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  candidates  Candidate[]
+
+  @@map("blacklists")
+}
+
+// Offer management
+model Offer {
+  id              String   @id @default(cuid())
+  candidateId     String
+  candidate       Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  campaignId      String?
+  campaign        Campaign? @relation(fields: [campaignId], references: [id])
+  
+  status          String   @default("DRAFT") // DRAFT, SENT, ACCEPTED, REJECTED, EXPIRED, WITHDRAWN
+  sentAt          DateTime?
+  acceptedAt      DateTime?
+  rejectedAt      DateTime?
+  expiredAt       DateTime?
+  
+  // Offer details
+  position        String?
+  department      String?
+  storeId         String?
+  salary          Float?
+  probationLength Int?     // Months
+  probationSalary Float?
+  startDate       DateTime?
+  benefits        String?
+  notes           String?
+  rejectionReason String?
+  
+  createdById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  documents       OfferDocument[]
+
+  @@map("offers")
+}
+
+model OfferDocument {
+  id          String   @id @default(cuid())
+  offerId     String
+  offer       Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  
+  name        String
+  type        String   // OFFER_LETTER, CONTRACT, ID_COPY, CERTIFICATE, OTHER
+  url         String
+  uploadedById String?
+  createdAt   DateTime @default(now())
+
+  @@map("offer_documents")
+}
+
+// Communication log
+model CandidateCommunicationLog {
+  id          String   @id @default(cuid())
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  
+  type        String   // EMAIL, PHONE, SMS, ZALO, MEETING, NOTE
+  direction   String   // INBOUND, OUTBOUND
+  content     String
+  subject     String?
+  senderId    String?
+  sender      User?     @relation(fields: [senderId], references: [id])
+  
+  createdAt   DateTime @default(now())
+
+  @@index([candidateId, createdAt])
+  @@map("candidate_communication_logs")
+}
+
+// Notification system
+model Notification {
+  id          String   @id @default(cuid())
+  recipientId String
+  recipient   User     @relation("NotificationRecipient", fields: [recipientId], references: [id])
+  
+  senderId    String?
+  sender      User?    @relation("NotificationSender", fields: [senderId], references: [id])
+  
+  type        String   // SLA_BREACH, STATUS_CHANGE, PROPOSAL_APPROVAL, INTERVIEW_REMINDER, etc.
+  title       String
+  message     String
+  entityType  String?  // CANDIDATE, PROPOSAL, CAMPAIGN, INTERVIEW
+  entityId    String?
+  
+  isRead      Boolean  @default(false)
+  readAt      DateTime?
+  actionUrl   String?
+  
+  createdAt   DateTime @default(now())
+
+  @@index([recipientId, isRead, createdAt])
+  @@map("notifications")
+}
+
 model AdministrativeRegion {
   id           Int      @id
   name         String
@@ -394,3 +647,4 @@ model Ward {
 
   @@map("wards")
 }
+

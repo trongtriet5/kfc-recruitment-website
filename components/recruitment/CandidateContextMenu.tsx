@@ -217,7 +217,11 @@ export default function CandidateContextMenu({
       label: 'Chỉnh sửa',
       icon: 'edit',
       action: () => {
-        router.push(`/recruitment/candidates/${candidate.id}/edit`)
+        if (onEdit) {
+          onEdit(candidate.id)
+        } else {
+          router.push(`/recruitment/candidates/${candidate.id}/edit`)
+        }
         onClose()
       },
     },

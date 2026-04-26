@@ -859,15 +859,15 @@ export default function RecruitmentDashboard() {
             }}
             series={[
               {
-                name: 'Ứng viên xử lý',
+                name: 'Số lượng xử lý',
                 data: data.taPerformance.map(ta => ta.totalCandidates)
               },
               {
-                name: 'Ứng viên đạt',
+                name: 'Số lượng ứng viên đạt',
                 data: data.taPerformance.map(ta => ta.passedCandidates)
               },
               {
-                name: 'Ứng viên nhận việc',
+                name: 'Số lượng nhận việc',
                 data: data.taPerformance.map(ta => ta.onboardedCandidates)
               }
             ]}
@@ -979,8 +979,8 @@ export default function RecruitmentDashboard() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {data.taPerformance.map((ta) => {
-                    const processedRate = ta.totalCandidates > 0 ? ((ta.processedCandidates / ta.totalCandidates) * 100).toFixed(1) : '0.0'
-                    const acceptedRate = ta.totalCandidates > 0 ? ((ta.acceptedCandidates / ta.totalCandidates) * 100).toFixed(1) : '0.0'
+                    const passedRate = ta.totalCandidates > 0 ? ((ta.passedCandidates / ta.totalCandidates) * 100).toFixed(1) : '0.0'
+                    const onboardedRate = ta.totalCandidates > 0 ? ((ta.onboardedCandidates / ta.totalCandidates) * 100).toFixed(1) : '0.0'
                     return (
                       <tr key={ta.taId} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -994,18 +994,18 @@ export default function RecruitmentDashboard() {
                           {ta.totalCandidates}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-blue-600 font-medium">
-                          {ta.processedCandidates} ({processedRate}%)
+                          {ta.passedCandidates} ({passedRate}%)
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-green-600 font-medium">
-                          {ta.acceptedCandidates} ({acceptedRate}%)
+                          {ta.onboardedCandidates} ({onboardedRate}%)
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            parseFloat(acceptedRate) >= 50 ? 'bg-green-100 text-green-800' :
-                            parseFloat(acceptedRate) >= 20 ? 'bg-yellow-100 text-yellow-800' :
+                            parseFloat(onboardedRate) >= 50 ? 'bg-green-100 text-green-800' :
+                            parseFloat(onboardedRate) >= 20 ? 'bg-yellow-100 text-yellow-800' :
                             'bg-red-100 text-red-800'
                           }`}>
-                            {acceptedRate}%
+                            {onboardedRate}%
                           </span>
                         </td>
                       </tr>
