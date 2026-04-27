@@ -148,6 +148,11 @@ export default function ProposalsList() {
 
   const handleDeleteProposal = async () => {
     if (!selectedProposal) return
+    if (selectedProposal._count?.candidates > 0) {
+      toast.error('Không thể xóa đề xuất đã có ứng viên. Vui lòng xóa hết ứng viên trước.')
+      setConfirmDelete(false)
+      return
+    }
     setActionLoading(true)
     try {
       await api.delete(`/recruitment/proposals/${selectedProposal.id}`)
@@ -305,13 +310,12 @@ export default function ProposalsList() {
                       {proposal.isUnplanned && <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">Đột xuất</span>}
                     </div>
                     <div className="mt-1">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        (typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'APPROVED'
-                          ? 'bg-green-100 text-green-800'
-                          : (typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'REJECTED'
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${(typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'APPROVED'
+                        ? 'bg-green-100 text-green-800'
+                        : (typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'REJECTED'
                           ? 'bg-red-100 text-red-800'
                           : 'bg-yellow-100 text-yellow-800'
-                      }`}>
+                        }`}>
                         {typeof proposal.status === 'object' ? proposal.status?.name : proposal.status === 'APPROVED' ? 'Đã duyệt' : proposal.status === 'REJECTED' ? 'Từ chối' : proposal.status === 'SUBMITTED' ? 'Chờ duyệt' : proposal.status === 'AM_REVIEWED' ? 'AM đã xem xét' : 'Chờ duyệt'}
                       </span>
                     </div>
@@ -339,7 +343,7 @@ export default function ProposalsList() {
                         setSelectedProposal(proposal)
                         setShowCreateCampaign(true)
                         setCampaignFormData({
-                          name: `${proposal.title} - Chiến dịch`,
+                          name: `${proposal.title}`,
                           description: proposal.description || '',
                           storeId: proposal.store?.id || '',
                           positionId: proposal.position?.id || '',
@@ -382,7 +386,7 @@ export default function ProposalsList() {
               setContextMenu(null)
               setShowCreateCampaign(true)
               setCampaignFormData({
-                name: `${proposal.title} - Chiến dịch`,
+                name: `${proposal.title}`,
                 description: proposal.description || '',
                 storeId: proposal.store?.id || '',
                 positionId: proposal.position?.id || '',
@@ -503,13 +507,12 @@ export default function ProposalsList() {
           <div className="space-y-4">
             <div>
               <h3 className="text-lg font-semibold">{selectedProposal.title}</h3>
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-2 ${
-                selectedProposal.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-2 ${selectedProposal.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
                 selectedProposal.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
-                selectedProposal.status === 'SUBMITTED' ? 'bg-yellow-100 text-yellow-800' :
-                selectedProposal.status === 'AM_REVIEWED' ? 'bg-blue-100 text-blue-800' :
-                'bg-yellow-100 text-yellow-800'
-              }`}>
+                  selectedProposal.status === 'SUBMITTED' ? 'bg-yellow-100 text-yellow-800' :
+                    selectedProposal.status === 'AM_REVIEWED' ? 'bg-blue-100 text-blue-800' :
+                      'bg-yellow-100 text-yellow-800'
+                }`}>
                 {selectedProposal.status === 'APPROVED' ? 'Đã duyệt' : selectedProposal.status === 'REJECTED' ? 'Từ chối' : selectedProposal.status === 'SUBMITTED' ? 'Chờ duyệt' : selectedProposal.status === 'AM_REVIEWED' ? 'AM đã xem xét' : 'Chờ duyệt'}
               </span>
             </div>
@@ -519,11 +522,11 @@ export default function ProposalsList() {
               const workflowHistory = (selectedProposal as any).workflowHistory || [];
               const submitEntry = workflowHistory.find((w: any) => w.action === 'SUBMIT');
               const isCreatedByAdmin = submitEntry && ['ADMIN', 'HEAD_OF_DEPARTMENT', 'MANAGER'].includes(submitEntry.actorRole || '');
-              
-              const statusOrder = isCreatedByAdmin 
-                ? ['SUBMITTED', 'APPROVED'] 
+
+              const statusOrder = isCreatedByAdmin
+                ? ['SUBMITTED', 'APPROVED']
                 : ['SUBMITTED', 'AM_REVIEWED', 'APPROVED'];
-              
+
               const isCompleted = (checkStatus: string) => {
                 return statusOrder.indexOf(status || '') >= statusOrder.indexOf(checkStatus);
               };
@@ -533,9 +536,9 @@ export default function ProposalsList() {
                   <h4 className="text-sm font-medium text-gray-700 mb-3">Tiến trình phê duyệt</h4>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isCurrent('SUBMITTED') ? 'bg-yellow-100 border-2 border-yellow-500' : isCompleted('SUBMITTED') ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-100 border-2 border-gray-300'}`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isCompleted('SUBMITTED') ? 'bg-green-100 border-2 border-green-500' : isCurrent('SUBMITTED') ? 'bg-yellow-100 border-2 border-yellow-500' : 'bg-gray-100 border-2 border-gray-300'}`}>
                         {isCompleted('SUBMITTED') && <span className="text-green-600">✓</span>}
-                        {isCurrent('SUBMITTED') && <span className="text-yellow-600 text-sm font-bold">1</span>}
+                        {!isCompleted('SUBMITTED') && isCurrent('SUBMITTED') && <span className="text-yellow-600 text-sm font-bold">1</span>}
                         {!isCompleted('SUBMITTED') && !isCurrent('SUBMITTED') && <span className="text-gray-400 text-sm font-bold">1</span>}
                       </div>
                       <span className="ml-2 text-sm font-medium">{isCreatedByAdmin ? 'Admin tạo' : 'SM tạo'}</span>
@@ -544,9 +547,9 @@ export default function ProposalsList() {
                       <>
                         <div className={`flex-1 h-0.5 mx-2 ${isCompleted('AM_REVIEWED') ? 'bg-green-500' : 'bg-gray-300'}`}></div>
                         <div className="flex items-center">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isCurrent('AM_REVIEWED') ? 'bg-yellow-100 border-2 border-yellow-500' : isCompleted('AM_REVIEWED') ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-100 border-2 border-gray-300'}`}>
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isCompleted('AM_REVIEWED') ? 'bg-green-100 border-2 border-green-500' : isCurrent('AM_REVIEWED') ? 'bg-yellow-100 border-2 border-yellow-500' : 'bg-gray-100 border-2 border-gray-300'}`}>
                             {isCompleted('AM_REVIEWED') && <span className="text-green-600">✓</span>}
-                            {isCurrent('AM_REVIEWED') && <span className="text-yellow-600 text-sm font-bold">2</span>}
+                            {!isCompleted('AM_REVIEWED') && isCurrent('AM_REVIEWED') && <span className="text-yellow-600 text-sm font-bold">2</span>}
                             {!isCompleted('AM_REVIEWED') && !isCurrent('AM_REVIEWED') && <span className="text-gray-400 text-sm font-bold">2</span>}
                           </div>
                           <span className="ml-2 text-sm font-medium">AM duyệt</span>
@@ -558,9 +561,9 @@ export default function ProposalsList() {
                       <div className={`flex-1 h-0.5 mx-2 ${isCompleted('APPROVED') ? 'bg-green-500' : 'bg-gray-300'}`}></div>
                     )}
                     <div className="flex items-center">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isCurrent('APPROVED') ? 'bg-yellow-100 border-2 border-yellow-500' : isCompleted('APPROVED') ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-100 border-2 border-gray-300'}`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isCompleted('APPROVED') ? 'bg-green-100 border-2 border-green-500' : isCurrent('APPROVED') ? 'bg-yellow-100 border-2 border-yellow-500' : 'bg-gray-100 border-2 border-gray-300'}`}>
                         {isCompleted('APPROVED') && <span className="text-green-600">✓</span>}
-                        {isCurrent('APPROVED') && <span className="text-yellow-600 text-sm font-bold">{isCreatedByAdmin ? '2' : '3'}</span>}
+                        {!isCompleted('APPROVED') && isCurrent('APPROVED') && <span className="text-yellow-600 text-sm font-bold">{isCreatedByAdmin ? '2' : '3'}</span>}
                         {!isCompleted('APPROVED') && !isCurrent('APPROVED') && <span className="text-gray-400 text-sm font-bold">{isCreatedByAdmin ? '2' : '3'}</span>}
                       </div>
                       <span className="ml-2 text-sm font-medium">Admin duyệt</span>
@@ -589,7 +592,7 @@ export default function ProposalsList() {
             </div>
             {selectedProposal.description && <div><label className="text-gray-500 text-sm">Mô tả</label><p className="text-sm">{selectedProposal.description}</p></div>}
             {selectedProposal.reason && <div><label className="text-gray-500 text-sm">Lý do</label><p className="text-sm">{selectedProposal.reason}</p></div>}
-            
+
             {/* Workflow Timeline */}
             {selectedProposal.workflowHistory && selectedProposal.workflowHistory.length > 0 && (
               <div className="border-t pt-4">
@@ -613,7 +616,7 @@ export default function ProposalsList() {
                 </div>
               </div>
             )}
-            
+
             <div className="flex justify-end gap-2 pt-4 border-t">
               <button onClick={() => setShowDetail(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Đóng</button>
             </div>

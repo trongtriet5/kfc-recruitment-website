@@ -1,48 +1,14 @@
 import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from './audit.service';
-
-export interface StatusTransitionRule {
-  from: string[];      // '*' means any
-  to: string;
-  allowedRoles: string[];
-  requiresReason?: boolean;
-  reasonCodes?: string[];
-}
-
-export const STATUS_TRANSITIONS: StatusTransitionRule[] = [
-  // Application stage
-  { from: ['*'], to: 'CV_FILTERING', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
-  { from: ['CV_FILTERING'], to: 'CV_PASSED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
-  { from: ['CV_FILTERING'], to: 'CV_FAILED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'], requiresReason: true },
-  { from: ['CV_FILTERING'], to: 'BLACKLIST', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT'], requiresReason: true },
-  { from: ['CV_FILTERING'], to: 'CANNOT_CONTACT', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
-  { from: ['CV_FILTERING'], to: 'AREA_NOT_RECRUITING', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
-
-  // Interview stage
-  { from: ['CV_PASSED'], to: 'WAITING_INTERVIEW', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
-  { from: ['WAITING_INTERVIEW'], to: 'HR_INTERVIEW_PASSED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
-  { from: ['WAITING_INTERVIEW'], to: 'HR_INTERVIEW_FAILED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'], requiresReason: true },
-  { from: ['HR_INTERVIEW_PASSED'], to: 'SM_AM_INTERVIEW_PASSED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'MANAGER', 'USER'] },
-  { from: ['HR_INTERVIEW_PASSED'], to: 'SM_AM_INTERVIEW_FAILED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'MANAGER', 'USER'], requiresReason: true },
-  { from: ['HR_INTERVIEW_PASSED'], to: 'SM_AM_NO_SHOW', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'MANAGER', 'USER'] },
-  { from: ['SM_AM_INTERVIEW_PASSED'], to: 'OM_PV_INTERVIEW_PASSED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'MANAGER'] },
-  { from: ['SM_AM_INTERVIEW_PASSED'], to: 'OM_PV_INTERVIEW_FAILED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'MANAGER'], requiresReason: true },
-  { from: ['SM_AM_INTERVIEW_PASSED'], to: 'OM_PV_NO_SHOW', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'MANAGER'] },
-
-  // Offer stage
-  { from: ['OM_PV_INTERVIEW_PASSED'], to: 'OFFER_SENT', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
-  { from: ['OFFER_SENT'], to: 'OFFER_ACCEPTED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
-  { from: ['OFFER_SENT'], to: 'OFFER_REJECTED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'], requiresReason: true },
-
-  // Onboarding stage
-  { from: ['OFFER_ACCEPTED'], to: 'WAITING_ONBOARDING', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
-  { from: ['WAITING_ONBOARDING'], to: 'ONBOARDING_ACCEPTED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER', 'MANAGER', 'USER'] },
-  { from: ['WAITING_ONBOARDING'], to: 'ONBOARDING_REJECTED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'], requiresReason: true },
-
-  // Revert rules (ADMIN only for most)
-  { from: ['*'], to: 'CV_FILTERING', allowedRoles: ['ADMIN'] },
-];
+import {
+  STATUS_TRANSITIONS,
+  TERMINAL_STATUSES,
+  canTransition,
+  getAllowedTransitions,
+  Role,
+  TransitionRule,
+} from './constraints';
 
 export const STATUS_GROUPS: Record<string, string> = {
   CV_FILTERING: 'application',
@@ -71,7 +37,7 @@ export const STATUS_GROUPS: Record<string, string> = {
   ONBOARDING_REJECTED: 'onboarding',
 };
 
-export const TERMINAL_STATUSES = ['BLACKLIST', 'CV_FAILED', 'HR_INTERVIEW_FAILED', 'SM_AM_INTERVIEW_FAILED', 'OM_PV_INTERVIEW_FAILED', 'OFFER_REJECTED', 'ONBOARDING_REJECTED', 'ONBOARDING_ACCEPTED'];
+export { STATUS_TRANSITIONS, TERMINAL_STATUSES }; // Re-export from constraints
 
 @Injectable()
 export class StatusTransitionService {
@@ -82,6 +48,7 @@ export class StatusTransitionService {
 
   /**
    * Validate and execute a status transition
+   * Uses centralized constraints from constraints.ts
    */
   async transition(
     candidateId: string,
@@ -179,11 +146,11 @@ export class StatusTransitionService {
     fromStatus: string | null,
     toStatus: string,
     actorRole: string,
-  ): StatusTransitionRule | undefined {
+  ): TransitionRule | undefined {
     return STATUS_TRANSITIONS.find((rule) => {
       const matchFrom = rule.from.includes('*') || rule.from.includes(fromStatus || '');
       const matchTo = rule.to === toStatus;
-      const matchRole = rule.allowedRoles.includes(actorRole);
+      const matchRole = rule.allowedRoles.includes(actorRole as Role);
       return matchFrom && matchTo && matchRole;
     });
   }
@@ -313,17 +280,10 @@ export class StatusTransitionService {
 
   /**
    * Get allowed next statuses for a user role and current status
+   * Uses centralized constraints from constraints.ts
    */
   getAllowedTransitions(currentStatusCode: string | null, actorRole: string): string[] {
-    const codes = new Set<string>();
-    for (const rule of STATUS_TRANSITIONS) {
-      const matchFrom = rule.from.includes('*') || rule.from.includes(currentStatusCode || '');
-      const matchRole = rule.allowedRoles.includes(actorRole);
-      if (matchFrom && matchRole) {
-        codes.add(rule.to);
-      }
-    }
-    return Array.from(codes);
+    return getAllowedTransitions(currentStatusCode, actorRole as Role);
   }
 }
 

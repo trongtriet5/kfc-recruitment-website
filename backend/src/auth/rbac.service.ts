@@ -1,95 +1,15 @@
 import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-
-export type PermissionAction =
-  | 'CANDIDATE_CREATE'
-  | 'CANDIDATE_READ'
-  | 'CANDIDATE_UPDATE'
-  | 'CANDIDATE_DELETE'
-  | 'CANDIDATE_STATUS_CHANGE'
-  | 'CANDIDATE_ASSIGN_PIC'
-  | 'CANDIDATE_TRANSFER_CAMPAIGN'
-  | 'CANDIDATE_BLACKLIST'
-  | 'PROPOSAL_CREATE'
-  | 'PROPOSAL_READ'
-  | 'PROPOSAL_UPDATE'
-  | 'PROPOSAL_DELETE'
-  | 'PROPOSAL_SUBMIT'
-  | 'PROPOSAL_REVIEW'
-  | 'PROPOSAL_APPROVE'
-  | 'PROPOSAL_REJECT'
-  | 'PROPOSAL_CANCEL'
-  | 'CAMPAIGN_CREATE'
-  | 'CAMPAIGN_READ'
-  | 'CAMPAIGN_UPDATE'
-  | 'CAMPAIGN_DELETE'
-  | 'CAMPAIGN_MANAGE'
-  | 'INTERVIEW_CREATE'
-  | 'INTERVIEW_READ'
-  | 'INTERVIEW_UPDATE'
-  | 'INTERVIEW_DELETE'
-  | 'OFFER_CREATE'
-  | 'OFFER_READ'
-  | 'OFFER_UPDATE'
-  | 'OFFER_DELETE'
-  | 'OFFER_SEND'
-  | 'REPORT_VIEW'
-  | 'REPORT_EXPORT'
-  | 'SETTINGS_MANAGE'
-  | 'USER_MANAGE';
-
-export const PERMISSION_MATRIX: Record<string, PermissionAction[]> = {
-  ADMIN: [
-    'CANDIDATE_CREATE', 'CANDIDATE_READ', 'CANDIDATE_UPDATE', 'CANDIDATE_DELETE',
-    'CANDIDATE_STATUS_CHANGE', 'CANDIDATE_ASSIGN_PIC', 'CANDIDATE_TRANSFER_CAMPAIGN', 'CANDIDATE_BLACKLIST',
-    'PROPOSAL_CREATE', 'PROPOSAL_READ', 'PROPOSAL_UPDATE', 'PROPOSAL_DELETE',
-    'PROPOSAL_SUBMIT', 'PROPOSAL_REVIEW', 'PROPOSAL_APPROVE', 'PROPOSAL_REJECT', 'PROPOSAL_CANCEL',
-    'CAMPAIGN_CREATE', 'CAMPAIGN_READ', 'CAMPAIGN_UPDATE', 'CAMPAIGN_DELETE', 'CAMPAIGN_MANAGE',
-    'INTERVIEW_CREATE', 'INTERVIEW_READ', 'INTERVIEW_UPDATE', 'INTERVIEW_DELETE',
-    'OFFER_CREATE', 'OFFER_READ', 'OFFER_UPDATE', 'OFFER_DELETE', 'OFFER_SEND',
-    'REPORT_VIEW', 'REPORT_EXPORT',
-    'SETTINGS_MANAGE', 'USER_MANAGE',
-  ],
-  HEAD_OF_DEPARTMENT: [
-    'CANDIDATE_CREATE', 'CANDIDATE_READ', 'CANDIDATE_UPDATE',
-    'CANDIDATE_STATUS_CHANGE', 'CANDIDATE_ASSIGN_PIC', 'CANDIDATE_TRANSFER_CAMPAIGN',
-    'PROPOSAL_CREATE', 'PROPOSAL_READ', 'PROPOSAL_UPDATE',
-    'PROPOSAL_SUBMIT', 'PROPOSAL_REVIEW', 'PROPOSAL_APPROVE', 'PROPOSAL_REJECT',
-    'CAMPAIGN_CREATE', 'CAMPAIGN_READ', 'CAMPAIGN_UPDATE', 'CAMPAIGN_MANAGE',
-    'INTERVIEW_CREATE', 'INTERVIEW_READ', 'INTERVIEW_UPDATE',
-    'OFFER_CREATE', 'OFFER_READ', 'OFFER_UPDATE', 'OFFER_SEND',
-    'REPORT_VIEW', 'REPORT_EXPORT',
-  ],
-  RECRUITER: [
-    'CANDIDATE_CREATE', 'CANDIDATE_READ', 'CANDIDATE_UPDATE',
-    'CANDIDATE_STATUS_CHANGE', 'CANDIDATE_ASSIGN_PIC', 'CANDIDATE_TRANSFER_CAMPAIGN',
-    'PROPOSAL_READ',
-    'CAMPAIGN_READ', 'CAMPAIGN_UPDATE',
-    'INTERVIEW_CREATE', 'INTERVIEW_READ', 'INTERVIEW_UPDATE',
-    'OFFER_CREATE', 'OFFER_READ', 'OFFER_UPDATE', 'OFFER_SEND',
-    'REPORT_VIEW',
-  ],
-  MANAGER: [ // Area Manager
-    'CANDIDATE_READ', 'CANDIDATE_UPDATE',
-    'CANDIDATE_STATUS_CHANGE',
-    'PROPOSAL_CREATE', 'PROPOSAL_READ', 'PROPOSAL_UPDATE',
-    'PROPOSAL_SUBMIT', 'PROPOSAL_REVIEW', 'PROPOSAL_APPROVE', 'PROPOSAL_REJECT', 'PROPOSAL_CANCEL',
-    'CAMPAIGN_READ',
-    'INTERVIEW_CREATE', 'INTERVIEW_READ', 'INTERVIEW_UPDATE',
-    'OFFER_READ',
-    'REPORT_VIEW',
-  ],
-  USER: [ // Store Manager
-    'CANDIDATE_READ',
-    'CANDIDATE_STATUS_CHANGE',
-    'PROPOSAL_CREATE', 'PROPOSAL_READ', 'PROPOSAL_UPDATE',
-    'PROPOSAL_SUBMIT', 'PROPOSAL_CANCEL',
-    'CAMPAIGN_READ',
-    'INTERVIEW_READ',
-    'OFFER_READ',
-    'REPORT_VIEW',
-  ],
-};
+import {
+  PERMISSIONS,
+  Role,
+  PermissionAction,
+  hasPermission,
+  getAllowedInterviewResults as getConstrainedInterviewResults,
+  canSetInterviewResult,
+  getAllowedTransitions,
+  STATUS_GROUPS,
+} from '../recruitment/constraints';
 
 @Injectable()
 export class RbacService {
@@ -99,8 +19,7 @@ export class RbacService {
    * Check if user has a specific permission
    */
   hasPermission(userRole: string, action: PermissionAction): boolean {
-    const permissions = PERMISSION_MATRIX[userRole] || [];
-    return permissions.includes(action);
+    return hasPermission(userRole as Role, action);
   }
 
   /**
@@ -290,7 +209,7 @@ export class RbacService {
     return [userId];
   }
 
-  // Allowed interview results for SM/AM role
+  // Allowed interview results for SM/AM role - DEPRECATED, use constraints.ts
   ALLOWED_INTERVIEW_RESULTS = {
     SM_AM_PASSED: 'SM/AM PV đạt',
     SM_AM_FAILED: 'SM/AM PV loại',
@@ -302,40 +221,20 @@ export class RbacService {
 
   // Check if interview result is allowed for user role
   isAllowedInterviewResult(result: string, userRole: string): boolean {
-    if (userRole === 'ADMIN') return true;
-    return Object.keys(this.ALLOWED_INTERVIEW_RESULTS).includes(result);
+    return canSetInterviewResult(userRole as Role, result);
   }
 
   // Get allowed interview results for frontend
   getAllowedInterviewResults(userRole: string): { code: string; name: string }[] {
-    if (userRole === 'ADMIN') {
-      return [
-        { code: 'PASSED', name: 'Đạt' },
-        { code: 'FAILED', name: 'Không đạt' },
-        { code: 'PENDING', name: 'Chờ kết quả' },
-      ];
-    }
-
-    return Object.entries(this.ALLOWED_INTERVIEW_RESULTS).map(([code, name]) => ({
-      code,
-      name,
-    }));
+    return getConstrainedInterviewResults(userRole as Role);
   }
 
   /**
    * Get allowed status transitions for a user
+   * Uses centralized constraints from constraints.ts
    */
   getAllowedStatusTransitions(userRole: string, currentStatus: string | null): string[] {
-    // This is a simplified version - the full logic is in StatusTransitionService
-    const allTransitions: Record<string, string[]> = {
-      ADMIN: ['CV_FILTERING', 'CV_PASSED', 'CV_FAILED', 'BLACKLIST', 'CANNOT_CONTACT', 'AREA_NOT_RECRUITING', 'WAITING_INTERVIEW', 'HR_INTERVIEW_PASSED', 'HR_INTERVIEW_FAILED', 'SM_AM_INTERVIEW_PASSED', 'SM_AM_INTERVIEW_FAILED', 'SM_AM_NO_SHOW', 'OM_PV_INTERVIEW_PASSED', 'OM_PV_INTERVIEW_FAILED', 'OM_PV_NO_SHOW', 'OFFER_SENT', 'OFFER_ACCEPTED', 'OFFER_REJECTED', 'WAITING_ONBOARDING', 'ONBOARDING_ACCEPTED', 'ONBOARDING_REJECTED'],
-      HEAD_OF_DEPARTMENT: ['CV_FILTERING', 'CV_PASSED', 'CV_FAILED', 'BLACKLIST', 'CANNOT_CONTACT', 'AREA_NOT_RECRUITING', 'WAITING_INTERVIEW', 'HR_INTERVIEW_PASSED', 'HR_INTERVIEW_FAILED', 'SM_AM_INTERVIEW_PASSED', 'SM_AM_INTERVIEW_FAILED', 'SM_AM_NO_SHOW', 'OM_PV_INTERVIEW_PASSED', 'OM_PV_INTERVIEW_FAILED', 'OM_PV_NO_SHOW', 'OFFER_SENT', 'OFFER_ACCEPTED', 'OFFER_REJECTED', 'WAITING_ONBOARDING', 'ONBOARDING_ACCEPTED', 'ONBOARDING_REJECTED'],
-      RECRUITER: ['CV_FILTERING', 'CV_PASSED', 'CV_FAILED', 'CANNOT_CONTACT', 'AREA_NOT_RECRUITING', 'WAITING_INTERVIEW', 'HR_INTERVIEW_PASSED', 'HR_INTERVIEW_FAILED', 'OFFER_SENT', 'OFFER_ACCEPTED', 'OFFER_REJECTED', 'WAITING_ONBOARDING', 'ONBOARDING_ACCEPTED', 'ONBOARDING_REJECTED'],
-      MANAGER: ['SM_AM_INTERVIEW_PASSED', 'SM_AM_INTERVIEW_FAILED', 'SM_AM_NO_SHOW', 'OM_PV_INTERVIEW_PASSED', 'OM_PV_INTERVIEW_FAILED', 'OM_PV_NO_SHOW'],
-      USER: ['SM_AM_INTERVIEW_PASSED', 'SM_AM_INTERVIEW_FAILED', 'SM_AM_NO_SHOW'],
-    };
-
-    return allTransitions[userRole] || [];
+    return getAllowedTransitions(currentStatus, userRole as Role);
   }
 
   /**

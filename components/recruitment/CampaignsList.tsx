@@ -208,6 +208,10 @@ export default function CampaignsList() {
 
   const handleDelete = (campaign: Campaign) => {
     setContextMenu(null)
+    if (campaign._count?.candidates > 0) {
+      toast.error('Không thể xóa chiến dịch đã có ứng viên. Vui lòng xóa hết ứng viên trước.')
+      return
+    }
     setConfirmState({
       isOpen: true,
       title: 'Xóa chiến dịch',
@@ -577,12 +581,18 @@ export default function CampaignsList() {
                     </div>
                   </div>
                   <div className="ml-4 flex items-center space-x-2">
-                    
-                    
+                     
+                     
                     {canManage && (
                       <>
                         <button
-                          onClick={() => handleToggleActive(campaign)}
+                          onClick={(e) => { e.stopPropagation(); handleEdit(campaign); }}
+                          className="text-sm px-3 py-1 border border-blue-300 rounded-md hover:bg-blue-50 text-blue-600 flex items-center gap-1"
+                        >
+                          <Icon name="edit" size={14} /> Chỉnh sửa
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleToggleActive(campaign); }}
                           className={`text-sm px-3 py-1 border rounded-md flex items-center gap-1 ${
                             campaign.isActive 
                               ? 'text-yellow-600 hover:text-yellow-700 border-yellow-300 hover:bg-yellow-50' 
@@ -593,10 +603,10 @@ export default function CampaignsList() {
                         </button>
                         {campaign._count?.candidates === 0 && (
                           <button
-                            onClick={() => handleDelete(campaign)}
+                            onClick={(e) => { e.stopPropagation(); handleDelete(campaign); }}
                             className="text-sm text-red-600 hover:text-red-700 px-3 py-1 border border-red-300 rounded-md hover:bg-red-50 flex items-center gap-1"
                           >
-                            Xóa
+                            <Icon name="trash" size={14} /> Xóa
                           </button>
                         )}
                       </>

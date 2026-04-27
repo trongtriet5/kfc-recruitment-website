@@ -1,5 +1,6 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService, CACHE_KEYS } from '../common/cache.service';
 
 // Helper to fix UTF-8 encoding issues
 function fixUtf8Encoding(obj: any): any {
@@ -27,7 +28,10 @@ function fixUtf8Encoding(obj: any): any {
 
 @Injectable()
 export class OrganizationService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cache: CacheService,
+  ) {}
 
   private readonly storeSelect = {
     id: true,
@@ -83,11 +87,16 @@ export class OrganizationService {
 
   // Departments
   async getDepartments() {
+    const cached = this.cache.get<any[]>(CACHE_KEYS.DEPARTMENTS);
+    if (cached) return cached;
+
     const departments = await this.prisma.department.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' },
     });
-    return fixUtf8Encoding(departments);
+    const result = fixUtf8Encoding(departments);
+    this.cache.set(CACHE_KEYS.DEPARTMENTS, result);
+    return result;
   }
 
   async createDepartment(data: any) {
@@ -104,36 +113,54 @@ export class OrganizationService {
     return this.prisma.department.update({ where: { id }, data: { isActive: false } });
   }
 
-  // Positions
+// Positions
   async getPositions() {
+    const cached = this.cache.get<any[]>(CACHE_KEYS.POSITIONS_ACTIVE);
+    if (cached) return cached;
+
     const positions = await this.prisma.position.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' },
     });
-    // Fix UTF-8 encoding for response
-    return positions.map(p => ({
+    const result = positions.map(p => ({
       ...p,
-      name: Buffer.from(p.name || '', 'utf8').toString('utf8'),
-      description: p.description ? Buffer.from(p.description, 'utf8').toString('utf8') : null,
+      id: p.id,
+      name: p.name,
+      code: p.code,
+      isActive: p.isActive,
     }));
+    this.cache.set(CACHE_KEYS.POSITIONS_ACTIVE, result);
+    return result;
   }
 
   async createPosition(data: any) {
     const existing = await this.prisma.position.findUnique({ where: { code: data.code } });
     if (existing) throw new ConflictException(`Position ${data.code} already exists`);
-    return this.prisma.position.create({ data });
+    const result = await this.prisma.position.create({ data });
+    this.cache.delete(CACHE_KEYS.POSITIONS_ACTIVE);
+    return result;
   }
 
   async updatePosition(id: string, data: any) {
-    return this.prisma.position.update({ where: { id }, data });
+    const result = await this.prisma.position.update({ where: { id }, data });
+    this.cache.delete(CACHE_KEYS.POSITIONS_ACTIVE);
+    return result;
   }
 
   async deletePosition(id: string) {
-    return this.prisma.position.update({ where: { id }, data: { isActive: false } });
+    const result = await this.prisma.position.update({ where: { id }, data: { isActive: false } });
+    this.cache.delete(CACHE_KEYS.POSITIONS_ACTIVE);
+    return result;
   }
 
   // Stores
   async getStores(user?: any) {
+    // Only cache for admin (no user filter)
+    if (!user || user.role === 'ADMIN') {
+      const cached = this.cache.get<any[]>(CACHE_KEYS.STORES_ACTIVE);
+      if (cached) return cached;
+    }
+
     const where: any = { isActive: true };
     
     // Filter by user access for SM/AM
@@ -159,7 +186,14 @@ export class OrganizationService {
       orderBy: { name: 'asc' },
     });
 
-    return fixUtf8Encoding(stores.map((store) => this.mapStoreResponse(store)));
+    const result = fixUtf8Encoding(stores.map((store) => this.mapStoreResponse(store)));
+
+    // Cache for admin
+    if (!user || user.role === 'ADMIN') {
+      this.cache.set(CACHE_KEYS.STORES_ACTIVE, result);
+    }
+
+    return result;
   }
 
   async getStore(id: string, user?: any) {
@@ -175,16 +209,19 @@ export class OrganizationService {
     const existing = await this.prisma.store.findUnique({ where: { code: data.code }, select: { id: true } });
     if (existing) throw new ConflictException(`Store ${data.code} already exists`);
     const store = await this.prisma.store.create({ data: this.mapStorePayload(data), select: this.storeSelect });
+    this.cache.delete(CACHE_KEYS.STORES_ACTIVE);
     return this.mapStoreResponse(store);
   }
 
   async updateStore(id: string, data: any) {
     const store = await this.prisma.store.update({ where: { id }, data: this.mapStorePayload(data), select: this.storeSelect });
+    this.cache.delete(CACHE_KEYS.STORES_ACTIVE);
     return this.mapStoreResponse(store);
   }
 
   async deleteStore(id: string) {
     const store = await this.prisma.store.update({ where: { id }, data: { isActive: false }, select: this.storeSelect });
+    this.cache.delete(CACHE_KEYS.STORES_ACTIVE);
     return this.mapStoreResponse(store);
   }
 

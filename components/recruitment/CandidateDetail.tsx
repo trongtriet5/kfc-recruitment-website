@@ -61,12 +61,12 @@ interface User {
   role: string
 }
 
-export default function CandidateDetail({ 
-  candidateId, 
-  isModal = false 
-}: { 
-  candidateId: string, 
-  isModal?: boolean 
+export default function CandidateDetail({
+  candidateId,
+  isModal = false
+}: {
+  candidateId: string,
+  isModal?: boolean
 }) {
   const router = useRouter()
   const [candidate, setCandidate] = useState<CandidateDetail | null>(null)
@@ -102,7 +102,7 @@ export default function CandidateDetail({
       .then(res => {
         const provincesData = res.data || []
         setProvinces(provincesData)
-        
+
         // If we already have candidate, try to load wards
         if (candidate) {
           const notes = candidate.notes
@@ -118,7 +118,7 @@ export default function CandidateDetail({
                   .catch(console.error)
               }
             }
-          } catch (e) {}
+          } catch (e) { }
         }
       })
       .catch(console.error)
@@ -140,10 +140,10 @@ export default function CandidateDetail({
 
   const getStatusLabel = (status: unknown) => {
     if (!status || typeof status !== 'string' && typeof status !== 'object') return 'Chưa có trạng thái'
-    
+
     // If it's an object from the new relational backend
     if (typeof status === 'object' && status !== null && 'name' in status) return String((status as { name: string }).name || '')
-    
+
     const statusCode = typeof status === 'string' ? status : (status as any)?.code
     if (!statusCode) return 'Chưa có trạng thái'
 
@@ -325,7 +325,7 @@ export default function CandidateDetail({
         </div>
       </div>
 
-{/* Status Change Form */}
+      {/* Status Change Form */}
       {showStatusChange && allowedStatuses.length > 0 && (
         <div className="bg-white shadow rounded-lg p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Chuyển trạng thái</h3>
@@ -335,7 +335,7 @@ export default function CandidateDetail({
               if (availableStatuses.length === 0) return null
 
               return (
-<div key={groupKey}>
+                <div key={groupKey}>
                   <label className="block text-sm font-semibold text-gray-700 mb-3">
                     {group.label}
                   </label>
@@ -343,29 +343,29 @@ export default function CandidateDetail({
                     {group.statuses
                       .filter((s) => allowedStatuses.includes(s.value))
                       .map((status) => {
-                      const currentStatusCode = typeof candidate.status === 'object' 
-                        ? candidate.status?.code 
-                        : candidate.status
-                      const isSelected = currentStatusCode === status.value
-                       
-                      return (
-                        <button
-                          key={status.value}
-                          onClick={() => setNewStatus(status.value)}
-                          className={`
+                        const currentStatusCode = typeof candidate.status === 'object'
+                          ? candidate.status?.code
+                          : candidate.status
+                        const isSelected = currentStatusCode === status.value
+
+                        return (
+                          <button
+                            key={status.value}
+                            onClick={() => setNewStatus(status.value)}
+                            className={`
                             px-3 py-2 text-sm rounded-md border transition-all
-                            ${isSelected 
-                              ? 'bg-yellow-50 border-yellow-500 text-yellow-700 font-medium' 
-                              : newStatus === status.value
-                              ? 'bg-blue-50 border-blue-500 text-blue-700'
-                              : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                            }
+                            ${isSelected
+                                ? 'bg-yellow-50 border-yellow-500 text-yellow-700 font-medium'
+                                : newStatus === status.value
+                                  ? 'bg-blue-50 border-blue-500 text-blue-700'
+                                  : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                              }
                           `}
-                        >
-                          {status.label}
-                        </button>
-                      )
-                    })}
+                          >
+                            {status.label}
+                          </button>
+                        )
+                      })}
                   </div>
                 </div>
               )
@@ -390,7 +390,7 @@ export default function CandidateDetail({
                   {statusChangeLoading ? 'Đang cập nhật...' : 'Xác nhận'}
                 </button>
               </div>
-)}
+            )}
           </div>
         </div>
       )}
@@ -420,8 +420,8 @@ export default function CandidateDetail({
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Cửa hàng</label>
-              <p className="mt-1 text-sm text-gray-900">{typeof candidate.store === 'object' && candidate.store !== null && 'name' in candidate.store 
-                ? `${candidate.store.name}${candidate.store.code ? ` (${candidate.store.code})` : ''}`.trim() 
+              <p className="mt-1 text-sm text-gray-900">{typeof candidate.store === 'object' && candidate.store !== null && 'name' in candidate.store
+                ? `${candidate.store.name}${candidate.store.code ? ` (${candidate.store.code})` : ''}`.trim()
                 : 'Chưa có'}</p>
             </div>
             <div>
@@ -431,7 +431,7 @@ export default function CandidateDetail({
             <div>
               <label className="text-sm font-medium text-gray-500">Địa điểm mong muốn làm việc</label>
               <p className="mt-1 text-sm text-gray-900">
-                {candidate.preferredStoreNames && candidate.preferredStoreNames.length > 0 
+                {candidate.preferredStoreNames && candidate.preferredStoreNames.length > 0
                   ? candidate.preferredStoreNames.join(', ')
                   : getCityName(candidate.currentCity)}
               </p>
@@ -634,21 +634,20 @@ export default function CandidateDetail({
                 <div key={proposal.id} className="flex items-center justify-between py-2 border-b border-gray-100">
                   <span className="text-sm text-gray-900">{proposal.title}</span>
                   <span
-                    className={`text-xs px-2 py-1 rounded ${
-                      (typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'APPROVED'
+                    className={`text-xs px-2 py-1 rounded ${(typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'APPROVED'
                         ? 'bg-green-100 text-green-800'
                         : (typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'REJECTED'
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}
                   >
                     {typeof proposal.status === 'object'
                       ? proposal.status?.name
                       : proposal.status === 'APPROVED'
-                      ? 'Đã duyệt'
-                      : proposal.status === 'REJECTED'
-                      ? 'Từ chối'
-                      : 'Chờ duyệt'}
+                        ? 'Đã duyệt'
+                        : proposal.status === 'REJECTED'
+                          ? 'Từ chối'
+                          : 'Chờ duyệt'}
                   </span>
                 </div>
               ))}
@@ -663,8 +662,8 @@ export default function CandidateDetail({
           <DialogHeader>
             <DialogTitle>Chỉnh sửa ứng viên</DialogTitle>
           </DialogHeader>
-          <EditCandidateForm 
-            candidateId={candidateId} 
+          <EditCandidateForm
+            candidateId={candidateId}
             onSuccess={() => {
               setShowEditModal(false)
               api.get(`/recruitment/candidates/${candidateId}`).then(res => setCandidate(res.data))

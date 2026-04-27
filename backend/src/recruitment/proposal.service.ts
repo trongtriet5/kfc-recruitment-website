@@ -2,6 +2,54 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException 
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from './audit.service';
 
+export enum ProposalStatus {
+  DRAFT = 'DRAFT',
+  SUBMITTED = 'SUBMITTED',
+  AM_REVIEWED = 'AM_REVIEWED',
+  HR_ACCEPTED = 'HR_ACCEPTED',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+  CANCELLED = 'CANCELLED',
+}
+
+export interface TransitionGuard {
+  (proposal: any, user: any): boolean;
+}
+
+export interface ProposalTransition {
+  target: ProposalStatus;
+  roles: string[];
+  guard?: TransitionGuard;
+}
+
+export const PROPOSAL_WORKFLOW: Record<ProposalStatus, ProposalTransition[]> = {
+  [ProposalStatus.DRAFT]: [
+    { target: ProposalStatus.SUBMITTED, roles: ['USER', 'MANAGER', 'AM', 'HEAD_OF_DEPARTMENT', 'ADMIN'] },
+  ],
+  [ProposalStatus.SUBMITTED]: [
+    { target: ProposalStatus.AM_REVIEWED, roles: ['MANAGER', 'AM', 'HEAD_OF_DEPARTMENT', 'ADMIN'] },
+    { target: ProposalStatus.APPROVED, roles: ['MANAGER', 'AM', 'HEAD_OF_DEPARTMENT', 'ADMIN'] },
+    { target: ProposalStatus.REJECTED, roles: ['MANAGER', 'AM', 'HEAD_OF_DEPARTMENT', 'ADMIN'] },
+    { target: ProposalStatus.CANCELLED, roles: ['USER', 'MANAGER', 'AM', 'HEAD_OF_DEPARTMENT', 'ADMIN'] },
+  ],
+  [ProposalStatus.AM_REVIEWED]: [
+    { target: ProposalStatus.APPROVED, roles: ['MANAGER', 'AM', 'HEAD_OF_DEPARTMENT', 'ADMIN'] },
+    { target: ProposalStatus.REJECTED, roles: ['MANAGER', 'AM', 'HEAD_OF_DEPARTMENT', 'ADMIN'] },
+    { target: ProposalStatus.CANCELLED, roles: ['MANAGER', 'AM', 'HEAD_OF_DEPARTMENT', 'ADMIN'] },
+  ],
+  [ProposalStatus.HR_ACCEPTED]: [
+    { target: ProposalStatus.APPROVED, roles: ['HEAD_OF_DEPARTMENT', 'ADMIN'] },
+    { target: ProposalStatus.REJECTED, roles: ['HEAD_OF_DEPARTMENT', 'ADMIN'] },
+    { target: ProposalStatus.CANCELLED, roles: ['HEAD_OF_DEPARTMENT', 'ADMIN'] },
+  ],
+  [ProposalStatus.APPROVED]: [
+    { target: ProposalStatus.CANCELLED, roles: ['MANAGER', 'AM', 'HEAD_OF_DEPARTMENT', 'ADMIN'] },
+    { target: ProposalStatus.SUBMITTED, roles: ['ADMIN'] },
+  ],
+  [ProposalStatus.REJECTED]: [],
+  [ProposalStatus.CANCELLED]: [],
+};
+
 export const PROPOSAL_STATUS_FLOW = {
   SUBMITTED: ['AM_REVIEWED', 'APPROVED', 'REJECTED', 'CANCELLED'],
   AM_REVIEWED: ['APPROVED', 'REJECTED', 'CANCELLED'],
@@ -11,12 +59,35 @@ export const PROPOSAL_STATUS_FLOW = {
 };
 
 export const PROPOSAL_STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'Bản nháp',
   SUBMITTED: 'Đã gửi',
   AM_REVIEWED: 'AM đã xem xét',
+  HR_ACCEPTED: 'HR đã duyệt',
   APPROVED: 'Đã duyệt',
   REJECTED: 'Từ chối',
   CANCELLED: 'Đã hủy',
 };
+
+export function canTransitionProposal(
+  proposalStatus: string,
+  targetStatus: ProposalStatus,
+  userRole: string,
+): boolean {
+  const transitions = PROPOSAL_WORKFLOW[proposalStatus as ProposalStatus];
+  if (!transitions) return false;
+  return transitions.some(t => t.target === targetStatus && t.roles.includes(userRole));
+}
+
+export function getAllowedTransitions(
+  proposalStatus: string,
+  userRole: string,
+): ProposalStatus[] {
+  const transitions = PROPOSAL_WORKFLOW[proposalStatus as ProposalStatus];
+  if (!transitions) return [];
+  return transitions
+    .filter(t => t.roles.includes(userRole))
+    .map(t => t.target);
+}
 
 @Injectable()
 export class ProposalService {
@@ -419,10 +490,12 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
     if (!proposal) throw new NotFoundException('Đề xuất không tồn tại');
 
     const fromStatus = proposal.status;
-    const allowedTransitions = PROPOSAL_STATUS_FLOW[fromStatus as keyof typeof PROPOSAL_STATUS_FLOW] || [];
+    const toStatusEnum = toStatus as ProposalStatus;
 
-    if (!allowedTransitions.includes(toStatus)) {
-      throw new BadRequestException(`Không thể chuyển từ ${fromStatus} sang ${toStatus}`);
+    if (!canTransitionProposal(fromStatus, toStatusEnum, actorRole)) {
+      throw new ForbiddenException(
+        `Không được phép chuyển từ ${fromStatus} sang ${toStatus} với vai trò ${actorRole}`,
+      );
     }
 
     const updateData: any = { status: toStatus };

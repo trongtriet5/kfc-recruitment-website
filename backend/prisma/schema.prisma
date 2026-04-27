@@ -19,7 +19,6 @@ model User {
   updatedAt  DateTime @updatedAt
 
   interviews    Interview[]
-  campaigns     Campaign[]
   createdProposals RecruitmentProposal[] @relation("ProposalCreator")
   picCandidates Candidate[] @relation("CandidatePIC")
   managedStore  Store?      @relation("StoreSM")
@@ -44,7 +43,6 @@ model Department {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  campaigns   Campaign[]
   headcounts  Headcount[]
   proposals   RecruitmentProposal[]
   candidates  Candidate[]
@@ -63,8 +61,8 @@ model Position {
 
   headcountPositions HeadcountPosition[]
   proposals   RecruitmentProposal[]
-  interviews  Interview[]
   forms      RecruitmentForm[]
+  campaigns   Campaign[]
 
   @@map("positions")
 }
@@ -148,35 +146,40 @@ model Campaign {
   name         String
   description  String?
   formId       String
+  positionId   String?
   link         String?   @unique
   startDate    DateTime?
   endDate      DateTime?
   isUntilFilled Boolean  @default(false)
   isActive     Boolean   @default(true)
-  picId        String?
-  departmentId String?
   storeId      String?
   proposalId   String?   @unique
-  
+
   // Fulfillment tracking
   targetQty    Int       @default(0)
   fulfilledQty Int       @default(0)
   hiredQty     Int       @default(0)
   offerAcceptedQty Int   @default(0)
   status       String    @default("ACTIVE") // ACTIVE, PAUSED, COMPLETED, CANCELLED
-  
+
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  // Soft delete & version control
+  deletedAt    DateTime?
+  version      Int       @default(1)
+
   form         RecruitmentForm  @relation(fields: [formId], references: [id])
-  pic          User?           @relation(fields: [picId], references: [id])
-  department   Department?     @relation(fields: [departmentId], references: [id])
+  position     Position?        @relation(fields: [positionId], references: [id])
   store        Store?          @relation(fields: [storeId], references: [id])
   candidates   Candidate[]
   auditLogs    CandidateAuditLog[]
   offers       Offer[]
   proposal     RecruitmentProposal? @relation("ProposalCampaign", fields: [proposalId], references: [id])
 
+  // Database constraints
+  @@index([storeId, status])
+  @@index([positionId, isActive])
   @@map("campaigns")
 }
 
@@ -184,7 +187,7 @@ model Candidate {
   id              String   @id @default(cuid())
   fullName        String
   email           String?
-  phone           String
+  phone           String   @db.VarChar(20)
   cvUrl           String?
   formId          String?
   campaignId      String?
@@ -200,53 +203,61 @@ model Candidate {
   notes           String?
   gender          String?
   dateOfBirth     DateTime?
-  cccd           String?
-  currentCity    String?
-  currentWard    String?
-  currentStreet  String?
+  cccd            String?  @db.VarChar(12)
+  currentCity     String?
+  currentWard     String?
+  currentStreet   String?
   permanentSameAsCurrent Boolean? @default(false)
-  permanentCity  String?
-  permanentWard  String?
+  permanentCity   String?
+  permanentWard   String?
   permanentStreet String?
   appliedPosition String?
   appliedPositionOther String?
   availableStartDate DateTime?
-  canWorkTet     String?
-  referrer       String?
-  referrerName   String?
+  canWorkTet      String?
+  referrer        String?
+  referrerName    String?
   preferredLocations String[] @default([])
   workExperience  String?
-  
+
   // SLA & Priority
-  priority       String    @default("NORMAL") // URGENT, HIGH, NORMAL, LOW
-  slaDueDate     DateTime?
-  slaBreachFlag  Boolean   @default(false)
-  
+  priority        String    @default("NORMAL") // URGENT, HIGH, NORMAL, LOW
+  slaDueDate      DateTime?
+  slaBreachFlag   Boolean   @default(false)
+
   // Blacklist tracking
-  isBlacklisted  Boolean   @default(false)
-  blacklistedAt  DateTime?
+  isBlacklisted   Boolean   @default(false)
+  blacklistedAt   DateTime?
   blacklistReason String?
-  blacklistId    String?
-  blacklist      Blacklist? @relation(fields: [blacklistId], references: [id])
-  
+  blacklistId     String?
+  blacklist       Blacklist? @relation(fields: [blacklistId], references: [id])
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  // Soft delete & version control
+  deletedAt       DateTime?
+  version         Int      @default(1)  // For optimistic locking
 
   form            RecruitmentForm?  @relation(fields: [formId], references: [id])
   campaign        Campaign?         @relation(fields: [campaignId], references: [id])
   proposal        RecruitmentProposal? @relation("CandidateDirectProposal", fields: [proposalId], references: [id])
   store           Store?           @relation(fields: [storeId], references: [id])
   department      Department?      @relation(fields: [departmentId], references: [id])
-  
+
   picId           String?
   pic             User?            @relation("CandidatePIC", fields: [picId], references: [id])
-  
+
   interviews      Interview[]
   auditLogs       CandidateAuditLog[]
   slaLogs         CandidateSLALog[]
   communications  CandidateCommunicationLog[]
   offers          Offer[]
 
+  // Database constraints
+  @@index([storeId, statusId])
+  @@index([campaignId, statusId])
+  @@index([phone, storeId])
   @@map("candidates")
 }
 
@@ -271,9 +282,9 @@ model Interview {
   id           String   @id @default(cuid())
   candidateId  String
   interviewerId String
-  typeId       String?
-  resultId     String?
-  positionId   String?
+  type         String?  // e.g., PHONE, VIDEO, ONSITE
+  result       String?  // e.g., PASS, FAIL, PENDING
+  position     String?  // Position name at time of interview
   scheduledAt  DateTime
   completedAt  DateTime?
   location    String?
@@ -284,8 +295,11 @@ model Interview {
 
   candidate    Candidate  @relation(fields: [candidateId], references: [id])
   interviewer  User       @relation(fields: [interviewerId], references: [id])
-  position     Position?  @relation(fields: [positionId], references: [id])
 
+  // Database constraints
+  @@index([candidateId, scheduledAt])
+  @@index([interviewerId, scheduledAt])
+  @@index([scheduledAt])
   @@map("interviews")
 }
 
@@ -295,17 +309,17 @@ model RecruitmentProposal {
   description  String?
   storeId      String?
   positionId   String?
-  quantity     Int
+  quantity     Int      @default(1) // Must be at least 1
   reason       String?
   businessReason String? // e.g., EXPANSION, REPLACEMENT, SEASONAL, NEW_OPENING
   replacementFor String? // Employee ID or name being replaced
-  
+
   // Enhanced request fields
   urgency      String   @default("NORMAL") // LOW, NORMAL, HIGH, CRITICAL
   budget       Float?   // Monthly budget per head
   targetJoinDate DateTime?
   isUnplanned  Boolean  @default(false)
-  
+
   // Workflow tracking
   status       String   @default("DRAFT") // DRAFT, SUBMITTED, AM_REVIEWED, HR_ACCEPTED, APPROVED, REJECTED, CANCELLED
   requestedById String?
@@ -317,7 +331,7 @@ model RecruitmentProposal {
   rejectionReason String?
   cancelledAt DateTime?
   cancelledById String?
-  
+
   campaignId  String?
   departmentId String?
   startDate    DateTime?
@@ -325,6 +339,10 @@ model RecruitmentProposal {
   isUntilFilled Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  // Soft delete & version control
+  deletedAt   DateTime?
+  version     Int       @default(1)
 
   store        Store?          @relation(fields: [storeId], references: [id])
   position     Position?       @relation(fields: [positionId], references: [id])
@@ -335,6 +353,10 @@ model RecruitmentProposal {
   workflowHistory ProposalWorkflow[]
   fulfillment ProposalFulfillment?
 
+  // Database constraints
+  @@index([storeId, status])
+  @@index([positionId, status])
+  @@index([requestedById, status])
   @@map("recruitment_proposals")
 }
 
@@ -361,16 +383,10 @@ model ProposalFulfillment {
   proposal     RecruitmentProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
   
   requestedQty Int
-  cvReceivedQty Int    @default(0)
-  screenedQty  Int      @default(0)
-  interviewedQty Int    @default(0)
-  offeredQty   Int      @default(0)
-  offerAcceptedQty Int  @default(0)
   hiredQty     Int      @default(0)
   onboardedQty Int      @default(0)
   
   completionRate Float  @default(0)
-  avgTimeToHire  Int?   // Days
   lastUpdatedAt  DateTime @updatedAt
 
   @@map("proposal_fulfillments")

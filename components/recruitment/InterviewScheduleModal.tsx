@@ -12,6 +12,12 @@ interface Candidate {
   store?: { id: string; name: string }
 }
 
+interface Store {
+  id: string
+  name: string
+  code: string
+}
+
 interface Campaign {
   id: string
   name: string
@@ -23,25 +29,27 @@ interface Campaign {
 
 interface InterviewScheduleModalProps {
   candidate: Candidate
-  campaign?: Campaign
+  campaign: Campaign | null
   onClose: () => void
   onSuccess: () => void
 }
 
 export default function InterviewScheduleModal({ candidate, campaign, onClose, onSuccess }: InterviewScheduleModalProps) {
   const [users, setUsers] = useState<any[]>([])
+  const [stores, setStores] = useState<Store[]>([])
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     fromTime: '09:00',
     toTime: '10:00',
     interviewerId: campaign?.recruiter?.id || campaign?.pic?.id || '',
-    location: campaign?.store?.name || '',
+    location: campaign?.store?.id || '',
     notes: '',
   })
 
   useEffect(() => {
     loadUsers()
+    loadStores()
   }, [])
 
   const loadUsers = async () => {
@@ -50,6 +58,17 @@ export default function InterviewScheduleModal({ candidate, campaign, onClose, o
       setUsers(res.data || [])
     } catch (err) {
       console.error('Error loading users:', err)
+    }
+  }
+
+  const loadStores = async () => {
+    try {
+      const res = await api.get('/stores')
+      // Sort by store code ascending
+      const sorted = (res.data || []).sort((a: Store, b: Store) => a.code.localeCompare(b.code))
+      setStores(sorted)
+    } catch (err) {
+      console.error('Error loading stores:', err)
     }
   }
 
@@ -64,11 +83,16 @@ export default function InterviewScheduleModal({ candidate, campaign, onClose, o
         return
       }
       const scheduledAt = new Date(`${formData.date}T${formData.fromTime}:00`)
+      
+      // Map store ID to "CODE - Name" format
+      const selectedStore = stores.find(s => s.id === formData.location)
+      const locationValue = selectedStore ? `${selectedStore.code} - ${selectedStore.name}` : formData.location
+      
       const interviewData = {
         candidateId: candidate.id,
         interviewerId: formData.interviewerId || campaign?.recruiter?.id || campaign?.pic?.id,
         scheduledAt: scheduledAt.toISOString(),
-        location: formData.location,
+        location: locationValue,
         notes: formData.notes,
       }
 
@@ -193,15 +217,20 @@ export default function InterviewScheduleModal({ candidate, campaign, onClose, o
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Địa điểm
+              Địa điểm phỏng vấn
             </label>
-            <input
-              type="text"
+            <select
               value={formData.location}
               onChange={(e) => setFormData({ ...formData, location: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
-              placeholder={campaign.store?.name || 'Nhập địa điểm'}
-            />
+            >
+              <option value="">Chọn cửa hàng</option>
+              {stores.map((store) => (
+                <option key={store.id} value={store.id}>
+                  {store.code} - {store.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>

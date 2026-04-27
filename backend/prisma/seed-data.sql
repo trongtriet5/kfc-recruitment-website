@@ -1,6 +1,7 @@
 -- ============================================================
 -- KFC Recruitment Database - Full DDL + Seed
--- Generated: 2026-04-26T16:08:59.405Z
+-- Generated: 2026-04-28T08:00:00.000Z
+-- Updated: Added soft delete (deletedAt, version) and constraints
 -- ============================================================
 -- Uses Prisma camelCase column naming
 -- ============================================================
@@ -144,13 +145,12 @@ CREATE TABLE campaigns (
   name VARCHAR(255) NOT NULL,
   description TEXT,
   "formId" VARCHAR(50) NOT NULL,
+  "positionId" VARCHAR(50),
   link VARCHAR(500) UNIQUE,
   "startDate" TIMESTAMP,
   "endDate" TIMESTAMP,
   "isUntilFilled" BOOLEAN DEFAULT false,
   "isActive" BOOLEAN DEFAULT true,
-  "picId" VARCHAR(50),
-  "departmentId" VARCHAR(50),
   "storeId" VARCHAR(50),
   "proposalId" VARCHAR(50),
   "targetQty" INTEGER DEFAULT 0,
@@ -159,8 +159,13 @@ CREATE TABLE campaigns (
   "offerAcceptedQty" INTEGER DEFAULT 0,
   status VARCHAR(50) DEFAULT 'ACTIVE',
   "createdAt" TIMESTAMP DEFAULT NOW(),
-  "updatedAt" TIMESTAMP DEFAULT NOW()
+  "updatedAt" TIMESTAMP DEFAULT NOW(),
+  -- Soft delete & version control
+  "deletedAt" TIMESTAMP,
+  version INTEGER DEFAULT 1
 );
+CREATE INDEX idx_campaigns_deleted_at ON campaigns("deletedAt");
+CREATE INDEX idx_campaigns_store_status ON campaigns("storeId", status);
 CREATE INDEX idx_campaigns_form_id ON campaigns("formId");
 CREATE INDEX idx_campaigns_store_id ON campaigns("storeId");
 
@@ -170,7 +175,7 @@ CREATE TABLE candidates (
   id VARCHAR(50) PRIMARY KEY,
   full_name VARCHAR(255) NOT NULL,
   email VARCHAR(255),
-  phone VARCHAR(50) NOT NULL,
+  phone VARCHAR(20) NOT NULL,
   "cvUrl" VARCHAR(500),
   "formId" VARCHAR(50),
   "campaignId" VARCHAR(50),
@@ -185,7 +190,7 @@ CREATE TABLE candidates (
   notes TEXT,
   gender VARCHAR(20),
   "dateOfBirth" TIMESTAMP,
-  cccd VARCHAR(50),
+  cccd VARCHAR(12),
   "currentCity" VARCHAR(100),
   "currentWard" VARCHAR(100),
   "currentStreet" VARCHAR(500),
@@ -209,8 +214,15 @@ CREATE TABLE candidates (
   "blacklistReason" TEXT,
   "blacklistId" VARCHAR(50),
   "createdAt" TIMESTAMP DEFAULT NOW(),
-  "updatedAt" TIMESTAMP DEFAULT NOW()
+  "updatedAt" TIMESTAMP DEFAULT NOW(),
+  -- Soft delete & version control
+  "deletedAt" TIMESTAMP,
+  version INTEGER DEFAULT 1
 );
+CREATE INDEX idx_candidates_deleted_at ON candidates("deletedAt");
+CREATE INDEX idx_candidates_store_status ON candidates("storeId", "statusId");
+CREATE INDEX idx_candidates_campaign_status ON candidates("campaignId", "statusId");
+CREATE INDEX idx_candidates_phone_store ON candidates(phone, "storeId");
 CREATE INDEX idx_candidates_campaign_id ON candidates("campaignId");
 CREATE INDEX idx_candidates_store_id ON candidates("storeId");
 CREATE INDEX idx_candidates_status_id ON candidates("statusId");
@@ -221,9 +233,9 @@ CREATE TABLE interviews (
   id VARCHAR(50) PRIMARY KEY,
   "candidateId" VARCHAR(50) NOT NULL,
   "interviewerId" VARCHAR(50) NOT NULL,
-  "typeId" VARCHAR(50),
-  "resultId" VARCHAR(50),
-  "positionId" VARCHAR(50),
+  type VARCHAR(50),
+  result VARCHAR(50),
+  position VARCHAR(100),
   "scheduledAt" TIMESTAMP NOT NULL,
   "completedAt" TIMESTAMP,
   location VARCHAR(500),
@@ -267,8 +279,15 @@ CREATE TABLE recruitment_proposals (
   "endDate" TIMESTAMP,
   "isUntilFilled" BOOLEAN DEFAULT false,
   "createdAt" TIMESTAMP DEFAULT NOW(),
-  "updatedAt" TIMESTAMP DEFAULT NOW()
+  "updatedAt" TIMESTAMP DEFAULT NOW(),
+  -- Soft delete & version control
+  "deletedAt" TIMESTAMP,
+  version INTEGER DEFAULT 1
 );
+CREATE INDEX idx_recruitment_proposals_deleted_at ON recruitment_proposals("deletedAt");
+CREATE INDEX idx_recruitment_proposals_store_status ON recruitment_proposals("storeId", status);
+CREATE INDEX idx_recruitment_proposals_position_status ON recruitment_proposals("positionId", status);
+CREATE INDEX idx_recruitment_proposals_requested_status ON recruitment_proposals("requestedById", status);
 CREATE INDEX idx_recruitment_proposals_store_id ON recruitment_proposals("storeId");
 
 -- proposal_workflows
@@ -292,15 +311,9 @@ CREATE TABLE proposal_fulfillments (
   id VARCHAR(50) PRIMARY KEY,
   "proposalId" VARCHAR(50) UNIQUE NOT NULL,
   "requestedQty" INTEGER NOT NULL,
-  "cvReceivedQty" INTEGER DEFAULT 0,
-  "screenedQty" INTEGER DEFAULT 0,
-  "interviewedQty" INTEGER DEFAULT 0,
-  "offeredQty" INTEGER DEFAULT 0,
-  "offerAcceptedQty" INTEGER DEFAULT 0,
   "hiredQty" INTEGER DEFAULT 0,
   "onboardedQty" INTEGER DEFAULT 0,
   "completionRate" FLOAT DEFAULT 0,
-  "avgTimeToHire" INTEGER,
   "lastUpdatedAt" TIMESTAMP DEFAULT NOW()
 );
 

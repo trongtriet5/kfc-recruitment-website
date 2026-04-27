@@ -29,6 +29,10 @@ const DEFAULT_FORM_FIELDS = [
 export class RecruitmentService {
   constructor(private prisma: PrismaService) {}
 
+  // ============================================================================
+  // FORMS DOMAIN - Recruitment form CRUD operations
+  // ============================================================================
+
   // Forms
   async getForms() {
     const forms = await this.prisma.recruitmentForm.findMany({
@@ -162,6 +166,10 @@ export class RecruitmentService {
     return this.prisma.recruitmentForm.delete({ where: { id } });
   }
 
+  // ============================================================================
+  // CAMPAIGNS DOMAIN - Campaign CRUD and statistics
+  // ============================================================================
+
   async getCampaignStatistics(campaignId?: string) {
     const where: any = campaignId ? { id: campaignId } : {};
 
@@ -195,7 +203,10 @@ export class RecruitmentService {
   // Campaigns
   async getCampaigns(user?: any) {
     const where: any = {};
-    
+
+    // SOFT DELETE: Exclude deleted records by default
+    where.deletedAt = null;
+
     // Filter by user access for SM/AM
     if (user && user.role !== 'ADMIN') {
       const storeIds = await this.getAccessibleStoreIds(user);
@@ -252,15 +263,47 @@ export class RecruitmentService {
   }
 
   async createCampaign(data: any, user?: any) {
-    // Auto-assign store from proposal
+    let proposalData = null;
+
+    // CONSTRAINT: Proposal must be APPROVED before Campaign creation
     if (data.proposalId) {
       const proposal = await this.prisma.recruitmentProposal.findUnique({
         where: { id: data.proposalId },
         include: { store: true, position: true }
       });
-      
+
+      if (!proposal) {
+        throw new NotFoundException('Đề xuất không tồn tại');
+      }
+
+      // Check if proposal is APPROVED
+      if (proposal.status !== 'APPROVED') {
+        throw new ForbiddenException(
+          `Chỉ có thể tạo chiến dịch từ đề xuất đã được duyệt. Trạng thái hiện tại: ${proposal.status}`
+        );
+      }
+
+      // Check if campaign already exists for this proposal
+      if (proposal.campaignId) {
+        throw new ForbiddenException('Đề xuất này đã có chiến dịch được tạo');
+      }
+
       if (proposal) {
+        proposalData = proposal;
         data.storeId = proposal.storeId;
+        data.positionId = proposal.positionId;
+        data.isUntilFilled = proposal.isUntilFilled;
+        
+        // Xử lý ngày tháng theo loại tuyển dụng
+        if (proposal.isUntilFilled) {
+          // Tuyển đến khi đủ: ngày bắt đầu là hôm nay, không có ngày kết thúc
+          data.startDate = new Date();
+          data.endDate = null;
+        } else {
+          // Theo kế hoạch: lấy ngày từ proposal
+          data.startDate = proposal.startDate;
+          data.endDate = proposal.endDate;
+        }
         
         // Check headcount constraint
         if (proposal.storeId && proposal.positionId) {
@@ -301,13 +344,16 @@ export class RecruitmentService {
     if (data.startDate === '') data.startDate = null;
     if (data.endDate === '') data.endDate = null;
     
-    // Auto-assign formId based on proposal/position if not provided
+    // Auto-assign formId based on proposal's position
     let formId = data.formId;
-    if (!formId && data.proposalId) {
-      const proposal = await this.prisma.recruitmentProposal.findUnique({
-        where: { id: data.proposalId },
-        include: { position: true }
+    if (!formId && proposalData?.positionId) {
+      const form = await this.prisma.recruitmentForm.findFirst({
+        where: { 
+          positions: { some: { id: proposalData.positionId } },
+          isActive: true 
+        }
       });
+      formId = form?.id;
     }
     // Get any active form as fallback
     if (!formId) {
@@ -321,10 +367,11 @@ export class RecruitmentService {
     // Generate unique link for campaign
     const link = `kfc-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
-    const campaignData = {
+    const { recruiterId, quantity, ...campaignData } = {
       ...data,
       formId,
       link,
+      targetQty: data.quantity || 0,
       startDate: data.startDate ? new Date(data.startDate) : null,
       endDate: data.endDate ? new Date(data.endDate) : null,
     };
@@ -351,12 +398,33 @@ export class RecruitmentService {
   }
 
   async deleteCampaign(id: string) {
-    return this.prisma.campaign.delete({ where: { id } });
+    const campaign = await this.prisma.campaign.findUnique({
+      where: { id },
+      include: { candidates: true }
+    });
+    if (!campaign) throw new NotFoundException('Chiến dịch không tồn tại');
+    if (campaign.candidates.length > 0) {
+      throw new Error('Không thể xóa chiến dịch đã có ứng viên. Vui lòng xóa hết ứng viên trước.');
+    }
+
+    // SOFT DELETE: Set deletedAt instead of hard delete
+    return this.prisma.campaign.update({
+      where: { id },
+      data: { deletedAt: new Date() }
+    });
   }
+
+  // ============================================================================
+  // CANDIDATES DOMAIN - Candidate CRUD and queries
+  // ============================================================================
 
   // Candidates
   async getCandidates(filters?: any, user?: any) {
     const where: any = {};
+
+    // SOFT DELETE: Exclude deleted records by default
+    where.deletedAt = null;
+
     if (filters?.status) {
       where.status = { code: filters.status };
     }
@@ -537,6 +605,21 @@ export class RecruitmentService {
       }
     }
 
+    // CONSTRAINT: Prevent duplicate phone per store
+    if (data.phone && data.storeId) {
+      const existingCandidate = await this.prisma.candidate.findFirst({
+        where: {
+          phone: data.phone,
+          storeId: data.storeId,
+        },
+      });
+      if (existingCandidate) {
+        throw new ForbiddenException(
+          'Số điện thoại đã tồn tại trong cửa hàng này'
+        );
+      }
+    }
+
     const status = await this.prisma.candidateStatus.findUnique({
       where: { code: data.status || 'CV_FILTERING' }
     });
@@ -703,16 +786,28 @@ export class RecruitmentService {
         throw new ForbiddenException('Bạn không có quyền xóa ứng viên này');
       }
     }
-    return this.prisma.candidate.delete({ where: { id } });
+
+    // SOFT DELETE: Set deletedAt instead of hard delete
+    return this.prisma.candidate.update({
+      where: { id },
+      data: { deletedAt: new Date() }
+    });
   }
 
   async transferCampaign(candidateId: string, campaignId: string, user?: any) {
-    const campaign = await this.prisma.campaign.findUnique({ 
+    const campaign = await this.prisma.campaign.findUnique({
       where: { id: campaignId },
-      include: { store: true, department: true, proposal: true }
+      include: { store: true, proposal: true }
     });
     if (!campaign) throw new NotFoundException('Chiến dịch không tồn tại');
-    
+
+    // CONSTRAINT: Candidate can only be assigned to ACTIVE campaign
+    if (campaign.status !== 'ACTIVE') {
+      throw new ForbiddenException(
+        `Chỉ có thể chuyển ứng viên vào chiến dịch đang hoạt động. Trạng thái hiện tại: ${campaign.status}`
+      );
+    }
+
     // Check access for SM/AM
     if (user && user.role !== 'ADMIN') {
       const storeIds = await this.getAccessibleStoreIds(user);
@@ -727,7 +822,6 @@ export class RecruitmentService {
         campaignId,
         proposalId: campaign.proposalId || undefined,
         storeId: campaign.storeId,
-        departmentId: campaign.departmentId
       }
     });
 
@@ -744,6 +838,10 @@ export class RecruitmentService {
     return updatedCandidate;
   }
 
+  // ============================================================================
+  // INTERVIEWS DOMAIN - Interview scheduling and management
+  // ============================================================================
+
   // Interviews
   async getInterviews(filters?: any) {
     const where: any = {};
@@ -758,27 +856,27 @@ export class RecruitmentService {
   }
 
   async createInterview(data: any) {
-    // Robust creation to handle potential schema mismatches during transition
-    const payload: any = {
-      candidateId: data.candidateId,
-      interviewerId: data.interviewerId,
-      scheduledAt: data.scheduledAt,
-      location: data.location,
-      notes: data.notes,
-    };
-
-    // Only include these if they are in the data (will be ignored by Prisma if not in schema, 
-    // but better to be safe with any types)
-    if (data.typeId) payload.typeId = data.typeId;
-    if (data.resultId) payload.resultId = data.resultId;
-    if (data.positionId) payload.positionId = data.positionId;
-
-    return this.prisma.interview.create({ data: payload });
+    return this.prisma.interview.create({
+      data: {
+        candidateId: data.candidateId,
+        interviewerId: data.interviewerId,
+        scheduledAt: new Date(data.scheduledAt),
+        location: data.location || undefined,
+        notes: data.notes,
+        type: data.type || undefined,
+        result: data.result || undefined,
+        position: data.position || undefined,
+      }
+    });
   }
 
   async updateInterview(id: string, data: any) {
     return this.prisma.interview.update({ where: { id }, data });
   }
+
+  // ============================================================================
+  // PROPOSALS DOMAIN - Recruitment proposal management
+  // ============================================================================
 
   // Proposals
   async getProposals(user?: any) {
@@ -814,11 +912,32 @@ export class RecruitmentService {
         data.storeId = storeIds[0];
       }
     }
-    
+
+    // CONSTRAINT: Prevent duplicate active proposals for same store/position
+    if (data.storeId && data.positionId) {
+      const existingProposal = await this.prisma.recruitmentProposal.findFirst({
+        where: {
+          storeId: data.storeId,
+          positionId: data.positionId,
+          status: { in: ['DRAFT', 'SUBMITTED', 'AM_REVIEWED', 'HR_ACCEPTED', 'APPROVED'] },
+        },
+      });
+      if (existingProposal) {
+        throw new ForbiddenException(
+          'Đã có đề xuất đang chờ duyệt hoặc đã được duyệt cho cửa hàng và vị trí này'
+        );
+      }
+    }
+
+    // CONSTRAINT: quantity must be > 0
+    if (data.quantity !== undefined && data.quantity < 1) {
+      throw new BadRequestException('Số lượng yêu cầu phải lớn hơn 0');
+    }
+
     // Convert empty strings to null for date fields
     if (data.startDate === '') data.startDate = null;
     if (data.endDate === '') data.endDate = null;
-    
+
     return this.prisma.recruitmentProposal.create({ data });
   }
 
@@ -841,7 +960,10 @@ export class RecruitmentService {
   }
 
   async deleteProposal(id: string, user?: any) {
-    const proposal = await this.prisma.recruitmentProposal.findUnique({ where: { id } });
+    const proposal = await this.prisma.recruitmentProposal.findUnique({ 
+      where: { id },
+      include: { candidates: true }
+    });
     if (!proposal) throw new NotFoundException('Đề xuất không tồn tại');
 
     if (user && user.role !== 'ADMIN') {
@@ -851,9 +973,17 @@ export class RecruitmentService {
       }
     }
 
+    if (proposal.candidates.length > 0) {
+      throw new Error('Không thể xóa đề xuất đã có ứng viên. Vui lòng xóa hết ứng viên trước.');
+    }
+
     await this.prisma.recruitmentProposal.delete({ where: { id } });
     return { success: true };
   }
+
+  // ============================================================================
+  // HEADCOUNTS DOMAIN - Headcount planning and tracking
+  // ============================================================================
 
   // Headcounts
   async getHeadcounts() {
@@ -866,6 +996,10 @@ export class RecruitmentService {
   async createHeadcount(data: any) {
     return this.prisma.headcount.create({ data });
   }
+
+  // ============================================================================
+  // DASHBOARD DOMAIN - Analytics and reporting
+  // ============================================================================
 
   // Dashboard stats
   async getDashboard(filters?: {
@@ -1176,6 +1310,10 @@ export class RecruitmentService {
     return result;
   }
 
+  // ============================================================================
+  // SOURCES DOMAIN - Candidate source management
+  // ============================================================================
+
   // Sources
   async getSources() {
     return this.prisma.source.findMany({
@@ -1347,6 +1485,10 @@ export class RecruitmentService {
     }));
   }
 
+  // ============================================================================
+  // PUBLIC API DOMAIN - Public endpoints for application form
+  // ============================================================================
+
   async getPublicPositions() {
     const positions = await this.prisma.position.findMany({
       where: { isActive: true },
@@ -1363,6 +1505,10 @@ export class RecruitmentService {
   private hasAnyFilter(filter: Record<string, unknown>): boolean {
     return Object.keys(filter).length > 0
   }
+
+  // ============================================================================
+  // NOTIFICATIONS DOMAIN - User notification management
+  // ============================================================================
 
   // Notifications
   async getNotifications(userId: string, unreadOnly: boolean = false) {

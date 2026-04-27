@@ -8,94 +8,7 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { Search, ChevronDown } from 'lucide-react'
-
-const SearchableSelect = ({ 
-  options, 
-  value, 
-  onChange, 
-  placeholder, 
-}: { 
-  options: { id: string, name: string }[], 
-  value: string, 
-  onChange: (val: string) => void, 
-  placeholder: string,
-}) => {
-  const [isOpen, setIsOpen] = useState(false)
-  const [search, setSearch] = useState('')
-  const containerRef = React.useRef<HTMLDivElement>(null)
-
-  const filteredOptions = options.filter(opt => 
-    opt.name.toLowerCase().includes(search.toLowerCase())
-  )
-
-  const selectedOption = options.find(opt => opt.id === value)
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  return (
-    <div className="relative" ref={containerRef}>
-      <div 
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-full px-3 py-2 border border-gray-300 rounded-md bg-white flex justify-between items-center cursor-pointer focus:ring-2 focus:ring-slate-500`}
-      >
-        <span className={selectedOption ? 'text-gray-900' : 'text-gray-400'}>
-          {selectedOption ? selectedOption.name : placeholder}
-        </span>
-        <ChevronDown className="h-4 w-4 text-gray-400" />
-      </div>
-
-      {isOpen && (
-        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg">
-          <div className="p-2 border-b">
-            <div className="relative">
-              <Search className="absolute left-2 top-2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-slate-500"
-                placeholder="Tìm kiếm..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </div>
-          </div>
-          <div className="max-h-60 overflow-auto">
-            {filteredOptions.length > 0 ? (
-              filteredOptions.map((opt) => (
-                <div
-                  key={opt.id}
-                  className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${
-                    value === opt.id ? 'bg-slate-50 text-slate-700' : 'text-gray-700'
-                  }`}
-                  onClick={() => {
-                    onChange(opt.id)
-                    setIsOpen(false)
-                    setSearch('')
-                  }}
-                >
-                  {opt.name}
-                </div>
-              ))
-            ) : (
-              <div className="px-3 py-2 text-sm text-gray-500 text-center">
-                Không tìm thấy kết quả
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
+import { SearchableSelect } from '@/components/ui/select-searchable'
 
 interface Candidate {
   id: string
@@ -119,6 +32,12 @@ interface Employee {
   role: string
 }
 
+interface Store {
+  id: string
+  name: string
+  code: string
+}
+
 interface TypeOption {
   id: string
   code: string
@@ -138,20 +57,21 @@ export default function CreateInterviewForm({
   const searchParams = useSearchParams()
   const candidateIdParam = initialCandidateId || searchParams.get('candidateId')
 
-  const [loading, setLoading] = useState(false)
+const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [candidate, setCandidate] = useState<Candidate | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
+  const [stores, setStores] = useState<Store[]>([])
 
 
 
-  // Form fields
+
   const [candidateId, setCandidateId] = useState(candidateIdParam || '')
   const [interviewerId, setInterviewerId] = useState('')
   const [scheduledDate, setScheduledDate] = useState('')
   const [scheduledTime, setScheduledTime] = useState('09:00')
-  const [location, setLocation] = useState('')
+  const [selectedStoreId, setSelectedStoreId] = useState('')
   const [notes, setNotes] = useState('')
 
   useEffect(() => {
@@ -169,6 +89,25 @@ export default function CreateInterviewForm({
         } else {
           setCandidates([])
         }
+      })
+      .catch(console.error)
+
+    // Load stores
+    api
+      .get('/stores')
+      .then((res) => {
+        const data = res.data
+        let storeList: Store[] = []
+        if (Array.isArray(data)) {
+          storeList = data
+        } else if (Array.isArray(data?.stores)) {
+          storeList = data.stores
+        } else if (Array.isArray(data?.data)) {
+          storeList = data.data
+        }
+        // Sort by store code ascending
+        storeList.sort((a, b) => a.code.localeCompare(b.code))
+        setStores(storeList)
       })
       .catch(console.error)
 
@@ -211,10 +150,10 @@ export default function CreateInterviewForm({
     }
   }, [candidateId, candidates])
 
-  // Set default location when candidate is loaded
+  // Set default store when candidate is loaded
   useEffect(() => {
     if (candidate?.store) {
-      setLocation(candidate.store.name)
+      setSelectedStoreId(candidate.store.id)
     }
   }, [candidate])
 
@@ -245,7 +184,12 @@ export default function CreateInterviewForm({
         scheduledAt: combinedDate.toISOString(),
       }
 
-      if (location) payload.location = location
+      if (selectedStoreId) {
+        const selectedStore = stores.find(s => s.id === selectedStoreId)
+        if (selectedStore) {
+          payload.location = `${selectedStore.code} - ${selectedStore.name}`
+        }
+      }
       if (notes) payload.notes = notes
 
       await api.post('/recruitment/interviews', payload)
@@ -370,15 +314,14 @@ export default function CreateInterviewForm({
           <Label className="text-sm font-medium text-gray-700">
             Địa điểm phỏng vấn
           </Label>
-          <Input
-            type="text"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="Mặc định: Tại cửa hàng của chiến dịch"
-            className="w-full"
+          <SearchableSelect
+            options={stores.map(s => ({ id: s.id, name: `${s.code} - ${s.name}` }))}
+            value={selectedStoreId}
+            onChange={setSelectedStoreId}
+            placeholder="Chọn cửa hàng..."
           />
           <p className="text-xs text-gray-500 italic">
-            * Mặc định là tên cửa hàng của đề xuất tuyển dụng.
+            * Mặc định là cửa hàng của đề xuất tuyển dụng.
           </p>
         </div>
 

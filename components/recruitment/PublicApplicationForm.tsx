@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 import Icon from '@/components/icons/Icon'
+import { SearchableSelect } from '@/components/ui/select-searchable'
 import { 
   CheckCircle2, 
   AlertCircle, 
@@ -11,9 +12,7 @@ import {
   MapPin, 
   Phone, 
   Mail, 
-  User, 
-  ChevronDown, 
-  Search 
+  User
 } from 'lucide-react'
 
 
@@ -45,102 +44,6 @@ interface FormData {
   canWorkTet?: string
   referrer?: string
   referrerName?: string
-}
-
-const SearchableSelect = ({ 
-  options, 
-  value, 
-  onChange, 
-  placeholder, 
-  className,
-  error,
-  disabled 
-}: { 
-  options: { id: string, name: string }[], 
-  value: string, 
-  onChange: (val: string) => void, 
-  placeholder: string,
-  className?: string,
-  error?: string,
-  disabled?: boolean
-}) => {
-  const [isOpen, setIsOpen] = useState(false)
-  const [search, setSearch] = useState('')
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  const filteredOptions = options.filter(opt => 
-    opt.name.toLowerCase().includes(search.toLowerCase())
-  )
-
-  const selectedOption = options.find(opt => opt.id === value)
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  return (
-    <div className="relative" ref={containerRef}>
-      <div 
-        onClick={() => !disabled && setIsOpen(!isOpen)}
-        className={`w-full px-3 py-2 border rounded-md bg-white flex justify-between items-center ${
-          disabled ? 'bg-gray-50 cursor-not-allowed' : 'cursor-pointer'
-        } ${
-          error ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-yellow-500'
-        } ${className}`}
-      >
-        <span className={selectedOption ? 'text-gray-900' : 'text-gray-400'}>
-          {selectedOption ? selectedOption.name : placeholder}
-        </span>
-        <ChevronDown className="h-4 w-4 text-gray-400" />
-      </div>
-      
-      {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-          <div className="sticky top-0 bg-white p-2 border-b border-gray-100">
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                autoFocus
-                className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                placeholder="Tìm kiếm..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </div>
-          </div>
-          <div className="py-1">
-            {filteredOptions.length > 0 ? (
-              filteredOptions.map(opt => (
-                <div
-                  key={opt.id}
-                  className={`px-3 py-2 text-sm cursor-pointer hover:bg-slate-50 ${
-                    opt.id === value ? 'bg-slate-100 text-slate-900' : 'text-gray-700'
-                  }`}
-                  onClick={() => {
-                    onChange(opt.id)
-                    setIsOpen(false)
-                    setSearch('')
-                  }}
-                >
-                  {opt.name}
-                </div>
-              ))
-            ) : (
-              <div className="px-3 py-2 text-sm text-gray-500 text-center">Không tìm thấy kết quả</div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  )
 }
 
 interface Province {
