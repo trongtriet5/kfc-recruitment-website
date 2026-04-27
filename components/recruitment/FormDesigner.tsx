@@ -351,7 +351,7 @@ export default function FormDesigner({ formId, formData, fields: initialFields, 
               onClick={() => setActiveSection('content')}
               className={`w-full p-3 text-left rounded-lg border transition-all ${
                 activeSection === 'content'
-                  ? 'bg-yellow-50 border-yellow-500'
+                  ? 'bg-slate-50 border-slate-500'
                   : 'bg-white border-gray-200 hover:border-gray-300'
               }`}
             >
@@ -366,7 +366,7 @@ export default function FormDesigner({ formId, formData, fields: initialFields, 
               onClick={() => setActiveSection('design')}
               className={`w-full p-3 text-left rounded-lg border transition-all ${
                 activeSection === 'design'
-                  ? 'bg-yellow-50 border-yellow-500'
+                  ? 'bg-slate-50 border-slate-500'
                   : 'bg-white border-gray-200 hover:border-gray-300'
               }`}
             >
@@ -478,7 +478,7 @@ export default function FormDesigner({ formId, formData, fields: initialFields, 
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+            className="px-4 py-2 bg-slate-800 text-white rounded-md hover:bg-slate-900"
           >
             Lưu
           </button>
@@ -629,7 +629,7 @@ function FieldEditorModal({
               type="text"
               value={formData.label}
               onChange={(e) => setFormData({ ...formData, label: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
               required
               placeholder="Nhập câu hỏi"
             />
@@ -649,7 +649,7 @@ function FieldEditorModal({
                   options: needsOptions ? formData.options : undefined,
                 })
               }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
             >
               <option value="TEXT">Văn bản ngắn</option>
               <option value="TEXTAREA">Đoạn văn bản</option>
@@ -673,7 +673,7 @@ function FieldEditorModal({
                 type="text"
                 value={formData.placeholder || ''}
                 onChange={(e) => setFormData({ ...formData, placeholder: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
                 placeholder="Nhập văn bản mẫu"
               />
             </div>
@@ -685,7 +685,7 @@ function FieldEditorModal({
               id="required"
               checked={formData.required}
               onChange={(e) => setFormData({ ...formData, required: e.target.checked })}
-              className="w-4 h-4 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+              className="w-4 h-4 text-yellow-600 border-gray-300 rounded focus:ring-slate-500"
             />
             <label htmlFor="required" className="text-sm font-medium text-gray-700">
               Bắt buộc
@@ -700,7 +700,7 @@ function FieldEditorModal({
               type="text"
               value={formData.helpText || ''}
               onChange={(e) => setFormData({ ...formData, helpText: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
               placeholder="Văn bản hiển thị dưới câu hỏi"
             />
           </div>
@@ -729,19 +729,19 @@ function FieldEditorModal({
                   type="text"
                   value={newOption.label}
                   onChange={(e) => setNewOption({ ...newOption, label: e.target.value })}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
                   placeholder="Nhãn hiển thị"
                 />
                 <input
                   type="text"
                   value={newOption.value}
                   onChange={(e) => setNewOption({ ...newOption, value: e.target.value })}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
                   placeholder="Giá trị"
                 />
                 <button
                   onClick={addOption}
-                  className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+                  className="px-4 py-2 bg-slate-800 text-white rounded-md hover:bg-slate-900"
                 >
                   Thêm
                 </button>
@@ -759,7 +759,7 @@ function FieldEditorModal({
           </button>
           <button
             onClick={() => onSave(formData)}
-            className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+            className="px-4 py-2 bg-slate-800 text-white rounded-md hover:bg-slate-900"
           >
             Lưu
           </button>

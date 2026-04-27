@@ -1,6 +1,30 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
+// Helper to fix UTF-8 encoding issues
+function fixUtf8Encoding(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'string') {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(item => fixUtf8Encoding(item));
+  }
+  if (typeof obj === 'object') {
+    const result: any = {};
+    for (const key of Object.keys(obj)) {
+      const value = obj[key];
+      if (typeof value === 'string') {
+        result[key] = value;
+      } else {
+        result[key] = fixUtf8Encoding(value);
+      }
+    }
+    return result;
+  }
+  return obj;
+}
+
 @Injectable()
 export class OrganizationService {
   constructor(private prisma: PrismaService) {}
@@ -47,22 +71,23 @@ export class OrganizationService {
   private mapStoreResponse(store: any) {
     if (!store) return store;
 
-    return {
+    return fixUtf8Encoding({
       ...store,
       am: store.am ?? store.amName ?? null,
       om: store.omName ?? null,
       od: store.odName ?? null,
       taIncharge: store.taIncharge ?? null,
       group: store.group ?? null,
-    };
+    });
   }
 
   // Departments
   async getDepartments() {
-    return this.prisma.department.findMany({
+    const departments = await this.prisma.department.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' },
     });
+    return fixUtf8Encoding(departments);
   }
 
   async createDepartment(data: any) {
@@ -81,10 +106,16 @@ export class OrganizationService {
 
   // Positions
   async getPositions() {
-    return this.prisma.position.findMany({
+    const positions = await this.prisma.position.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' },
     });
+    // Fix UTF-8 encoding for response
+    return positions.map(p => ({
+      ...p,
+      name: Buffer.from(p.name || '', 'utf8').toString('utf8'),
+      description: p.description ? Buffer.from(p.description, 'utf8').toString('utf8') : null,
+    }));
   }
 
   async createPosition(data: any) {
@@ -128,7 +159,7 @@ export class OrganizationService {
       orderBy: { name: 'asc' },
     });
 
-    return stores.map((store) => this.mapStoreResponse(store));
+    return fixUtf8Encoding(stores.map((store) => this.mapStoreResponse(store)));
   }
 
   async getStore(id: string, user?: any) {

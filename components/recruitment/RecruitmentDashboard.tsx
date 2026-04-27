@@ -70,6 +70,8 @@ interface DashboardData {
     totalCandidates: number
     passedCandidates: number
     onboardedCandidates: number
+    offerSentCandidates: number
+    offerAcceptedCandidates: number
   }>
 }
 
@@ -465,7 +467,7 @@ export default function RecruitmentDashboard() {
     },
   ]
   return (
-    <div className="pt-6 space-y-12 relative">
+    <div className="space-y-12 relative">
       {loading && (
         <div className="absolute inset-x-0 top-0 h-0.5 z-50 bg-red-600 animate-pulse"></div>
       )}
@@ -747,13 +749,12 @@ export default function RecruitmentDashboard() {
                     groupTotal = firstStatus?.count || 0
                   }
 
-                  // Nếu là group "Ứng tuyển", chuyển đổi = 100%
-                  // Các group khác: chuyển đổi = groupTotal / totalForConversion
-                  const groupConversionRate = item.groupKey === 'application'
-                    ? '100.0'
-                    : totalForConversion > 0
-                      ? ((groupTotal / totalForConversion) * 100).toFixed(1)
-                      : '0.0'
+                  // Khi không có ứng viên hoặc group "application" có count = 0 thì hiển thị 0%
+                  const groupConversionRate = totalForConversion === 0 || groupTotal === 0
+                    ? '0.0'
+                    : item.groupKey === 'application'
+                      ? '100.0'
+                      : ((groupTotal / totalForConversion) * 100).toFixed(1)
 
                   return (
                     <tr key={`group-${item.groupKey}`} className="bg-gray-100 hover:bg-gray-100">
@@ -776,7 +777,7 @@ export default function RecruitmentDashboard() {
                   )?.count || 0
 
                   // Chuyển đổi (%) = số lượng thực tế / số lượng "Ứng tuyển"
-                  const conversionRate = totalForConversion > 0 && actualStatusCount
+                  const conversionRate = totalForConversion > 0 && actualStatusCount > 0
                     ? ((actualStatusCount / totalForConversion) * 100).toFixed(1)
                     : '0.0'
 
@@ -946,6 +947,8 @@ export default function RecruitmentDashboard() {
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng UV</th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Đã xử lý</th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ứng viên đạt</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Offer gửi</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Nhận offer</th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Đồng ý nhận việc</th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tỷ lệ đạt</th>
                   </tr>
@@ -954,6 +957,7 @@ export default function RecruitmentDashboard() {
                   {data.taPerformance.map((ta: any) => {
                     const processed = ta.processedCandidates ?? ta.totalCandidates
                     const passedRate = ta.totalCandidates > 0 ? ((ta.passedCandidates / ta.totalCandidates) * 100).toFixed(1) : '0.0'
+                    const offerAcceptanceRate = ta.offerSentCandidates > 0 ? ((ta.offerAcceptedCandidates / ta.offerSentCandidates) * 100).toFixed(1) : '0.0'
                     const onboardedRate = ta.totalCandidates > 0 ? ((ta.onboardedCandidates / ta.totalCandidates) * 100).toFixed(1) : '0.0'
                     return (
                       <tr key={ta.taId} className="hover:bg-gray-50">
@@ -972,6 +976,12 @@ export default function RecruitmentDashboard() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-blue-600 font-medium">
                           {ta.passedCandidates} ({passedRate}%)
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-orange-600 font-medium">
+                          {ta.offerSentCandidates || 0}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-purple-600 font-medium">
+                          {ta.offerAcceptedCandidates || 0} ({offerAcceptanceRate}%)
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-green-600 font-medium">
                           {ta.onboardedCandidates} ({onboardedRate}%)

@@ -61,6 +61,8 @@ export default function FormsAndLinksManager() {
   const [showDesigner, setShowDesigner] = useState(false)
   const [designingForm, setDesigningForm] = useState<RecruitmentForm | null>(null)
   const [confirmDeleteForm, setConfirmDeleteForm] = useState<RecruitmentForm | null>(null)
+  const [duplicatingForm, setDuplicatingForm] = useState<RecruitmentForm | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; form: RecruitmentForm } | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [formData, setFormData] = useState({
     title: '',
@@ -105,6 +107,12 @@ export default function FormsAndLinksManager() {
   }, showPreview)
 
   useEffect(() => {
+    const handleClick = () => setContextMenu(null)
+    window.addEventListener('click', handleClick)
+    return () => window.removeEventListener('click', handleClick)
+  }, [])
+
+  useEffect(() => {
     loadForms()
     loadSources()
   }, [])
@@ -129,11 +137,14 @@ export default function FormsAndLinksManager() {
     try {
       if (editingForm) {
         await api.patch(`/recruitment/forms/${editingForm.id}`, formData)
+        toast.success('Cập nhật form thành công')
       } else {
         await api.post('/recruitment/forms', formData)
+        toast.success(duplicatingForm ? 'Nhân bản form thành công' : 'Tạo form thành công')
       }
       setShowCreateForm(false)
       setEditingForm(null)
+      setDuplicatingForm(null)
       setFormData({
         title: '',
         description: '',
@@ -191,7 +202,7 @@ export default function FormsAndLinksManager() {
     setShowDesigner(true)
   }
 
-  const handleEdit = (form: RecruitmentForm) => {
+const handleEdit = (form: RecruitmentForm) => {
     setEditingForm(form)
     setFormData({
       title: form.title,
@@ -206,7 +217,53 @@ export default function FormsAndLinksManager() {
       textColor: form.textColor || '#111827',
       isActive: form.isActive,
     })
+  }
+
+  const handleDuplicate = (form: RecruitmentForm) => {
+    setDuplicatingForm(form)
+    setFormData({
+      title: `${form.title} (Copy)`,
+      description: form.description || '',
+      source: form.source,
+      formTitle: form.formTitle || '',
+      formContent: form.formContent || '',
+      bannerUrl: form.bannerUrl || '',
+      primaryColor: form.primaryColor || '#E31837',
+      secondaryColor: form.secondaryColor || '#FFFFFF',
+      backgroundColor: form.backgroundColor || '#FFFFFF',
+      textColor: form.textColor || '#111827',
+      isActive: false,
+    })
+    if (form.fields && form.fields.length > 0) {
+      setDesigningForm(form)
+    }
     setShowCreateForm(true)
+  }
+
+  const handleDuplicateSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await api.post('/recruitment/forms', formData)
+      setShowCreateForm(false)
+      setDuplicatingForm(null)
+      setFormData({
+        title: '',
+        description: '',
+        source: '',
+        formTitle: '',
+        formContent: '',
+        bannerUrl: '',
+        primaryColor: '#E31837',
+        secondaryColor: '#FFFFFF',
+        backgroundColor: '#FFFFFF',
+        textColor: '#111827',
+        isActive: true,
+      })
+      loadForms()
+      toast.success('Nhân bản form thành công')
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra')
+    }
   }
 
   const handleDelete = async () => {
@@ -229,21 +286,25 @@ export default function FormsAndLinksManager() {
     setShowPreview(true)
   }
 
+  const handleContextMenu = (e: React.MouseEvent, form: RecruitmentForm) => {
+    e.preventDefault()
+    setContextMenu({ x: e.clientX, y: e.clientY, form })
+  }
+
   if (loading) {
     return <div className="text-center py-4">Đang tải...</div>
   }
 
   return (
-    <div className="pt-6 space-y-8">
+    <div className="space-y-8">
       {/* Page Header */}
-      <div className="pb-2">
+      <div>
         <h1 className="text-2xl font-bold text-gray-900">Form tuyển dụng</h1>
         <p className="text-gray-600 mt-2">Quản lý form ứng tuyển (dùng chung cho các chiến dịch)</p>
       </div>
 
       <div className="flex justify-between items-center">
-        <div></div>
-        <button
+      <button
           onClick={() => {
             setEditingForm(null)
             setFormData({
@@ -273,7 +334,7 @@ export default function FormsAndLinksManager() {
           <div ref={createFormRef} className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto my-8">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold">
-                {editingForm ? 'Chỉnh sửa' : 'Tạo mới'} Form
+                {editingForm ? 'Chỉnh sửa' : duplicatingForm ? 'Nhân bản' : 'Tạo mới'} Form
               </h3>
               <button
                 onClick={() => {
@@ -412,7 +473,7 @@ export default function FormsAndLinksManager() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+                  className="px-4 py-2 bg-slate-800 text-white rounded-md hover:bg-slate-900"
                 >
                   {editingForm ? 'Cập nhật' : 'Tạo'}
                 </button>
@@ -500,7 +561,7 @@ export default function FormsAndLinksManager() {
             </li>
           ) : (
             forms.map((form) => (
-              <li key={form.id} className="px-4 py-4 sm:px-6 hover:bg-gray-50">
+              <li key={form.id} className="px-4 py-4 sm:px-6 hover:bg-gray-50 cursor-pointer" onContextMenu={e => handleContextMenu(e, form)}>
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className="flex items-center">
@@ -529,34 +590,6 @@ export default function FormsAndLinksManager() {
                     </div>
                   </div>
                   <div className="ml-4 flex items-center space-x-2">
-                    <button
-                      onClick={() => handleDesign(form)}
-                      className="text-sm text-yellow-600 hover:text-yellow-700 px-3 py-1 border border-yellow-300 rounded-md hover:bg-yellow-50 flex items-center gap-1"
-                    >
-                      <Icon name="edit" size={16} />
-                      Thiết kế
-                    </button>
-                    <button
-                      onClick={() => handleEdit(form)}
-                      className="text-sm text-blue-600 hover:text-blue-700 px-3 py-1 border border-blue-300 rounded-md hover:bg-blue-50 flex items-center gap-1"
-                    >
-                      <Icon name="edit" size={16} />
-                      Sửa
-                    </button>
-                    <button
-                      onClick={() => previewForm(form)}
-                      className="text-sm text-blue-600 hover:text-blue-700 px-3 py-1 border border-blue-300 rounded-md hover:bg-blue-50 flex items-center gap-1"
-                    >
-                      <Icon name="eye" size={16} />
-                      Xem
-                    </button>
-                    <button
-                      onClick={() => setConfirmDeleteForm(form)}
-                      className="text-sm text-red-600 hover:text-red-700 px-3 py-1 border border-red-300 rounded-md hover:bg-red-50 flex items-center gap-1"
-                    >
-                      <Icon name="trash" size={16} />
-                      Xóa
-                    </button>
                   </div>
                 </div>
               </li>
@@ -580,7 +613,7 @@ export default function FormsAndLinksManager() {
           </div>
           <div className="bg-white rounded-lg shadow p-4">
             <div className="text-sm text-gray-600">Tổng ứng viên</div>
-            <div className="text-2xl font-bold text-yellow-600 mt-1">
+            <div className="text-2xl font-bold text-slate-600 mt-1">
               {forms.reduce((sum, f) => sum + (f._count?.candidates || 0), 0)}
             </div>
           </div>
@@ -601,6 +634,26 @@ export default function FormsAndLinksManager() {
         onClose={() => setConfirmDeleteForm(null)}
         onConfirm={handleDelete}
       />
+
+      {contextMenu && (
+        <div className="fixed bg-white shadow-lg rounded-md border py-1 z-50" style={{ top: contextMenu.y, left: contextMenu.x }}>
+          <button onClick={() => { handleDesign(contextMenu.form); setContextMenu(null) }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-700">
+            <Icon name="edit" size={14} /> Thiết kế
+          </button>
+          <button onClick={() => { handleDuplicate(contextMenu.form); setContextMenu(null) }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-700">
+            <Icon name="copy" size={14} /> Nhân bản
+          </button>
+          <button onClick={() => { handleEdit(contextMenu.form); setContextMenu(null) }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-700">
+            <Icon name="edit" size={14} /> Sửa
+          </button>
+          <button onClick={() => { previewForm(contextMenu.form); setContextMenu(null) }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-700">
+            <Icon name="eye" size={14} /> Xem
+          </button>
+          <button onClick={() => { setConfirmDeleteForm(contextMenu.form); setContextMenu(null) }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-700">
+            <Icon name="trash" size={14} /> Xóa
+          </button>
+        </div>
+      )}
     </div>
   )
 }

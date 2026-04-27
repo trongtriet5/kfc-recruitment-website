@@ -366,7 +366,7 @@ export default function UsersManagementPage() {
                 </div>
                 <div>
                   <Label>Email <span className="text-red-500">*</span></Label>
-                  <Input type="email" required value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} disabled={!!editingUser} />
+                  <Input type="email" required value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
                 </div>
                 <div>
                   <Label>Số điện thoại</Label>

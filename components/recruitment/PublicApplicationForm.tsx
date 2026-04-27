@@ -121,8 +121,8 @@ const SearchableSelect = ({
               filteredOptions.map(opt => (
                 <div
                   key={opt.id}
-                  className={`px-3 py-2 text-sm cursor-pointer hover:bg-yellow-50 ${
-                    opt.id === value ? 'bg-yellow-100 text-yellow-900' : 'text-gray-700'
+                  className={`px-3 py-2 text-sm cursor-pointer hover:bg-slate-50 ${
+                    opt.id === value ? 'bg-slate-100 text-slate-900' : 'text-gray-700'
                   }`}
                   onClick={() => {
                     onChange(opt.id)
@@ -547,7 +547,7 @@ export default function PublicApplicationForm() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
-          <div className="text-yellow-600 text-lg mb-4">Thiếu thông tin chiến dịch</div>
+          <div className="text-slate-600 text-lg mb-4">Thiếu thông tin chiến dịch</div>
           <p className="text-gray-600 text-sm">
             Vui lòng truy cập form qua link chiến dịch được cung cấp.
           </p>
@@ -1288,7 +1288,7 @@ export default function PublicApplicationForm() {
                               })
                               validateField('preferredLocations', newLocations)
                             }}
-                            className="mt-1 h-4 w-4 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+                            className="mt-1 h-4 w-4 text-slate-600 border-gray-300 rounded focus:ring-yellow-500"
                           />
                           <div className="flex flex-col">
                             <span className="text-sm font-medium text-gray-900">{store.name}</span>

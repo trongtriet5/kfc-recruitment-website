@@ -41,8 +41,8 @@ interface CandidatesKanbanProps {
 }
 
 export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
-  const { 
-    candidates: propsCandidates, 
+  const {
+    candidates: propsCandidates,
     onStatusChange,
     page: propsPage,
     limit: propsLimit,
@@ -63,9 +63,9 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
     candidate: Candidate
     position: { x: number; y: number }
   } | null>(null)
-  
+
   const { dbStatuses, dynamicGroups, loading: dbLoading } = useCandidateStatuses()
-  
+
   // Local pagination state for standalone usage
   const [localPage, setLocalPage] = useState(1)
   const [localLimit, setLocalLimit] = useState(10)
@@ -109,7 +109,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
   const loadCandidates = () => {
     setLoading(true)
     const params: any = { page, limit }
-    
+
     api
       .get('/recruitment/candidates', { params })
       .then((res) => {
@@ -179,7 +179,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
 
     // Get first status of target group
     const firstStatus = targetGroup.statuses[0]
-    
+
     // Check if user has permission
     const allowedStatuses = getAllowedStatuses()
     if (!allowedStatuses.includes(firstStatus.value)) {
@@ -245,7 +245,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
     }
     const statusCode = typeof status === 'string' ? status : (status as any)?.code
     if (!statusCode) return 'Chưa có trạng thái'
-    
+
     for (const group of Object.values(dynamicGroups)) {
       const found = group.statuses.find((s) => s.value === statusCode)
       if (found) return found.label
@@ -282,7 +282,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
   const getCandidatesByGroup = (groupKey: string) => {
     const group = dynamicGroups[groupKey]
     if (!group) return []
-    
+
     return candidates.filter((c) => {
       if (!c.status) return false
       const candidateStatusCode = typeof c.status === 'object' ? c.status.code : c.status
@@ -357,135 +357,135 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
       </div>
       <div className="overflow-x-auto pb-4 relative">
         {contextMenu && (
-        <CandidateContextMenu
-          candidate={contextMenu.candidate}
-          position={contextMenu.position}
-          onClose={() => setContextMenu(null)}
-          onStatusChange={(candidate) => {
-            setContextMenu(null)
-          }}
-          onStatusSelect={async (candidate, newStatusCode) => {
-            try {
-              // Fetch status ID from backend
-              const statuses = await api.get('/types/by-category/CANDIDATE_STATUS')
-              const targetStatus = statuses.data.find((s: any) => s.code === newStatusCode)
-              if (!targetStatus) {
-                toast.error('Không tìm thấy trạng thái')
-                return
-              }
-              await api.patch(`/recruitment/candidates/${candidate.id}`, {
-                status: targetStatus.code,
-              })
-              if (propsCandidates && onStatusChange) {
-                onStatusChange()
-              } else {
-                loadCandidates()
-              }
+          <CandidateContextMenu
+            candidate={contextMenu.candidate}
+            position={contextMenu.position}
+            onClose={() => setContextMenu(null)}
+            onStatusChange={(candidate) => {
               setContextMenu(null)
-            } catch (err: any) {
-              toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi cập nhật trạng thái')
-            }
-          }}
-          onDelete={handleDeleteCandidate}
-          onScheduleInterview={handleScheduleInterview}
-          onTransferCampaign={onTransferCampaign}
-          onAssignPIC={onAssignPIC}
-          allowedStatuses={allowedStatuses}
-          statusOptions={allStatuses}
-        />
-      )}
-      <div className="flex gap-4 min-w-max">
-        {Object.entries(dynamicGroups).map(([groupKey, group]) => {
-          const groupCandidates = getCandidatesByGroup(groupKey)
-          return (
-            <div key={groupKey} className="flex-shrink-0 w-80">
-              <div className="bg-gray-50 rounded-lg p-4 mb-3 border border-gray-200">
-                <h3 className="font-semibold text-gray-900 text-sm">{group.label}</h3>
-                <p className="text-xs text-gray-500 mt-1">
-                  {groupCandidates.length} ứng viên
-                </p>
-              </div>
-              <div
-                className={`
+            }}
+            onStatusSelect={async (candidate, newStatusCode) => {
+              try {
+                // Fetch status ID from backend
+                const statuses = await api.get('/types/by-category/CANDIDATE_STATUS')
+                const targetStatus = statuses.data.find((s: any) => s.code === newStatusCode)
+                if (!targetStatus) {
+                  toast.error('Không tìm thấy trạng thái')
+                  return
+                }
+                await api.patch(`/recruitment/candidates/${candidate.id}`, {
+                  status: targetStatus.code,
+                })
+                if (propsCandidates && onStatusChange) {
+                  onStatusChange()
+                } else {
+                  loadCandidates()
+                }
+                setContextMenu(null)
+              } catch (err: any) {
+                toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi cập nhật trạng thái')
+              }
+            }}
+            onDelete={handleDeleteCandidate}
+            onScheduleInterview={handleScheduleInterview}
+            onTransferCampaign={onTransferCampaign}
+            onAssignPIC={onAssignPIC}
+            allowedStatuses={allowedStatuses}
+            statusOptions={allStatuses}
+          />
+        )}
+        <div className="flex gap-4 min-w-max">
+          {Object.entries(dynamicGroups).map(([groupKey, group]) => {
+            const groupCandidates = getCandidatesByGroup(groupKey)
+            return (
+              <div key={groupKey} className="flex-shrink-0 w-80">
+                <div className="bg-gray-50 rounded-lg p-4 mb-3 border border-gray-200">
+                  <h3 className="font-semibold text-gray-900 text-sm">{group.label}</h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {groupCandidates.length} ứng viên
+                  </p>
+                </div>
+                <div
+                  className={`
                   bg-white rounded-lg border min-h-[400px] p-3 transition-all shadow-sm
                   ${dragOverGroup === groupKey
-                    ? 'border-gray-900 bg-gray-50'
-                    : 'border-gray-200'
-                  }
+                      ? 'border-gray-900 bg-gray-50'
+                      : 'border-gray-200'
+                    }
                 `}
-                onDragOver={(e) => handleDragOver(e, groupKey)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, groupKey)}
-              >
-                <div className="space-y-2.5">
-                  {groupCandidates.map((candidate) => (
-                    <div
-                      key={candidate.id}
-                      draggable={allowedStatuses.length > 0}
-                      onDragStart={(e) => handleDragStart(e, candidate)}
-                      onDragEnd={handleDragEnd}
-                      onContextMenu={(e) => handleContextMenu(e, candidate)}
-                      onClick={(e) => handleCandidateClick(e, candidate)}
-                      className={`
+                  onDragOver={(e) => handleDragOver(e, groupKey)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, groupKey)}
+                >
+                  <div className="space-y-2.5">
+                    {groupCandidates.map((candidate) => (
+                      <div
+                        key={candidate.id}
+                        draggable={allowedStatuses.length > 0}
+                        onDragStart={(e) => handleDragStart(e, candidate)}
+                        onDragEnd={handleDragEnd}
+                        onContextMenu={(e) => handleContextMenu(e, candidate)}
+                        onClick={(e) => handleCandidateClick(e, candidate)}
+                        className={`
                         p-3 rounded-lg border cursor-pointer transition-all
                         ${getStatusColor(candidate.status)}
                         hover:shadow-md hover:border-gray-300
                         ${draggedCandidate?.id === candidate.id ? 'opacity-50' : ''}
                         ${allowedStatuses.length > 0 ? 'cursor-move' : ''}
                       `}
-                    >
-                      <div className="font-semibold text-sm text-gray-900 mb-2">
-                        {candidate.fullName}
-                      </div>
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                          <Icon name="phone" size={12} className="text-gray-400" />
-                          {candidate.phone}
+                      >
+                        <div className="font-semibold text-sm text-gray-900 mb-2">
+                          {candidate.fullName}
                         </div>
-                        {candidate.email && (
-                          <div className="flex items-center gap-1.5 text-xs text-gray-500 truncate">
-                            <Icon name="mail" size={12} className="text-gray-400 flex-shrink-0" />
-                            <span className="truncate">{candidate.email}</span>
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                            <Icon name="phone" size={12} className="text-gray-400" />
+                            {candidate.phone}
                           </div>
-                        )}
-                        {candidate.position && (
-                          <div className="text-xs text-gray-500 mt-1.5">
-                            <span className="font-medium">Vị trí:</span> {candidate.position}
-                          </div>
-                        )}
-                        {candidate.store && typeof candidate.store === 'object' && candidate.store !== null && 'name' in candidate.store && (
-                          <div className="text-xs text-gray-500">
-                            {(candidate.store as { name: string }).name}
-                          </div>
-                        )}
-                      </div>
-                      <div className="mt-3 pt-2 border-t border-gray-200 flex items-center justify-between">
-                        <div className="text-xs text-gray-400">
-                          {new Date(candidate.createdAt).toLocaleDateString('vi-VN')}
+                          {candidate.email && (
+                            <div className="flex items-center gap-1.5 text-xs text-gray-500 truncate">
+                              <Icon name="mail" size={12} className="text-gray-400 flex-shrink-0" />
+                              <span className="truncate">{candidate.email}</span>
+                            </div>
+                          )}
+                          {candidate.position && (
+                            <div className="text-xs text-gray-500 mt-1.5">
+                              <span className="font-medium">Vị trí:</span> {candidate.position}
+                            </div>
+                          )}
+                          {candidate.store && typeof candidate.store === 'object' && candidate.store !== null && 'name' in candidate.store && (
+                            <div className="text-xs text-gray-500">
+                              {(candidate.store as { name: string }).name}
+                            </div>
+                          )}
                         </div>
-                        <div className="text-xs px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 font-medium">
-                          {getStatusLabel(candidate.status)}
+                        <div className="mt-3 pt-2 border-t border-gray-200 flex items-center justify-between">
+                          <div className="text-xs text-gray-400">
+                            {new Date(candidate.createdAt).toLocaleDateString('vi-VN')}
+                          </div>
+                          <div className="text-xs px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 font-medium">
+                            {getStatusLabel(candidate.status)}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+                          <Icon name="campaign" size={10} />
+                          <span className="truncate">
+                            {typeof candidate.campaign === 'object' && candidate.campaign !== null && 'name' in candidate.campaign ? (candidate.campaign as { name: string }).name.replace(/^Chiến dịch\s*[-–]?\s*|\s*[-–]?\s*Chiến dịch\s*$/gi, '').trim() : 'Chưa có chiến dịch'}
+                          </span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
-                        <Icon name="campaign" size={10} />
-                        <span className="truncate">
-                          {typeof candidate.campaign === 'object' && candidate.campaign !== null && 'name' in candidate.campaign ? (candidate.campaign as { name: string }).name.replace(/^Chiến dịch\s*[-–]?\s*|\s*[-–]?\s*Chiến dịch\s*$/gi, '').trim() : 'Chiến dịch tuyển dụng tổng'}
-                        </span>
+                    ))}
+                    {groupCandidates.length === 0 && (
+                      <div className="text-sm text-gray-400 text-center py-12">
+                        Không có ứng viên
                       </div>
-                    </div>
-                  ))}
-                  {groupCandidates.length === 0 && (
-                    <div className="text-sm text-gray-400 text-center py-12">
-                      Không có ứng viên
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

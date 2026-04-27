@@ -12,36 +12,31 @@ interface Candidate {
   store?: { id: string; name: string }
 }
 
-interface Proposal {
+interface Campaign {
   id: string
-  title: string
+  name: string
   store?: { id: string; name: string; code: string }
   position?: { id: string; name: string }
-  requester?: { id: string; fullName: string }
-}
-
-interface User {
-  id: string
-  fullName: string
-  email: string
+  pic?: { id: string; fullName: string }
+  recruiter?: { id: string; fullName: string }
 }
 
 interface InterviewScheduleModalProps {
   candidate: Candidate
-  proposal?: Proposal
+  campaign?: Campaign
   onClose: () => void
   onSuccess: () => void
 }
 
-export default function InterviewScheduleModal({ candidate, proposal, onClose, onSuccess }: InterviewScheduleModalProps) {
-  const [users, setUsers] = useState<User[]>([])
+export default function InterviewScheduleModal({ candidate, campaign, onClose, onSuccess }: InterviewScheduleModalProps) {
+  const [users, setUsers] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     fromTime: '09:00',
     toTime: '10:00',
-    interviewerId: proposal?.requester?.id || '',
-    location: proposal?.store?.name || '',
+    interviewerId: campaign?.recruiter?.id || campaign?.pic?.id || '',
+    location: campaign?.store?.name || '',
     notes: '',
   })
 
@@ -51,8 +46,8 @@ export default function InterviewScheduleModal({ candidate, proposal, onClose, o
 
   const loadUsers = async () => {
     try {
-      const res = await api.get('/users/select')
-      setUsers(res.data)
+      const res = await api.get('/users')
+      setUsers(res.data || [])
     } catch (err) {
       console.error('Error loading users:', err)
     }
@@ -65,12 +60,13 @@ export default function InterviewScheduleModal({ candidate, proposal, onClose, o
     try {
       if (formData.toTime <= formData.fromTime) {
         toast.error('Giờ kết thúc phải lớn hơn giờ bắt đầu')
+        setLoading(false)
         return
       }
       const scheduledAt = new Date(`${formData.date}T${formData.fromTime}:00`)
       const interviewData = {
         candidateId: candidate.id,
-        interviewerId: formData.interviewerId || proposal?.requester?.id,
+        interviewerId: formData.interviewerId || campaign?.recruiter?.id || campaign?.pic?.id,
         scheduledAt: scheduledAt.toISOString(),
         location: formData.location,
         notes: formData.notes,
@@ -87,11 +83,31 @@ export default function InterviewScheduleModal({ candidate, proposal, onClose, o
     }
   }
 
+  if (!campaign) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <div className="text-center">
+            <Icon name="alert-circle" size={48} className="mx-auto text-yellow-500 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Không thể tạo lịch phỏng vấn</h3>
+            <p className="text-gray-600 mb-4">Ứng viên chưa được gán vào chiến dịch tuyển dụng nào.</p>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 w-full max-w-md">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium">Tao lich phong van</h3>
+          <h3 className="text-lg font-medium">Tạo lịch phỏng vấn</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <Icon name="x" size={20} />
           </button>
@@ -99,40 +115,41 @@ export default function InterviewScheduleModal({ candidate, proposal, onClose, o
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="bg-gray-50 p-3 rounded-md">
-            <div className="text-sm text-gray-600">Ung vien</div>
+            <div className="text-sm text-gray-600">Ứng viên</div>
             <div className="font-medium">{candidate.fullName}</div>
             <div className="text-sm text-gray-500">{candidate.phone}</div>
           </div>
 
-          {proposal && (
-            <div className="bg-gray-50 p-3 rounded-md">
-              <div className="text-sm text-gray-600">De xuat</div>
-              <div className="font-medium">{proposal.title}</div>
-              <div className="text-sm text-gray-500">
-                {proposal.store?.name} - {proposal.position?.name}
+          <div className="bg-gray-50 p-3 rounded-md">
+            <div className="text-sm text-gray-600">Chiến dịch</div>
+            <div className="font-medium">{campaign.name}</div>
+            <div className="text-sm text-gray-500">
+              {campaign.store?.name} - {campaign.position?.name}
+            </div>
+            {(campaign.pic || campaign.recruiter) && (
+              <div className="text-sm text-gray-500 mt-1">
+                Người phỏng vấn: {campaign.recruiter?.fullName || campaign.pic?.fullName}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Ngay phong van <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="date"
-                value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                required
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Ngày phỏng vấn <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              value={formData.date}
+              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              required
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tu gio <span className="text-red-500">*</span>
+                Từ giờ <span className="text-red-500">*</span>
               </label>
               <input
                 type="time"
@@ -144,7 +161,7 @@ export default function InterviewScheduleModal({ candidate, proposal, onClose, o
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Den gio <span className="text-red-500">*</span>
+                Đến giờ <span className="text-red-500">*</span>
               </label>
               <input
                 type="time"
@@ -158,17 +175,17 @@ export default function InterviewScheduleModal({ candidate, proposal, onClose, o
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nguoi phong van
+              Người phỏng vấn
             </label>
             <select
               value={formData.interviewerId}
               onChange={(e) => setFormData({ ...formData, interviewerId: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             >
-              <option value="">Mac dinh: {proposal?.requester && typeof proposal.requester === 'object' && 'fullName' in proposal.requester ? String(proposal.requester.fullName || 'Nguoi tao de xuat') : 'Nguoi tao de xuat'}</option>
-              {users.map((user) => (
-                <option key={typeof user === 'object' && user !== null && 'id' in user ? user.id : ''} value={typeof user === 'object' && user !== null && 'id' in user ? user.id : ''}>
-                  {typeof user === 'object' && user !== null && 'fullName' in user ? String(user.fullName || 'Unknown') : 'Unknown'} ({typeof user === 'object' && user !== null && 'email' in user ? String(user.email || '') : ''})
+              <option value="">Mặc định: {campaign.recruiter?.fullName || campaign.pic?.fullName || 'Người lọc hồ sơ'}</option>
+              {users.filter(u => ['ADMIN', 'RECRUITER', 'HEAD_OF_DEPARTMENT', 'MANAGER', 'USER'].includes(u.role)).map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.fullName} ({user.email})
                 </option>
               ))}
             </select>
@@ -176,27 +193,27 @@ export default function InterviewScheduleModal({ candidate, proposal, onClose, o
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Dia diem
+              Địa điểm
             </label>
             <input
               type="text"
               value={formData.location}
               onChange={(e) => setFormData({ ...formData, location: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
-              placeholder={proposal?.store?.name || 'Nhap dia diem'}
+              placeholder={campaign.store?.name || 'Nhập địa điểm'}
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Ghi chu
+              Ghi chú
             </label>
             <textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
               rows={3}
-              placeholder="Ghi chu them ve buoi phong van..."
+              placeholder="Ghi chú thêm về buổi phỏng vấn..."
             />
           </div>
 
@@ -206,14 +223,14 @@ export default function InterviewScheduleModal({ candidate, proposal, onClose, o
               onClick={onClose}
               className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
             >
-              Huy
+              Hủy
             </button>
             <button
               type="submit"
               disabled={loading}
               className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 disabled:opacity-50"
             >
-              {loading ? 'Dang xu ly...' : 'Tao lich'}
+              {loading ? 'Đang xử lý...' : 'Tạo lịch'}
             </button>
           </div>
         </form>

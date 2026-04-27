@@ -3,20 +3,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from './audit.service';
 
 export const PROPOSAL_STATUS_FLOW = {
-  DRAFT: ['SUBMITTED', 'CANCELLED'],
-  SUBMITTED: ['AM_REVIEWED', 'REJECTED', 'CANCELLED'],
-  AM_REVIEWED: ['HR_ACCEPTED', 'REJECTED', 'CANCELLED'],
-  HR_ACCEPTED: ['APPROVED', 'REJECTED', 'CANCELLED'],
-  APPROVED: ['CANCELLED'],
-  REJECTED: ['DRAFT'], // Allow resubmission as new version
+  SUBMITTED: ['AM_REVIEWED', 'APPROVED', 'REJECTED', 'CANCELLED'],
+  AM_REVIEWED: ['APPROVED', 'REJECTED', 'CANCELLED'],
+  APPROVED: ['SUBMITTED', 'CANCELLED'],
+  REJECTED: [],
   CANCELLED: [],
 };
 
 export const PROPOSAL_STATUS_LABELS: Record<string, string> = {
-  DRAFT: 'Nháp',
   SUBMITTED: 'Đã gửi',
   AM_REVIEWED: 'AM đã xem xét',
-  HR_ACCEPTED: 'HR đã tiếp nhận',
   APPROVED: 'Đã duyệt',
   REJECTED: 'Từ chối',
   CANCELLED: 'Đã hủy',
@@ -119,40 +115,56 @@ export class ProposalService {
     return proposal;
   }
 
-  /**
-   * Submit proposal (SM action)
-   */
-  async submitProposal(proposalId: string, userId: string, userRole: string) {
-    const proposal = await this.getProposalWithAccess(proposalId, userId, userRole);
+/**
+ * Submit proposal
+ * - SM creates: DRAFT → SUBMITTED → AM_REVIEWED → APPROVED (AM review → Admin approve)
+ * - AM/MANAGER creates: DRAFT → SUBMITTED → APPROVED (Admin directly approve, skip AM review)
+ */
+async submitProposal(proposalId: string, userId: string, userRole: string) {
+  const proposal = await this.getProposalWithAccess(proposalId, userId, userRole);
 
-    if (proposal.status !== 'DRAFT') {
-      throw new BadRequestException('Chỉ có thể gửi đề xuất ở trạng thái nháp');
-    }
-
-    // Check if user is the creator or has access
-    if (userRole === 'USER' && proposal.requestedById !== userId) {
-      throw new ForbiddenException('Bạn không có quyền gửi đề xuất này');
-    }
-
-    return this.transitionStatus(proposalId, 'SUBMITTED', userId, userRole, 'SM gửi đề xuất tuyển dụng');
+  if (proposal.status !== 'DRAFT') {
+    throw new BadRequestException('Chỉ có thể gửi đề xuất ở trạng thái nháp');
   }
 
-  /**
-   * AM review proposal
-   */
-  async reviewProposal(proposalId: string, userId: string, userRole: string, notes?: string) {
-    const proposal = await this.getProposalWithAccess(proposalId, userId, userRole);
-
-    if (proposal.status !== 'SUBMITTED') {
-      throw new BadRequestException('Đề xuất chưa được gửi');
-    }
-
-    if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
-      throw new ForbiddenException('Chỉ AM hoặc Admin có thể xem xét');
-    }
-
-    return this.transitionStatus(proposalId, 'AM_REVIEWED', userId, userRole, notes || 'AM xem xét đề xuất');
+  // Check if user is the creator or has access
+  if (userRole === 'USER' && proposal.requestedById !== userId) {
+    throw new ForbiddenException('Bạn không có quyền gửi đề xuất này');
   }
+
+  // AM/MANAGER skips AM review and goes directly to APPROVED waitlist
+  // SM goes through normal flow: SUBMITTED → AM_REVIEWED (AM review needed)
+  if (userRole === 'MANAGER') {
+    return this.transitionStatus(proposalId, 'SUBMITTED', userId, userRole, 'AM gửi đề xuất (bỏ qua AM review)');
+  }
+
+  return this.transitionStatus(proposalId, 'SUBMITTED', userId, userRole, 'SM gửi đề xuất tuyển dụng');
+}
+
+/**
+ * AM review proposal - Only for SM proposals
+ * Skip for AM/MANAGER created proposals (they go directly to SUBMITTED → APPROVED)
+ */
+async reviewProposal(proposalId: string, userId: string, userRole: string, notes?: string) {
+  const proposal = await this.getProposalWithAccess(proposalId, userId, userRole);
+
+  if (proposal.status !== 'SUBMITTED') {
+    throw new BadRequestException('Đề xuất chưa được gửi');
+  }
+
+  if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
+    throw new ForbiddenException('Chỉ AM hoặc Admin có thể xem xét');
+  }
+
+  // Check if creator is AM/MANAGER - skip review, proposal already at SUBMITTED
+  const creator = await this.prisma.user.findUnique({ where: { id: proposal.requestedById } });
+  if (creator?.role === 'MANAGER') {
+    // AM created, should go directly to approve, not review
+    throw new BadRequestException('Đề xuất do AM tạo, bỏ qua bước AM xem xét');
+  }
+
+  return this.transitionStatus(proposalId, 'AM_REVIEWED', userId, userRole, notes || 'AM xem xét đề xuất');
+}
 
   /**
    * HR accept proposal
@@ -171,26 +183,105 @@ export class ProposalService {
     return this.transitionStatus(proposalId, 'HR_ACCEPTED', userId, userRole, notes || 'HR tiếp nhận đề xuất');
   }
 
-  /**
-   * Final approval
-   */
-  async approveProposal(proposalId: string, userId: string, userRole: string) {
+/**
+ * Final approval
+ * - SM proposals: SUBMITTED → AM_REVIEWED → APPROVED
+ * - AM/MANAGER proposals: SUBMITTED → APPROVED (skip AM review)
+ */
+async approveProposal(proposalId: string, userId: string, userRole: string) {
     const proposal = await this.getProposalWithAccess(proposalId, userId, userRole);
-
-    if (!['HR_ACCEPTED', 'SUBMITTED'].includes(proposal.status)) {
-      throw new BadRequestException('Đề xuất chưa sẵn sàng để duyệt');
-    }
 
     if (!['ADMIN', 'HEAD_OF_DEPARTMENT'].includes(userRole)) {
       throw new ForbiddenException('Chỉ Admin/Head of Department có thể duyệt');
     }
 
-    const updated = await this.transitionStatus(proposalId, 'APPROVED', userId, userRole, 'Đã duyệt đề xuất');
+    if (proposal.status === 'SUBMITTED' || proposal.status === 'AM_REVIEWED') {
+      const updated = await this.transitionStatus(proposalId, 'APPROVED', userId, userRole, 'Admin duyệt đề xuất');
+      await this.reserveHeadcount(proposal);
+      return updated;
+    }
 
-    // Reserve headcount
-    await this.reserveHeadcount(proposal);
+    throw new BadRequestException('Đề xuất không thể duyệt ở trạng thái này');
+  }
 
+  async unapproveProposal(proposalId: string, userId: string, userRole: string, notes?: string) {
+    const proposal = await this.getProposalWithAccess(proposalId, userId, userRole);
+
+    if (!['ADMIN', 'HEAD_OF_DEPARTMENT'].includes(userRole)) {
+      throw new ForbiddenException('Chỉ Admin/Head of Department có thể hoàn duyệt');
+    }
+
+    if (proposal.status !== 'APPROVED') {
+      throw new BadRequestException('Chỉ có thể hoàn duyệt đề xuất đã được duyệt');
+    }
+
+    await this.releaseHeadcount(proposal);
+    const updated = await this.transitionStatus(proposalId, 'SUBMITTED', userId, userRole, notes || 'Hoàn duyệt');
     return updated;
+  }
+
+  /**
+   * Batch approve multiple proposals
+   */
+  async batchApproveProposals(proposalIds: string[], userId: string, userRole: string) {
+    if (!['ADMIN', 'HEAD_OF_DEPARTMENT'].includes(userRole)) {
+      throw new ForbiddenException('Chỉ Admin/Head of Department có thể duyệt');
+    }
+
+    const results: { id: string; success: boolean; message: string }[] = []
+
+    for (const proposalId of proposalIds) {
+      try {
+        const result = await this.approveProposal(proposalId, userId, userRole)
+        results.push({ id: proposalId, success: true, message: 'Đã duyệt' })
+      } catch (error: any) {
+        results.push({ id: proposalId, success: false, message: error.message || 'Lỗi không xác định' })
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length
+    const failCount = results.filter(r => !r.success).length
+
+    return {
+      total: proposalIds.length,
+      success: successCount,
+      failed: failCount,
+      results
+    }
+  }
+
+  /**
+   * Batch reject multiple proposals
+   */
+  async batchRejectProposals(proposalIds: string[], userId: string, userRole: string, reason: string) {
+    if (!['ADMIN', 'HEAD_OF_DEPARTMENT'].includes(userRole)) {
+      throw new ForbiddenException('Chỉ Admin/Head of Department có thể từ chối');
+    }
+
+    if (!reason || reason.trim().length === 0) {
+      throw new BadRequestException('Vui lòng cung cấp lý do từ chối');
+    }
+
+    const results: { id: string; success: boolean; message: string }[] = []
+
+    for (const proposalId of proposalIds) {
+      try {
+        await this.rejectProposal(proposalId, userId, userRole, reason)
+        results.push({ id: proposalId, success: true, message: 'Đã từ chối' })
+      } catch (error: any) {
+        results.push({ id: proposalId, success: false, message: error.message || 'Lỗi không xác định' })
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length
+    const failCount = results.filter(r => !r.success).length
+
+    return {
+      total: proposalIds.length,
+      success: successCount,
+      failed: failCount,
+      results
+    }
   }
 
   /**
@@ -332,20 +423,22 @@ export class ProposalService {
       data: updateData,
     });
 
-    await this.logWorkflow(proposalId, fromStatus, toStatus, this.getActionType(toStatus), actorId, actorRole, notes);
+    await this.logWorkflow(proposalId, fromStatus, toStatus, this.getActionType(toStatus, fromStatus), actorId, actorRole, notes);
 
     return updated;
   }
 
-  private getActionType(toStatus: string): string {
+  private getActionType(toStatus: string, fromStatus?: string): string {
     const map: Record<string, string> = {
       SUBMITTED: 'SUBMIT',
       AM_REVIEWED: 'REVIEW',
-      HR_ACCEPTED: 'ASSIGN',
       APPROVED: 'APPROVE',
       REJECTED: 'REJECT',
       CANCELLED: 'CANCEL',
     };
+    if (fromStatus === 'APPROVED' && toStatus === 'SUBMITTED') {
+      return 'UNAPPROVE';
+    }
     return map[toStatus] || 'UPDATE';
   }
 
@@ -457,8 +550,6 @@ export class ProposalService {
         position: true,
         department: true,
         approver: { select: { id: true, fullName: true } },
-        workflowHistory: { orderBy: { createdAt: 'desc' }, take: 5 },
-        fulfillment: true,
       },
       orderBy: [
         { urgency: 'asc' },
@@ -466,6 +557,32 @@ export class ProposalService {
       ],
       skip: (page - 1) * limit,
       take: limit,
+    });
+
+    // Calculate wait time and current holder for each proposal
+    const now = new Date();
+    const proposalsWithMeta = proposals.map(p => {
+      let holder = null;
+      
+      if (p.status === 'SUBMITTED') {
+        holder = { name: 'AM', role: 'MANAGER' };
+      } else if (p.status === 'AM_REVIEWED') {
+        holder = { name: 'HR', role: 'ADMIN' };
+      } else if (p.status === 'DRAFT') {
+        holder = { name: 'Người tạo', role: 'USER' };
+      }
+
+      // Calculate days waiting
+      const submittedAt = p.amReviewedAt || p.createdAt;
+      const daysWaiting = submittedAt 
+        ? Math.floor((now.getTime() - new Date(submittedAt).getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
+
+      return {
+        ...p,
+        holder,
+        daysWaiting
+      };
     });
 
     // Get counts - both direct proposalId and via campaign
@@ -495,7 +612,7 @@ export class ProposalService {
       }
     });
 
-    const proposalsWithCount = proposals.map(p => ({
+    const proposalsWithCount = proposalsWithMeta.map(p => ({
       ...p,
       _count: { candidates: countMap[p.id] || 0 }
     }));

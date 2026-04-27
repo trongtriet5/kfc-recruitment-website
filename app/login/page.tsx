@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import { toast } from 'sonner'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -30,7 +31,9 @@ export default function LoginPage() {
         router.refresh()
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || err.response?.data?.error || 'Đăng nhập thất bại')
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Đăng nhập thất bại'
+      setError(errorMessage)
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }

@@ -110,10 +110,10 @@ export class RecruitmentService {
           helpText: f.helpText,
           isActive: f.isActive ?? true,
         })),
-      });
+});
     }
 
-    return this.prisma.recruitmentForm.findUnique({ where: { id: form.id }, include: { fields: true, positions: true } });
+    return form;
   }
 
   async updateForm(id: string, data: any) {
@@ -446,7 +446,12 @@ export class RecruitmentService {
         pic: {
           select: { id: true, fullName: true, email: true }
         },
-        form: true
+        form: true,
+        auditLogs: {
+          include: { actor: true, campaign: { select: { id: true, name: true } } },
+          orderBy: { createdAt: 'desc' },
+          take: 50
+        }
       },
     });
 
@@ -551,6 +556,17 @@ export class RecruitmentService {
       });
     }
 
+    // Create initial audit log
+    await this.prisma.candidateAuditLog.create({
+      data: {
+        candidateId: candidate.id,
+        actorId: user?.id,
+        action: 'CANDIDATE_CREATED',
+        toValue: status?.name || 'CV_FILTERING',
+        notes: data.sourceCode ? `Nguồn: ${data.sourceCode}` : null,
+      }
+    });
+
     return candidate;
   }
 
@@ -596,6 +612,7 @@ export class RecruitmentService {
     }
 
     const updateData: any = { ...data };
+    const oldStatusId = candidate.statusId;
     
     if (data.status) {
       const status = await this.prisma.candidateStatus.findUnique({
@@ -607,10 +624,51 @@ export class RecruitmentService {
       }
     }
     
-    return this.prisma.candidate.update({
+    const updatedCandidate = await this.prisma.candidate.update({
       where: { id },
       data: updateData,
     });
+
+    // Create audit logs for status changes
+    if (data.status) {
+      const newStatus = await this.prisma.candidateStatus.findUnique({
+        where: { id: updatedCandidate.statusId }
+      });
+      const oldStatus = await this.prisma.candidateStatus.findUnique({
+        where: { id: oldStatusId }
+      });
+      if (newStatus) {
+        await this.prisma.candidateAuditLog.create({
+          data: {
+            candidateId: id,
+            actorId: user?.id,
+            action: 'STATUS_CHANGE',
+            fromValue: oldStatus?.name || null,
+            toValue: newStatus.name,
+            notes: data.notes || null,
+          }
+        });
+      }
+    }
+
+    // Create audit logs for PIC changes
+    if (data.picId && data.picId !== candidate.picId) {
+      const pic = await this.prisma.user.findUnique({
+        where: { id: data.picId },
+        select: { fullName: true }
+      });
+      await this.prisma.candidateAuditLog.create({
+        data: {
+          candidateId: id,
+          actorId: user?.id,
+          action: 'PIC_ASSIGN',
+          toValue: pic?.fullName || null,
+          notes: data.notes || null,
+        }
+      });
+    }
+
+    return updatedCandidate;
   }
 
   async deleteCandidate(id: string, user?: any) {
@@ -641,7 +699,7 @@ export class RecruitmentService {
       }
     }
     
-    return this.prisma.candidate.update({
+    const updatedCandidate = await this.prisma.candidate.update({
       where: { id: candidateId },
       data: { 
         campaignId,
@@ -650,6 +708,18 @@ export class RecruitmentService {
         departmentId: campaign.departmentId
       }
     });
+
+    // Create audit log for campaign transfer
+    await this.prisma.candidateAuditLog.create({
+      data: {
+        candidateId,
+        actorId: user?.id,
+        action: 'CAMPAIGN_TRANSFER',
+        campaignId,
+      }
+    });
+
+    return updatedCandidate;
   }
 
   // Interviews
@@ -692,7 +762,7 @@ export class RecruitmentService {
   async getProposals(user?: any) {
     // Debug: Return all proposals without filtering
     return this.prisma.recruitmentProposal.findMany({
-      include: { store: true, position: true, candidates: true },
+      include: { store: true, position: true, candidates: true, workflowHistory: { include: { actor: true }, orderBy: { createdAt: 'asc' } } },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -700,7 +770,7 @@ export class RecruitmentService {
   async getProposal(id: string, user?: any) {
     const proposal = await this.prisma.recruitmentProposal.findUnique({
       where: { id },
-      include: { store: true, position: true, candidates: true },
+      include: { store: true, position: true, candidates: true, workflowHistory: { include: { actor: true }, orderBy: { createdAt: 'asc' } } },
     });
     if (!proposal) throw new NotFoundException('Proposal not found');
 
@@ -928,9 +998,10 @@ export class RecruitmentService {
     const funnelData = await this.getFunnelData(candidatesByStatus);
 
     // TA Performance (candidates processed by each TA/user with PIC assigned)
+    // Admin không tính vì là quản trị hệ thống
     const taPerformance = await this.prisma.user.findMany({
       where: {
-        role: { in: ['USER', 'MANAGER', 'ADMIN', 'RECRUITER', 'HEAD_OF_DEPARTMENT'] },
+        role: { in: ['USER', 'MANAGER', 'RECRUITER', 'HEAD_OF_DEPARTMENT'] },
         isActive: true,
       },
       select: {
@@ -958,8 +1029,11 @@ export class RecruitmentService {
       where: { picId: { not: null } },
     });
 
+    // Offer sent status codes
+    const OFFER_SENT_STATUS_CODES = ['OFFER_SENT'];
+    // Offer accepted status codes
+    const OFFER_ACCEPTED_STATUS_CODES = ['OFFER_ACCEPTED', 'WAITING_ONBOARDING', 'ONBOARDING_ACCEPTED'];
     // Passed status codes - statuses where candidate PASSED (manager result is "đạt")
-    // User's status_ids: 10, 12, 15, 16, 17, 18, 19, 20 (based on order field in seed)
     const PASSED_STATUS_CODES = [
       'SM_AM_INTERVIEW_PASSED',  // order 10 - SM/AM interview passed
       'NO_INTERVIEW',             // order 15 - showed up (considered passed)
@@ -993,6 +1067,16 @@ export class RecruitmentService {
         return status && ACCEPTED_STATUS_CODES.includes(status.code);
       }).reduce((sum, c) => sum + c._count.id, 0);
 
+      const offerSent = taCounts.filter(c => {
+        const status = allStatuses.find(s => s.id === c.statusId);
+        return status && OFFER_SENT_STATUS_CODES.includes(status.code);
+      }).reduce((sum, c) => sum + c._count.id, 0);
+
+      const offerAccepted = taCounts.filter(c => {
+        const status = allStatuses.find(s => s.id === c.statusId);
+        return status && OFFER_ACCEPTED_STATUS_CODES.includes(status.code);
+      }).reduce((sum, c) => sum + c._count.id, 0);
+
       return {
         taId: ta.id,
         taName: ta.fullName,
@@ -1002,6 +1086,8 @@ export class RecruitmentService {
         processedCandidates: processed,
         passedCandidates: passed,
         onboardedCandidates: onboarded,
+        offerSentCandidates: offerSent,
+        offerAcceptedCandidates: offerAccepted,
       };
     }).filter(ta => ta.totalCandidates > 0).sort((a, b) => b.totalCandidates - a.totalCandidates);
 
@@ -1219,7 +1305,7 @@ export class RecruitmentService {
   }
 
   async getPublicStores() {
-    return this.prisma.store.findMany({
+    const stores = await this.prisma.store.findMany({
       where: { isActive: true },
       select: {
         id: true,
@@ -1230,13 +1316,26 @@ export class RecruitmentService {
       },
       orderBy: { name: 'asc' }
     });
+    // Fix UTF-8 encoding
+    return stores.map(s => ({
+      ...s,
+      name: s.name,
+      address: s.address,
+      city: s.city,
+    }));
   }
 
   async getPublicPositions() {
-    return this.prisma.position.findMany({
+    const positions = await this.prisma.position.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' }
     });
+    // Fix UTF-8 encoding
+    return positions.map(p => ({
+      ...p,
+      name: p.name,
+      description: p.description,
+    }));
   }
 
   private hasAnyFilter(filter: Record<string, unknown>): boolean {

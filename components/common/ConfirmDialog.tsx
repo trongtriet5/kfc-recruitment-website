@@ -12,6 +12,7 @@ interface ConfirmDialogProps {
   onConfirm: () => void
   onClose: () => void
   destructive?: boolean
+  children?: React.ReactNode
 }
 
 export default function ConfirmDialog({
@@ -24,11 +25,13 @@ export default function ConfirmDialog({
   onConfirm,
   onClose,
   destructive = false,
+  children,
 }: ConfirmDialogProps) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} maxWidth="max-w-md">
       <div className="space-y-4">
         <p className="text-sm text-gray-600">{message}</p>
+        {children && <div>{children}</div>}
         <div className="flex justify-end gap-3">
           <button
             type="button"

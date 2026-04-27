@@ -318,7 +318,7 @@ export default function CampaignsList() {
   const canManage = user && (user.role === 'ADMIN' || user.role === 'HEAD_OF_DEPARTMENT');
 
   return (
-    <div className="pt-6 space-y-8">
+    <div className="space-y-8">
       {/* Page Header */}
       <div className="pb-2">
         <h1 className="text-2xl font-bold text-gray-900">Chiến dịch tuyển dụng</h1>
@@ -520,7 +520,7 @@ export default function CampaignsList() {
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+              className="px-4 py-2 bg-slate-800 text-white rounded-md hover:bg-slate-900"
             >
               Tạo
             </button>
@@ -750,7 +750,7 @@ export default function CampaignsList() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+                  className="px-4 py-2 bg-slate-800 text-white rounded-md hover:bg-slate-900"
                 >
                   Lưu
                 </button>

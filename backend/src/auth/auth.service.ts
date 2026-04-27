@@ -16,13 +16,36 @@ export class AuthService {
       where: { email },
     });
 
-    if (!user || !user.isActive) {
-      throw new UnauthorizedException('Invalid credentials');
+    if (!user) {
+      throw new UnauthorizedException('Thông tin đăng nhập không đúng hoặc tài khoản không tồn tại');
     }
 
-    const isValid = await bcrypt.compare(password, user.password);
-    if (!isValid) {
-      throw new UnauthorizedException('Invalid credentials');
+    if (!user.isActive) {
+      throw new UnauthorizedException('Tài khoản đã bị vô hiệu hóa');
+    }
+
+    // Check if password is bcrypt hash or plain text
+    const isBcryptHash = user.password.startsWith('$2');
+    
+    if (!isBcryptHash) {
+      // Plain text password - try direct comparison
+      if (user.password === password) {
+        // Update to bcrypt hash
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { password: hashedPassword },
+        });
+        console.log(`🔄 Updated password for ${email} to bcrypt hash`);
+      } else {
+        throw new UnauthorizedException('Thông tin đăng nhập không đúng');
+      }
+    } else {
+      // Bcrypt hash - use bcrypt.compare
+      const isValid = await bcrypt.compare(password, user.password);
+      if (!isValid) {
+        throw new UnauthorizedException('Thông tin đăng nhập không đúng');
+      }
     }
 
     const { password: _, ...result } = user;

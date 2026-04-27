@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import * as bcrypt from 'bcryptjs';
+
+const SALT_ROUNDS = 10;
 
 @Injectable()
 export class UsersService {
@@ -28,7 +31,7 @@ export class UsersService {
 
   async getForSelect() {
     return this.prisma.user.findMany({
-      where: { isActive: true },
+      where: { isActive: true, role: { not: 'ADMIN' } },
       select: { id: true, fullName: true, email: true },
       orderBy: { fullName: 'asc' }
     });
@@ -56,10 +59,21 @@ export class UsersService {
   }
 
   async create(data: any) {
+    // Check for duplicate email
+    const existing = await this.prisma.user.findUnique({
+      where: { email: data.email }
+    });
+    if (existing) {
+      throw new Error('Email đã được sử dụng');
+    }
+
+    // Hash the password before storing
+    const hashedPassword = await bcrypt.hash(data.password || 'kfc@123', SALT_ROUNDS);
+    
     const user = await this.prisma.user.create({
       data: {
         email: data.email,
-        password: data.password || 'kfc@123',
+        password: hashedPassword,
         fullName: data.fullName,
         phone: data.phone,
         role: data.role || 'USER',
@@ -145,8 +159,24 @@ export class UsersService {
   }
 
   async update(id: string, data: any) {
+    // Check for duplicate email if email is being changed
+    if (data.email) {
+      const existing = await this.prisma.user.findFirst({
+        where: { email: data.email, NOT: { id } }
+      });
+      if (existing) {
+        throw new Error('Email đã được sử dụng bởi tài khoản khác');
+      }
+    }
+
     const updateData: any = { ...data };
-    if (!updateData.password) delete updateData.password;
+    
+    // Hash the password if provided
+    if (updateData.password) {
+      updateData.password = await bcrypt.hash(updateData.password, SALT_ROUNDS);
+    } else {
+      delete updateData.password;
+    }
 
     // Extract store assignment fields before passing to prisma
     const storeId: string | undefined = updateData.storeId;
@@ -194,20 +224,26 @@ export class UsersService {
         const existing = await this.prisma.user.findUnique({ where: { email: user.email } });
 
         if (existing) {
+          const updateData: any = {
+            fullName: user.fullName || existing.fullName,
+            phone: user.phone,
+            role: user.role || existing.role,
+            isActive: user.isActive !== undefined ? user.isActive : existing.isActive,
+          };
+          // Hash new password if provided
+          if (user.password) {
+            updateData.password = await bcrypt.hash(user.password, SALT_ROUNDS);
+          }
+          
           await this.prisma.user.update({
             where: { id: existing.id },
-            data: {
-              fullName: user.fullName || existing.fullName,
-              phone: user.phone,
-              role: user.role || existing.role,
-              isActive: user.isActive !== undefined ? user.isActive : existing.isActive,
-            }
+            data: updateData
           });
         } else {
           const newUser = await this.prisma.user.create({
             data: {
               email: user.email,
-              password: user.password || 'kfc@123',
+              password: await bcrypt.hash(user.password || 'kfc@123', SALT_ROUNDS),
               fullName: user.fullName,
               phone: user.phone,
               role: user.role || 'USER',

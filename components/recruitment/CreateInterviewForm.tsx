@@ -45,7 +45,7 @@ const SearchableSelect = ({
     <div className="relative" ref={containerRef}>
       <div 
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full px-3 py-2 border border-gray-300 rounded-md bg-white flex justify-between items-center cursor-pointer focus:ring-2 focus:ring-yellow-500`}
+        className={`w-full px-3 py-2 border border-gray-300 rounded-md bg-white flex justify-between items-center cursor-pointer focus:ring-2 focus:ring-slate-500`}
       >
         <span className={selectedOption ? 'text-gray-900' : 'text-gray-400'}>
           {selectedOption ? selectedOption.name : placeholder}
@@ -60,7 +60,7 @@ const SearchableSelect = ({
               <Search className="absolute left-2 top-2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-yellow-500"
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-slate-500"
                 placeholder="Tìm kiếm..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -74,7 +74,7 @@ const SearchableSelect = ({
                 <div
                   key={opt.id}
                   className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${
-                    value === opt.id ? 'bg-yellow-50 text-yellow-700' : 'text-gray-700'
+                    value === opt.id ? 'bg-slate-50 text-slate-700' : 'text-gray-700'
                   }`}
                   onClick={() => {
                     onChange(opt.id)
@@ -158,15 +158,35 @@ export default function CreateInterviewForm({
     // Load candidates
     api
       .get('/recruitment/candidates')
-      .then((res) => setCandidates(res.data.candidates || res.data || []))
+      .then((res) => {
+        const data = res.data
+        if (Array.isArray(data)) {
+          setCandidates(data)
+        } else if (Array.isArray(data?.candidates)) {
+          setCandidates(data.candidates)
+        } else if (Array.isArray(data?.data)) {
+          setCandidates(data.data)
+        } else {
+          setCandidates([])
+        }
+      })
       .catch(console.error)
 
     // Load users (to get interviewers)
     api
       .get('/users')
       .then((res) => {
+        const data = res.data
+        let userList = []
+        if (Array.isArray(data)) {
+          userList = data
+        } else if (Array.isArray(data?.users)) {
+          userList = data.users
+        } else if (Array.isArray(data?.data)) {
+          userList = data.data
+        }
         // Use all active users as potential interviewers
-        setEmployees(res.data.filter((u: any) => u.isActive))
+        setEmployees(userList.filter((u: any) => u.isActive))
       })
       .catch(console.error)
 
@@ -293,7 +313,7 @@ export default function CreateInterviewForm({
             <select
               value={candidateId}
               onChange={(e) => setCandidateId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
               required
             >
               <option value="">Chọn ứng viên</option>
@@ -372,7 +392,7 @@ export default function CreateInterviewForm({
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
             placeholder="Thêm thông tin bổ sung nếu cần (đổi địa điểm, chuẩn bị hồ sơ...)"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500 text-sm"
           />
         </div>
 
@@ -388,7 +408,7 @@ export default function CreateInterviewForm({
           <Button
             type="submit"
             disabled={loading}
-            className="bg-yellow-600 text-white hover:bg-yellow-700 min-w-[140px]"
+            className="bg-slate-800 text-white hover:bg-slate-900 min-w-[140px]"
           >
             {loading ? 'Đang tạo...' : 'Xác nhận lịch'}
           </Button>

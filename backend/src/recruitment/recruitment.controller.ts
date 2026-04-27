@@ -190,6 +190,21 @@ export class RecruitmentController {
     return this.proposalService.approveProposal(id, user.id, user.role);
   }
 
+  @Post('proposals/:id/unapprove')
+  unapproveProposal(@Param('id') id: string, @Body() data: { notes?: string }, @CurrentUser() user: any) {
+    return this.proposalService.unapproveProposal(id, user.id, user.role, data.notes);
+  }
+
+  @Post('proposals/batch-approve')
+  batchApproveProposals(@Body() data: { ids: string[] }, @CurrentUser() user: any) {
+    return this.proposalService.batchApproveProposals(data.ids, user.id, user.role);
+  }
+
+  @Post('proposals/batch-reject')
+  batchRejectProposals(@Body() data: { ids: string[]; reason: string }, @CurrentUser() user: any) {
+    return this.proposalService.batchRejectProposals(data.ids, user.id, user.role, data.reason);
+  }
+
   @Post('proposals/:id/reject')
   rejectProposal(@Param('id') id: string, @Body() data: { reason: string }, @CurrentUser() user: any) {
     return this.proposalService.rejectProposal(id, user.id, user.role, data.reason);
@@ -270,6 +285,9 @@ export class RecruitmentController {
 
   @Get('public/positions')
   getPublicPositions() { return this.service.getPublicPositions(); }
+
+  @Get('positions')
+  getPositions() { return this.service.getPublicPositions(); }
 
   // Notifications
   @Get('notifications')

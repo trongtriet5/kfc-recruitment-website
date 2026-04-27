@@ -170,7 +170,7 @@ export default function EditCandidateForm({
         <p className="text-red-600 mb-4">{error}</p>
         <button
           onClick={onCancel || (() => router.push('/recruitment/dashboard'))}
-          className="text-yellow-600 hover:text-yellow-700"
+          className="text-slate-600 hover:text-slate-700"
         >
           Quay lại
         </button>

@@ -337,7 +337,7 @@ export default function CandidatesList() {
         {/* List skeleton */}
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
           <ul className="divide-y divide-gray-100">
-            {[1,2,3,4,5,6,7,8].map(i => (
+            {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
               <li key={i} className="px-6 py-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0 space-y-2">
@@ -363,7 +363,7 @@ export default function CandidatesList() {
   const allStatuses = dbStatuses.map((s) => ({ value: s.code, label: s.name }))
 
   return (
-    <div className="relative pt-6 space-y-8">
+    <div className="relative space-y-8">
       {/* Page Header */}
       <div className="pb-2">
         <h1 className="text-2xl font-bold text-gray-900">Danh sách ứng viên</h1>
@@ -633,7 +633,7 @@ export default function CandidatesList() {
                               )}
                               <span className="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md font-medium">
                                 <Icon name="campaign" size={12} />
-                                {typeof candidate.campaign === 'object' && candidate.campaign !== null && 'name' in candidate.campaign ? (candidate.campaign as { name: string }).name.replace(/^Chiến dịch\s*[-–]?\s*|\s*[-–]?\s*Chiến dịch\s*$/gi, '').trim() : 'Chiến dịch tuyển dụng tổng'}
+                                {typeof candidate.campaign === 'object' && candidate.campaign !== null && 'name' in candidate.campaign ? (candidate.campaign as { name: string }).name.replace(/^Chiến dịch\s*[-–]?\s*|\s*[-–]?\s*Chiến dịch\s*$/gi, '').trim() : 'Chưa có chiến dịch'}
                               </span>
                               {candidate.pic && typeof candidate.pic === 'object' && candidate.pic !== null && 'fullName' in candidate.pic && (
                                 <span className="inline-flex items-center gap-1.5 text-xs bg-purple-50 text-purple-700 px-2.5 py-1 rounded-md font-medium">
@@ -792,7 +792,7 @@ export default function CandidatesList() {
                 Hủy
               </button>
               <button
-                className="px-4 py-2 bg-yellow-600 text-white rounded-md text-sm hover:bg-yellow-700 disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-2 bg-slate-800 text-white rounded-md text-sm hover:bg-slate-900 disabled:opacity-50 flex items-center gap-2"
                 onClick={submitTransferCampaign}
                 disabled={!transferModal.selectedCampaignId || transferModal.loading}
               >

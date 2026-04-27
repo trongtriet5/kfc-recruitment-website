@@ -143,7 +143,7 @@ export default function Profile() {
         <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-yellow-50 to-yellow-100">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-yellow-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
+              <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center text-white text-2xl font-bold">
                 {user.fullName ? user.fullName.charAt(0).toUpperCase() : '?'}
               </div>
               <div>
@@ -154,7 +154,7 @@ export default function Profile() {
             {!editing && (
               <button
                 onClick={() => setEditing(true)}
-                className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 flex items-center gap-2"
+                className="px-4 py-2 bg-slate-800 text-white rounded-md hover:bg-yellow-700 flex items-center gap-2"
               >
                 <Icon name="edit" size={18} />
                 Chỉnh sửa
@@ -350,7 +350,7 @@ export default function Profile() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-4 py-2 bg-slate-800 text-white rounded-md hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {submitting ? (
                   <>

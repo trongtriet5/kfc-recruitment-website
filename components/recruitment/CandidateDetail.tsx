@@ -42,6 +42,16 @@ interface CandidateDetail {
     title: string
     status: string | { id: string; name: string; code: string } | null
   }>
+  auditLogs: Array<{
+    id: string
+    action: string
+    fromValue: string | null
+    toValue: string | null
+    notes: string | null
+    createdAt: string
+    actor: { id: string; fullName: string } | null
+    campaign: { id: string; name: string } | null
+  }>
   createdAt: string
   updatedAt: string
   pic?: { id: string; fullName: string; email: string } | null
@@ -557,6 +567,53 @@ export default function CandidateDetail({
                     <p>Người phỏng vấn: {typeof interview.interviewer === 'object' && 'fullName' in interview.interviewer ? String(interview.interviewer.fullName || 'N/A') : 'N/A'} ({typeof interview.interviewer === 'object' && 'email' in interview.interviewer ? String(interview.interviewer.email || '') : ''})</p>
                     {interview.location && <p>Địa điểm: {String(interview.location || '')}</p>}
                     {interview.notes && <p className="mt-1 whitespace-pre-wrap">Ghi chú: {String(interview.notes || '')}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Activity History */}
+      {candidate.auditLogs && candidate.auditLogs.length > 0 && (
+        <div className="bg-white shadow rounded-lg overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-medium text-gray-900">Lịch sử hoạt động</h2>
+          </div>
+          <div className="px-6 py-4">
+            <div className="space-y-3">
+              {candidate.auditLogs.map((log: any) => (
+                <div key={log.id} className="flex gap-3 text-sm">
+                  <div className="flex flex-col items-center">
+                    <div className={`w-3 h-3 rounded-full ${log.action === 'CANDIDATE_CREATED' ? 'bg-blue-500' : log.action === 'STATUS_CHANGE' && log.toValue ? 'bg-green-500' : log.action === 'PIC_ASSIGN' ? 'bg-blue-500' : log.action === 'CAMPAIGN_TRANSFER' ? 'bg-purple-500' : 'bg-gray-500'}`}></div>
+                  </div>
+                  <div className="flex-1 pb-3 border-b border-gray-100 last:border-0">
+                    <div className="flex justify-between">
+                      <span className="font-medium">
+                        {log.action === 'CANDIDATE_CREATED' && 'Tạo ứng viên'}
+                        {log.action === 'STATUS_CHANGE' && 'Thay đổi trạng thái'}
+                        {log.action === 'PIC_ASSIGN' && 'Gán người phụ trách'}
+                        {log.action === 'CAMPAIGN_TRANSFER' && 'Chuyển chiến dịch'}
+                        {log.action === 'INTERVIEW_SCHEDULED' && 'Đặt lịch phỏng vấn'}
+                        {log.action === 'OFFER_SENT' && 'Gửi offer'}
+                        {!['CANDIDATE_CREATED', 'STATUS_CHANGE', 'PIC_ASSIGN', 'CAMPAIGN_TRANSFER', 'INTERVIEW_SCHEDULED', 'OFFER_SENT'].includes(log.action) && log.action}
+                      </span>
+                      <span className="text-gray-500 text-xs">{new Date(log.createdAt).toLocaleString('vi-VN')}</span>
+                    </div>
+                    <div className="text-gray-600 text-xs mt-1">
+                      {log.actor?.fullName && <span>Người thực hiện: {log.actor.fullName}</span>}
+                      {log.action === 'STATUS_CHANGE' && log.fromValue && log.toValue && (
+                        <span className="ml-2">- {log.fromValue} → {log.toValue}</span>
+                      )}
+                      {log.action === 'PIC_ASSIGN' && log.toValue && (
+                        <span className="ml-2">- Gán cho: {log.toValue}</span>
+                      )}
+                      {log.action === 'CAMPAIGN_TRANSFER' && log.campaign?.name && (
+                        <span className="ml-2">- Chiến dịch: {log.campaign.name}</span>
+                      )}
+                      {log.notes && <span className="ml-2">- Ghi chú: {log.notes}</span>}
+                    </div>
                   </div>
                 </div>
               ))}

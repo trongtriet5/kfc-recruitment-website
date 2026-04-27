@@ -104,7 +104,7 @@ export default function InterviewsCalendar() {
     const resultCode = typeof result === 'object' ? result.code : result
     if (resultCode === 'PASSED') return 'bg-green-100 text-green-800'
     if (resultCode === 'FAILED') return 'bg-red-100 text-red-800'
-    return 'bg-yellow-100 text-yellow-800'
+    return 'bg-slate-200 text-slate-800'
   }
 
   const groupInterviewsByDate = () => {
@@ -127,7 +127,7 @@ export default function InterviewsCalendar() {
   const sortedDates = Object.keys(groupedInterviews).sort()
 
   return (
-    <div className="pt-6 space-y-8">
+    <div className="space-y-8">
       {/* Page Header */}
       <div className="pb-2">
         <h1 className="text-2xl font-bold text-gray-900">Lịch phỏng vấn</h1>

@@ -434,25 +434,6 @@ export default function StoresManagementPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-blue-500 flex items-center justify-between">
-              <div><p className="text-xs font-semibold text-gray-500 uppercase">Tổng cửa hàng</p><p className="text-2xl font-bold mt-1">{totalStores}</p></div>
-              <div className="bg-blue-50 p-2 rounded-full text-blue-600"><Icon name="store" size={24} /></div>
-            </div>
-            <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-green-500 flex items-center justify-between">
-              <div><p className="text-xs font-semibold text-gray-500 uppercase">Đang hoạt động</p><p className="text-2xl font-bold text-green-600 mt-1">{activeStores}</p></div>
-              <div className="bg-green-50 p-2 rounded-full text-green-600"><Icon name="check-circle" size={24} /></div>
-            </div>
-            <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-orange-500 flex items-center justify-between">
-              <div><p className="text-xs font-semibold text-gray-500 uppercase">OPS South</p><p className="text-2xl font-bold text-orange-600 mt-1">{opsSouthCount}</p></div>
-              <div className="bg-orange-50 p-2 rounded-full text-orange-600"><Icon name="map-pin" size={24} /></div>
-            </div>
-            <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-purple-500 flex items-center justify-between">
-              <div><p className="text-xs font-semibold text-gray-500 uppercase">OPS North</p><p className="text-2xl font-bold text-purple-600 mt-1">{opsNorthCount}</p></div>
-              <div className="bg-purple-50 p-2 rounded-full text-purple-600"><Icon name="map-pin" size={24} /></div>
-            </div>
-          </div>
-
           <div className="flex gap-4 items-center bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
             <div className="flex-1 relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Icon name="search" size={18} className="text-gray-400" /></div>

@@ -117,7 +117,7 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
   if (loading) {
     return (
       <div className="text-center py-12">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-600"></div>
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-slate-800"></div>
         <p className="mt-4 text-gray-600">Đang tải...</p>
       </div>
     )
@@ -143,7 +143,7 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
               type="text"
               value={formData.fullName}
               onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
               required
             />
           </div>
@@ -156,7 +156,7 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
               type="tel"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
               required
             />
           </div>
@@ -169,7 +169,7 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
             />
           </div>
 
@@ -181,7 +181,7 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
               type="text"
               value={formData.position}
               onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
               placeholder="Ví dụ: Nhân viên cửa hàng"
             />
           </div>
@@ -193,7 +193,7 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
             <select
               value={formData.storeId}
               onChange={(e) => setFormData({ ...formData, storeId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
             >
               <option value="">Chọn cửa hàng</option>
               {stores.map((store) => (
@@ -211,7 +211,7 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
             <select
               value={formData.campaignId}
               onChange={(e) => setFormData({ ...formData, campaignId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
             >
               <option value="">Chọn chiến dịch (tùy chọn)</option>
               {campaigns.map((campaign) => (
@@ -229,7 +229,7 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
             <select
               value={formData.proposalId}
               onChange={(e) => setFormData({ ...formData, proposalId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
             >
               <option value="">Chọn đề xuất (tùy chọn)</option>
               {proposals.filter(p => p.status === 'APPROVED').map((proposal) => (
@@ -247,7 +247,7 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
             <select
               value={formData.status}
               onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
               required
             >
               <option value="">Chọn trạng thái</option>
@@ -266,7 +266,7 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
             <select
               value={formData.picId}
               onChange={(e) => setFormData({ ...formData, picId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
             >
               <option value="">-- Chọn TA phụ trách --</option>
               {users.map((user) => (
@@ -285,7 +285,7 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
               type="url"
               value={formData.cvUrl}
               onChange={(e) => setFormData({ ...formData, cvUrl: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
               placeholder="https://..."
             />
           </div>
@@ -297,7 +297,7 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
             <textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
               rows={3}
             />
           </div>
@@ -313,7 +313,7 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 disabled:opacity-50"
+              className="px-4 py-2 bg-slate-800 text-white rounded-md hover:bg-slate-900 disabled:opacity-50"
             >
               {submitting ? 'Đang tạo...' : 'Tạo ứng viên'}
             </button>
