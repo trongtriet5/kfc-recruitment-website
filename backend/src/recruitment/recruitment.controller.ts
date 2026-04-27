@@ -154,10 +154,10 @@ export class RecruitmentController {
   getProposals(@CurrentUser() user: any) { return this.service.getProposals(user); }
   
   @Get('proposals/:id')
-  getProposal(@Param('id') id: string, @CurrentUser() user: any) { return this.service.getProposal(id, user); }
+  getProposal(@Param('id') id: string, @CurrentUser() user: any) { return this.proposalService.getProposal(id, user.id, user.role); }
   
   @Post('proposals')
-  createProposal(@Body() data: any, @CurrentUser() user: any) { return this.service.createProposal(data, user); }
+  createProposal(@Body() data: any, @CurrentUser() user: any) { return this.proposalService.createProposal(data, user.id, user.role); }
   
   @Patch('proposals/:id')
   updateProposal(@Param('id') id: string, @Body() data: any, @CurrentUser() user: any) { 

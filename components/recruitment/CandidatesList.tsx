@@ -754,7 +754,7 @@ export default function CandidatesList() {
         )}
       </Modal>
       {transferModal.isOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <div className="flex justify-between items-center mb-4 pb-2 border-b">
               <h3 className="text-lg font-semibold text-gray-900">Chuyển chiến dịch tuyển dụng</h3>
@@ -851,7 +851,7 @@ export default function CandidatesList() {
         onConfirm={handleDeleteCandidate}
       />
       {picModal.isOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <div className="flex justify-between items-center mb-4 pb-2 border-b">
               <h3 className="text-lg font-semibold text-gray-900">Gán Người phụ trách (TA)</h3>

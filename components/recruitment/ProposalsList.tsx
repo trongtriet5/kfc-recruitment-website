@@ -102,7 +102,10 @@ export default function ProposalsList() {
   }
 
   const loadUser = () => {
-    api.get('/auth/me').then((res) => setUser(res.data)).catch(console.error)
+    api.get('/auth/me').then((res) => {
+      console.log('User role:', res.data?.role)
+      setUser(res.data)
+    }).catch(console.error)
   }
 
   const loadStores = () => {
@@ -126,7 +129,7 @@ export default function ProposalsList() {
       setShowCreateForm(false)
       setFormData({ title: '', description: '', storeId: '', positionId: '', quantity: 1, reason: '', startDate: '', endDate: '', isUntilFilled: false })
       loadProposals()
-      toast.success('Tạo đề xuất thành công!')
+      toast.success(user?.role === 'ADMIN' ? 'Tạo đề xuất thành công!' : 'Tạo đề xuất thành công!')
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Có lỗi xảy ra')
     }
@@ -513,8 +516,15 @@ export default function ProposalsList() {
             {/* Workflow Steps Indicator */}
             {(() => {
               const status = typeof selectedProposal.status === 'object' ? selectedProposal.status?.code : selectedProposal.status;
+              const workflowHistory = (selectedProposal as any).workflowHistory || [];
+              const submitEntry = workflowHistory.find((w: any) => w.action === 'SUBMIT');
+              const isCreatedByAdmin = submitEntry && ['ADMIN', 'HEAD_OF_DEPARTMENT', 'MANAGER'].includes(submitEntry.actorRole || '');
+              
+              const statusOrder = isCreatedByAdmin 
+                ? ['SUBMITTED', 'APPROVED'] 
+                : ['SUBMITTED', 'AM_REVIEWED', 'APPROVED'];
+              
               const isCompleted = (checkStatus: string) => {
-                const statusOrder = ['SUBMITTED', 'AM_REVIEWED', 'APPROVED'];
                 return statusOrder.indexOf(status || '') >= statusOrder.indexOf(checkStatus);
               };
               const isCurrent = (checkStatus: string) => status === checkStatus;
@@ -528,30 +538,37 @@ export default function ProposalsList() {
                         {isCurrent('SUBMITTED') && <span className="text-yellow-600 text-sm font-bold">1</span>}
                         {!isCompleted('SUBMITTED') && !isCurrent('SUBMITTED') && <span className="text-gray-400 text-sm font-bold">1</span>}
                       </div>
-                      <span className="ml-2 text-sm font-medium">SM tạo</span>
+                      <span className="ml-2 text-sm font-medium">{isCreatedByAdmin ? 'Admin tạo' : 'SM tạo'}</span>
                     </div>
-                    <div className={`flex-1 h-0.5 mx-2 ${isCompleted('AM_REVIEWED') ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                    <div className="flex items-center">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isCurrent('AM_REVIEWED') ? 'bg-yellow-100 border-2 border-yellow-500' : isCompleted('AM_REVIEWED') ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-100 border-2 border-gray-300'}`}>
-                        {isCompleted('AM_REVIEWED') && <span className="text-green-600">✓</span>}
-                        {isCurrent('AM_REVIEWED') && <span className="text-yellow-600 text-sm font-bold">2</span>}
-                        {!isCompleted('AM_REVIEWED') && !isCurrent('AM_REVIEWED') && <span className="text-gray-400 text-sm font-bold">2</span>}
-                      </div>
-                      <span className="ml-2 text-sm font-medium">AM duyệt</span>
-                    </div>
-                    <div className={`flex-1 h-0.5 mx-2 ${isCompleted('APPROVED') ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                    {!isCreatedByAdmin && (
+                      <>
+                        <div className={`flex-1 h-0.5 mx-2 ${isCompleted('AM_REVIEWED') ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                        <div className="flex items-center">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isCurrent('AM_REVIEWED') ? 'bg-yellow-100 border-2 border-yellow-500' : isCompleted('AM_REVIEWED') ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-100 border-2 border-gray-300'}`}>
+                            {isCompleted('AM_REVIEWED') && <span className="text-green-600">✓</span>}
+                            {isCurrent('AM_REVIEWED') && <span className="text-yellow-600 text-sm font-bold">2</span>}
+                            {!isCompleted('AM_REVIEWED') && !isCurrent('AM_REVIEWED') && <span className="text-gray-400 text-sm font-bold">2</span>}
+                          </div>
+                          <span className="ml-2 text-sm font-medium">AM duyệt</span>
+                        </div>
+                        <div className={`flex-1 h-0.5 mx-2 ${isCompleted('APPROVED') ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                      </>
+                    )}
+                    {isCreatedByAdmin && (
+                      <div className={`flex-1 h-0.5 mx-2 ${isCompleted('APPROVED') ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                    )}
                     <div className="flex items-center">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isCurrent('APPROVED') ? 'bg-yellow-100 border-2 border-yellow-500' : isCompleted('APPROVED') ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-100 border-2 border-gray-300'}`}>
                         {isCompleted('APPROVED') && <span className="text-green-600">✓</span>}
-                        {isCurrent('APPROVED') && <span className="text-yellow-600 text-sm font-bold">3</span>}
-                        {!isCompleted('APPROVED') && !isCurrent('APPROVED') && <span className="text-gray-400 text-sm font-bold">3</span>}
+                        {isCurrent('APPROVED') && <span className="text-yellow-600 text-sm font-bold">{isCreatedByAdmin ? '2' : '3'}</span>}
+                        {!isCompleted('APPROVED') && !isCurrent('APPROVED') && <span className="text-gray-400 text-sm font-bold">{isCreatedByAdmin ? '2' : '3'}</span>}
                       </div>
                       <span className="ml-2 text-sm font-medium">Admin duyệt</span>
                     </div>
                   </div>
                   {!['APPROVED', 'REJECTED', 'CANCELLED'].includes(status || '') && (
                     <p className="mt-3 text-sm text-yellow-600 font-medium">
-                      {status === 'SUBMITTED' && '→ Đang chờ AM duyệt'}
+                      {status === 'SUBMITTED' && (isCreatedByAdmin ? '→ Đang chờ Admin duyệt' : '→ Đang chờ AM duyệt')}
                       {status === 'AM_REVIEWED' && '→ Đang chờ Admin duyệt'}
                     </p>
                   )}

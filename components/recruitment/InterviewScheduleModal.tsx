@@ -85,7 +85,7 @@ export default function InterviewScheduleModal({ candidate, campaign, onClose, o
 
   if (!campaign) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
         <div className="bg-white rounded-lg p-6 w-full max-w-md">
           <div className="text-center">
             <Icon name="alert-circle" size={48} className="mx-auto text-yellow-500 mb-4" />
@@ -104,7 +104,7 @@ export default function InterviewScheduleModal({ candidate, campaign, onClose, o
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
       <div className="bg-white rounded-lg p-6 w-full max-w-md">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-medium">Tạo lịch phỏng vấn</h3>

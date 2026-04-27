@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { startOfMonth, subMonths, format } from 'date-fns';
 
@@ -300,9 +300,31 @@ export class RecruitmentService {
     // Convert empty strings to null for date fields
     if (data.startDate === '') data.startDate = null;
     if (data.endDate === '') data.endDate = null;
+    
+    // Auto-assign formId based on proposal/position if not provided
+    let formId = data.formId;
+    if (!formId && data.proposalId) {
+      const proposal = await this.prisma.recruitmentProposal.findUnique({
+        where: { id: data.proposalId },
+        include: { position: true }
+      });
+    }
+    // Get any active form as fallback
+    if (!formId) {
+      const defaultForm = await this.prisma.recruitmentForm.findFirst({ where: { isActive: true } });
+      formId = defaultForm?.id;
+    }
+    if (!formId) {
+      throw new BadRequestException('Không có form tuyển dụng nào đang hoạt động. Vui lòng liên hệ admin để tạo form.');
+    }
+
+    // Generate unique link for campaign
+    const link = `kfc-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
     const campaignData = {
       ...data,
+      formId,
+      link,
       startDate: data.startDate ? new Date(data.startDate) : null,
       endDate: data.endDate ? new Date(data.endDate) : null,
     };

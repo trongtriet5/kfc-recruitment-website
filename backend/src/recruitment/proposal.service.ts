@@ -95,7 +95,7 @@ export class ProposalService {
         budget: data.budget,
         targetJoinDate: data.targetJoinDate ? new Date(data.targetJoinDate) : null,
         isUnplanned: data.isUnplanned ?? false,
-        status: 'DRAFT',
+        status: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'MANAGER'].includes(userRole) ? 'SUBMITTED' : 'DRAFT',
         requestedById: userId,
         departmentId: data.departmentId,
         startDate: data.startDate ? new Date(data.startDate) : null,
@@ -111,6 +111,21 @@ export class ProposalService {
         requestedQty: proposal.quantity,
       },
     });
+
+    // Create workflow history for ADMIN/HEAD_OF_DEPARTMENT/MANAGER creation
+    if (['ADMIN', 'HEAD_OF_DEPARTMENT', 'MANAGER'].includes(userRole)) {
+      await this.prisma.proposalWorkflow.create({
+        data: {
+          proposalId: proposal.id,
+          fromStatus: 'DRAFT',
+          toStatus: 'SUBMITTED',
+          action: 'SUBMIT',
+          actorRole: userRole,
+          actorId: userId,
+          notes: `${userRole} tạo đề xuất (gửi luôn)`,
+        },
+      });
+    }
 
     return proposal;
   }
@@ -550,6 +565,11 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
         position: true,
         department: true,
         approver: { select: { id: true, fullName: true } },
+        workflowHistory: { 
+          where: { action: 'SUBMIT' },
+          orderBy: { createdAt: 'asc' },
+          take: 1,
+        },
       },
       orderBy: [
         { urgency: 'asc' },
