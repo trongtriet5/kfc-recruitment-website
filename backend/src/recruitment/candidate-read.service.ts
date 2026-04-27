@@ -29,13 +29,32 @@ export class CandidateReadService {
       }
     }
 
-    // Apply store scoping for SM/AM
+    // Apply store scoping for SM/AM and PIC filtering
     if (user) {
       const storeIds = await this.getAccessibleStoreIds(user);
-      if (storeIds.length > 0 && user.role !== 'ADMIN') {
+
+      if (user.role === 'USER') {
+        // USER (SM): Can see candidates:
+        // 1. Assigned as PIC
+        // 2. In their managed store
+        // 3. In campaigns created from proposals they created
+        const campaignIdsFromUserProposals = await this.getCampaignIdsFromUserProposals(user.id);
+
+        where.OR = [
+          { picId: user.id },  // Candidates where user is PIC
+          { storeId: { in: storeIds } },  // Candidates in their managed store
+          ...(campaignIdsFromUserProposals.length > 0
+            ? [{ campaignId: { in: campaignIdsFromUserProposals } }]
+            : [])  // Candidates in campaigns from user's proposals
+        ];
+      } else if (user.role !== 'ADMIN' && storeIds.length > 0) {
+        // Other roles: filter by accessible stores
         where.storeId = { in: storeIds };
       }
     }
+
+    // Exclude deleted records
+    where.deletedAt = null;
 
     // Pagination
     const page = filters?.page ? parseInt(filters.page, 10) : 1;
@@ -95,8 +114,24 @@ export class CandidateReadService {
     // Check access for non-admin
     if (user && user.role !== 'ADMIN') {
       const storeIds = await this.getAccessibleStoreIds(user);
-      if (!candidate.storeId || !storeIds.includes(candidate.storeId)) {
-        return null;
+
+      // USER (SM): Can access if:
+      // 1. They're the PIC
+      // 2. Store is in their accessible stores
+      // 3. Campaign is from a proposal they created
+      if (user.role === 'USER') {
+        const campaignIdsFromUserProposals = await this.getCampaignIdsFromUserProposals(user.id);
+        const isFromUserProposal = candidate.campaignId && campaignIdsFromUserProposals.includes(candidate.campaignId);
+
+        const canAccess = candidate.picId === user.id ||
+          (candidate.storeId && storeIds.includes(candidate.storeId)) ||
+          isFromUserProposal;
+        if (!canAccess) return null;
+      } else {
+        // Other roles (MANAGER, RECRUITER, etc.): check store access
+        if (!candidate.storeId || !storeIds.includes(candidate.storeId)) {
+          return null;
+        }
       }
     }
 
@@ -150,5 +185,19 @@ export class CandidateReadService {
     }
 
     return [];
+  }
+
+  /**
+   * Get campaign IDs from proposals created by the user
+   * This allows proposal creators to see candidates in campaigns created from their proposals
+   */
+  private async getCampaignIdsFromUserProposals(userId: string): Promise<string[]> {
+    const proposals = await this.prisma.recruitmentProposal.findMany({
+      where: { requestedById: userId },
+      select: { campaignId: true }
+    });
+    return proposals
+      .map(p => p.campaignId)
+      .filter((id): id is string => id !== null);
   }
 }

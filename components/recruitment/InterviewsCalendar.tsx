@@ -27,6 +27,15 @@ interface Interview {
   }
 }
 
+// Helper function to format time as AM/PM (e.g., 09:00 SA → 09:00 AM)
+function formatTime(date: Date): string {
+  return date.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true // Use AM/PM instead of 24h
+  }).replace('AM', 'AM').replace('PM', 'PM');
+}
+
 export default function InterviewsCalendar() {
   const [interviews, setInterviews] = useState<Interview[]>([])
   const [loading, setLoading] = useState(true)
@@ -260,7 +269,7 @@ export default function InterviewsCalendar() {
                   <tr key={interview.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm text-gray-900">
                       <div className="font-medium">{new Date(interview.scheduledAt).toLocaleDateString('vi-VN')}</div>
-                      <div className="text-gray-500">{new Date(interview.scheduledAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
+                      <div className="text-gray-500">{formatTime(new Date(interview.scheduledAt))}</div>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">
                       <div className="font-medium">{interview.candidate.fullName}</div>
@@ -311,7 +320,7 @@ export default function InterviewsCalendar() {
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium text-gray-900">
-                              {new Date(interview.scheduledAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                              {formatTime(new Date(interview.scheduledAt))}
                             </span>
                             <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
                               {getTypeLabel(interview.type)}

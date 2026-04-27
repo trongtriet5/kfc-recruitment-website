@@ -447,11 +447,19 @@ export class RecruitmentService {
       }
     }
 
-    // Apply store scoping for SM/AM
+    // Apply store scoping for SM/AM and PIC filtering
     let storeIds: string[] = [];
     if (user) {
       storeIds = await this.getAccessibleStoreIds(user);
-      if (storeIds.length > 0 && user.role !== 'ADMIN') {
+
+      if (user.role === 'USER') {
+        // USER (SM): Can see candidates assigned as PIC OR in their managed store
+        where.OR = [
+          { picId: user.id },  // Candidates where user is PIC
+          { storeId: { in: storeIds } }  // Candidates in their managed store
+        ];
+      } else if (user.role !== 'ADMIN' && storeIds.length > 0) {
+        // Other roles: filter by accessible stores
         where.storeId = { in: storeIds };
       }
     }

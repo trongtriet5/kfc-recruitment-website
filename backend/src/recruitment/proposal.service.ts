@@ -33,7 +33,7 @@ export const PROPOSAL_WORKFLOW: Record<ProposalStatus, ProposalTransition[]> = {
     { target: ProposalStatus.CANCELLED, roles: ['USER', 'MANAGER', 'AM', 'HEAD_OF_DEPARTMENT', 'ADMIN'] },
   ],
   [ProposalStatus.AM_REVIEWED]: [
-    { target: ProposalStatus.APPROVED, roles: ['MANAGER', 'AM', 'HEAD_OF_DEPARTMENT', 'ADMIN'] },
+    { target: ProposalStatus.HR_ACCEPTED, roles: ['HEAD_OF_DEPARTMENT', 'ADMIN', 'RECRUITER'] },
     { target: ProposalStatus.REJECTED, roles: ['MANAGER', 'AM', 'HEAD_OF_DEPARTMENT', 'ADMIN'] },
     { target: ProposalStatus.CANCELLED, roles: ['MANAGER', 'AM', 'HEAD_OF_DEPARTMENT', 'ADMIN'] },
   ],
@@ -52,7 +52,8 @@ export const PROPOSAL_WORKFLOW: Record<ProposalStatus, ProposalTransition[]> = {
 
 export const PROPOSAL_STATUS_FLOW = {
   SUBMITTED: ['AM_REVIEWED', 'APPROVED', 'REJECTED', 'CANCELLED'],
-  AM_REVIEWED: ['APPROVED', 'REJECTED', 'CANCELLED'],
+  AM_REVIEWED: ['HR_ACCEPTED', 'REJECTED', 'CANCELLED'],
+  HR_ACCEPTED: ['APPROVED', 'REJECTED', 'CANCELLED'],
   APPROVED: ['SUBMITTED', 'CANCELLED'],
   REJECTED: [],
   CANCELLED: [],
@@ -271,8 +272,8 @@ async reviewProposal(proposalId: string, userId: string, userRole: string, notes
 
 /**
  * Final approval
- * - SM proposals: SUBMITTED → AM_REVIEWED → APPROVED
- * - AM/MANAGER proposals: SUBMITTED → APPROVED (skip AM review)
+ * - SM proposals: SUBMITTED → AM_REVIEWED → HR_ACCEPTED → APPROVED
+ * - AM/MANAGER proposals: SUBMITTED → APPROVED (skip AM review and HR accept)
  */
 async approveProposal(proposalId: string, userId: string, userRole: string) {
     const proposal = await this.getProposalWithAccess(proposalId, userId, userRole);
@@ -281,13 +282,21 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
       throw new ForbiddenException('Chỉ Admin/Head of Department có thể duyệt');
     }
 
-    if (proposal.status === 'SUBMITTED' || proposal.status === 'AM_REVIEWED') {
-      const updated = await this.transitionStatus(proposalId, 'APPROVED', userId, userRole, 'Admin duyệt đề xuất');
-      await this.reserveHeadcount(proposal);
-      return updated;
+    const creator = await this.prisma.user.findUnique({ where: { id: proposal.requestedById } });
+
+    if (creator?.role === 'USER') {
+      if (proposal.status !== 'HR_ACCEPTED') {
+        throw new BadRequestException('Đề xuất của SM phải được HR tiếp nhận (HR_ACCEPTED) trước khi duyệt');
+      }
+    } else {
+      if (proposal.status !== 'SUBMITTED') {
+        throw new BadRequestException('Đề xuất của AM/Admin phải ở trạng thái SUBMITTED để được duyệt');
+      }
     }
 
-    throw new BadRequestException('Đề xuất không thể duyệt ở trạng thái này');
+    const updated = await this.transitionStatus(proposalId, 'APPROVED', userId, userRole, 'Admin duyệt đề xuất');
+    await this.reserveHeadcount(proposal);
+    return updated;
   }
 
   async unapproveProposal(proposalId: string, userId: string, userRole: string, notes?: string) {

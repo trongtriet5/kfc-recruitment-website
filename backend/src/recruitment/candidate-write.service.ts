@@ -89,7 +89,14 @@ export class CandidateWriteService {
 
     if (user && user.role !== 'ADMIN') {
       const storeIds = await this.getAccessibleStoreIds(user);
-      if (!candidate.storeId || !storeIds.includes(candidate.storeId)) {
+      const campaignIdsFromUserProposals = await this.getCampaignIdsFromUserProposals(user.id);
+      const isFromUserProposal = candidate.campaignId && campaignIdsFromUserProposals.includes(candidate.campaignId);
+
+      const hasAccess = candidate.picId === user.id ||
+        (candidate.storeId && storeIds.includes(candidate.storeId)) ||
+        isFromUserProposal;
+
+      if (!hasAccess) {
         throw new ForbiddenException('Bạn không có quyền cập nhật ứng viên này');
       }
 
@@ -139,7 +146,14 @@ export class CandidateWriteService {
 
     if (user && user.role !== 'ADMIN') {
       const storeIds = await this.getAccessibleStoreIds(user);
-      if (!candidate.storeId || !storeIds.includes(candidate.storeId)) {
+      const campaignIdsFromUserProposals = await this.getCampaignIdsFromUserProposals(user.id);
+      const isFromUserProposal = candidate.campaignId && campaignIdsFromUserProposals.includes(candidate.campaignId);
+
+      const hasAccess = candidate.picId === user.id ||
+        (candidate.storeId && storeIds.includes(candidate.storeId)) ||
+        isFromUserProposal;
+
+      if (!hasAccess) {
         throw new ForbiddenException('Bạn không có quyền xóa ứng viên này');
       }
     }
@@ -160,6 +174,10 @@ export class CandidateWriteService {
 
     const campaign = await this.prisma.campaign.findUnique({ where: { id: campaignId } });
     if (!campaign) throw new NotFoundException('Chiến dịch không tồn tại');
+
+    if (campaign.status !== 'ACTIVE') {
+      throw new BadRequestException('Chỉ có thể chuyển ứng viên vào chiến dịch đang hoạt động (ACTIVE)');
+    }
 
     if (user && user.role !== 'ADMIN') {
       const storeIds = await this.getAccessibleStoreIds(user);
@@ -232,5 +250,19 @@ export class CandidateWriteService {
     }
 
     return [];
+  }
+
+  /**
+   * Get campaign IDs from proposals created by the user
+   * This allows proposal creators to update/delete candidates in campaigns from their proposals
+   */
+  private async getCampaignIdsFromUserProposals(userId: string): Promise<string[]> {
+    const proposals = await this.prisma.recruitmentProposal.findMany({
+      where: { requestedById: userId },
+      select: { campaignId: true }
+    });
+    return proposals
+      .map(p => p.campaignId)
+      .filter((id): id is string => id !== null);
   }
 }
