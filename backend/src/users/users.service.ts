@@ -9,53 +9,63 @@ export class UsersService {
   constructor(private prisma: PrismaService) {}
 
   async findAll() {
-    return this.prisma.user.findMany({
+    const users = await this.prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
         email: true,
-        full_name: true,
+        fullName: true,
         phone: true,
         role: true,
         isActive: true,
         createdAt: true,
         managedStore: {
-          select: { id: true, name: true, code: true, city: true }
+          select: { id: true, name: true, code: true, provinceCode: true, province: { select: { code: true, name: true, fullName: true } } }
         },
         amStores: {
-          select: { id: true, name: true, code: true, city: true }
+          select: { id: true, name: true, code: true, provinceCode: true, province: { select: { code: true, name: true, fullName: true } } }
         },
       }
     });
+    return users.map(u => ({
+      ...u,
+      managedStore: u.managedStore ? { ...u.managedStore, city: u.managedStore.province?.fullName || u.managedStore.province?.name || null } : null,
+      managedStores: u.amStores?.map(s => ({ ...s, city: s.province?.fullName || s.province?.name || null })) || [],
+    }));
   }
 
   async getForSelect() {
     return this.prisma.user.findMany({
       where: { isActive: true, role: { not: 'ADMIN' } },
-      select: { id: true, full_name: true, email: true },
-      orderBy: { full_name: 'asc' }
+      select: { id: true, fullName: true, email: true },
+      orderBy: { fullName: 'asc' }
     });
   }
 
   /** Returns all stores with SM/AM assignment info, for use in user create/edit form */
   async getStoresForAssign() {
-    return this.prisma.store.findMany({
+    const stores = await this.prisma.store.findMany({
       where: { isActive: true },
       select: {
         id: true,
         name: true,
         code: true,
-        city: true,
+        provinceCode: true,
         zone: true,
         group: true,
         amName: true,
         smId: true,
         amId: true,
-        manager: { select: { id: true, full_name: true } },
-        am: { select: { id: true, full_name: true } },
+        province: { select: { code: true, name: true, fullName: true } },
+        manager: { select: { id: true, fullName: true } },
+        am: { select: { id: true, fullName: true } },
       },
-      orderBy: [{ city: 'asc' }, { code: 'asc' }],
+      orderBy: [{ provinceCode: 'asc' }, { code: 'asc' }],
     });
+    return stores.map(s => ({
+      ...s,
+      city: s.province?.fullName || s.province?.name || 'Khác',
+    }));
   }
 
   async create(data: any) {
@@ -74,7 +84,7 @@ export class UsersService {
       data: {
         email: data.email,
         password: hashedPassword,
-        full_name: data.full_name,
+        fullName: data.fullName,
         phone: data.phone,
         role: data.role || 'USER',
         isActive: data.isActive !== undefined ? data.isActive : true,
@@ -94,7 +104,7 @@ export class UsersService {
     return this.prisma.user.findUnique({
       where: { id: user.id },
       select: {
-        id: true, email: true, full_name: true, phone: true, role: true, isActive: true,
+        id: true, email: true, fullName: true, phone: true, role: true, isActive: true,
         managedStore: { select: { id: true, name: true, code: true } },
         amStores: { select: { id: true, name: true, code: true } },
       }
@@ -133,7 +143,7 @@ export class UsersService {
   private async assignUserToStoresByConvention(user: any) {
     if (user.role === 'MANAGER') {
       await this.prisma.store.updateMany({
-        where: { amName: user.full_name },
+        where: { amName: user.fullName },
         data: { amId: user.id }
       });
     } else if (user.role === 'USER') {
@@ -171,9 +181,9 @@ export class UsersService {
 
     const updateData: any = { ...data };
     
-    // Map fullName to full_name for Prisma
+    // Map fullName to fullName for Prisma
     if (updateData.fullName) {
-      updateData.full_name = updateData.fullName;
+      updateData.fullName = updateData.fullName;
       delete updateData.fullName;
     }
     
@@ -211,7 +221,7 @@ export class UsersService {
     return this.prisma.user.findUnique({
       where: { id },
       select: {
-        id: true, email: true, full_name: true, phone: true, role: true, isActive: true,
+        id: true, email: true, fullName: true, phone: true, role: true, isActive: true,
         managedStore: { select: { id: true, name: true, code: true } },
         amStores: { select: { id: true, name: true, code: true } },
       }
@@ -231,7 +241,7 @@ export class UsersService {
 
         if (existing) {
           const updateData: any = {
-            full_name: user.full_name || existing.full_name,
+            fullName: user.fullName || existing.fullName,
             phone: user.phone,
             role: user.role || existing.role,
             isActive: user.isActive !== undefined ? user.isActive : existing.isActive,
@@ -250,7 +260,7 @@ export class UsersService {
             data: {
               email: user.email,
               password: await bcrypt.hash(user.password || 'kfc@123', SALT_ROUNDS),
-              full_name: user.full_name,
+              fullName: user.fullName,
               phone: user.phone,
               role: user.role || 'USER',
               isActive: user.isActive !== undefined ? user.isActive : true,

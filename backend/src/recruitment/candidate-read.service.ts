@@ -33,23 +33,26 @@ export class CandidateReadService {
     if (user) {
       const storeIds = await this.getAccessibleStoreIds(user);
 
-      if (user.role === 'USER') {
-        // USER (SM): Can see candidates:
-        // 1. Assigned as PIC
-        // 2. In their managed store
+      if (user.role === 'USER' || user.role === 'MANAGER') {
+        // SM or AM: Can see candidates:
+        // 1. Assigned as PIC (interviewer)
+        // 2. In their managed store(s)
         // 3. In campaigns created from proposals they created
         const campaignIdsFromUserProposals = await this.getCampaignIdsFromUserProposals(user.id);
 
         where.OR = [
           { picId: user.id },  // Candidates where user is PIC
-          { storeId: { in: storeIds } },  // Candidates in their managed store
+          { storeId: { in: storeIds } },  // Candidates in their managed store(s)
           ...(campaignIdsFromUserProposals.length > 0
             ? [{ campaignId: { in: campaignIdsFromUserProposals } }]
             : [])  // Candidates in campaigns from user's proposals
         ];
-      } else if (user.role !== 'ADMIN' && storeIds.length > 0) {
-        // Other roles: filter by accessible stores
-        where.storeId = { in: storeIds };
+      } else if (user.role === 'RECRUITER') {
+        // Recruiter can see all active candidates in their assigned scope
+        // (Currently scope is all stores for RECRUITER based on STORE_HIERARCHY)
+        if (storeIds.length > 0) {
+          where.storeId = { in: storeIds };
+        }
       }
     }
 
@@ -87,7 +90,7 @@ export class CandidateReadService {
       formIds.length     ? this.prisma.recruitmentForm.findMany({ where: { id: { in: formIds }} }) : [],
       sourceIds.length   ? this.prisma.source.findMany({ where: { id: { in: sourceIds }} }) : [],
       statusIds.length   ? this.prisma.candidateStatus.findMany({ where: { id: { in: statusIds }} }) : [],
-      picIds.length      ? this.prisma.user.findMany({ where: { id: { in: picIds } }, select: { id: true, full_name: true, email: true } }) : [],
+      picIds.length      ? this.prisma.user.findMany({ where: { id: { in: picIds } }, select: { id: true, fullName: true, email: true } }) : [],
     ]);
     const campaignMap = Object.fromEntries(campaigns.map(x=>[x.id,x]));
     const storeMap    = Object.fromEntries(stores.map(x=>[x.id,x]));
@@ -140,7 +143,7 @@ export class CandidateReadService {
       candidate.formId ? this.prisma.recruitmentForm.findUnique({ where: { id: candidate.formId } }) : null,
       candidate.sourceId ? this.prisma.source.findUnique({ where: { id: candidate.sourceId }, select: { id: true, name: true, code: true } }) : null,
       candidate.statusId ? this.prisma.candidateStatus.findUnique({ where: { id: candidate.statusId } }) : null,
-      candidate.picId ? this.prisma.user.findUnique({ where: { id: candidate.picId }, select: { id: true, full_name: true, email: true } }) : null,
+      candidate.picId ? this.prisma.user.findUnique({ where: { id: candidate.picId }, select: { id: true, fullName: true, email: true } }) : null,
       this.prisma.interview.findMany({
         where: { candidateId: candidate.id },
         orderBy: { scheduledAt: 'desc' },
@@ -149,7 +152,7 @@ export class CandidateReadService {
           interviewer: {
             select: { 
               id: true, 
-              full_name: true, 
+              fullName: true, 
               email: true 
             }
           }
@@ -179,7 +182,7 @@ export class CandidateReadService {
     const [actors, auditCampaigns] = await Promise.all([
       actorIds.length ? this.prisma.user.findMany({
         where: { id: { in: actorIds } },
-        select: { id: true, full_name: true }
+        select: { id: true, fullName: true }
       }) : [],
       auditCampaignIds.length ? this.prisma.campaign.findMany({
         where: { id: { in: auditCampaignIds } },
@@ -216,7 +219,7 @@ export class CandidateReadService {
       // 1. They're the PIC
       // 2. Store is in their accessible stores
       // 3. Campaign is from a proposal they created
-      if (user.role === 'USER') {
+      if (user.role === 'USER' || user.role === 'MANAGER') {
         const campaignIdsFromUserProposals = await this.getCampaignIdsFromUserProposals(user.id);
         const isFromUserProposal = candidate.campaignId && campaignIdsFromUserProposals.includes(candidate.campaignId);
 
@@ -224,9 +227,9 @@ export class CandidateReadService {
           (candidate.storeId && storeIds.includes(candidate.storeId)) ||
           isFromUserProposal;
         if (!canAccess) return null;
-      } else {
-        // Other roles (MANAGER, RECRUITER, etc.): check store access
-        if (!candidate.storeId || !storeIds.includes(candidate.storeId)) {
+      } else if (user.role !== 'ADMIN') {
+        // Other roles (RECRUITER, etc.): check store access
+        if (candidate.storeId && !storeIds.includes(candidate.storeId)) {
           return null;
         }
       }
@@ -243,17 +246,17 @@ export class CandidateReadService {
       },
       select: {
         id: true,
-        full_name: true,
+        fullName: true,
         email: true,
         role: true,
       },
-      orderBy: { full_name: 'asc' },
+      orderBy: { fullName: 'asc' },
     });
   }
 
-  async getStoreIdsByCity(city: string): Promise<string[]> {
+  async getStoreIdsByCity(provinceCode: string): Promise<string[]> {
     const stores = await this.prisma.store.findMany({
-      where: { city, isActive: true },
+      where: { provinceCode, isActive: true },
       select: { id: true }
     });
     return stores.map(s => s.id);
@@ -279,6 +282,11 @@ export class CandidateReadService {
         include: { amStores: { select: { id: true } } }
       });
       return u?.amStores?.map(s => s.id) || [];
+    }
+
+    if (user.role === 'RECRUITER') {
+      const stores = await this.prisma.store.findMany({ select: { id: true } });
+      return stores.map(s => s.id);
     }
 
     return [];

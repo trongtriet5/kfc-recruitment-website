@@ -12,7 +12,7 @@ import { useCandidateStatuses } from '@/lib/useCandidateStatuses'
 
 interface Candidate {
   id: string
-  full_name: string
+  fullName: string
   email: string | null
   phone: string
   status: string | { id: string; name: string; code: string } | null
@@ -261,10 +261,10 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
     if (statusCode === 'CV_FILTERING') {
       return 'bg-sky-50 border-sky-200 shadow-sm'
     }
-    if (statusCode === 'CV_PASSED' || statusCode === 'HR_INTERVIEW_PASSED' || statusCode === 'SM_AM_INTERVIEW_PASSED' || statusCode === 'OM_PV_INTERVIEW_PASSED') {
+    if (statusCode === 'HR_INTERVIEW_PASSED' || statusCode === 'SM_AM_INTERVIEW_PASSED' || statusCode === 'OM_PV_INTERVIEW_PASSED') {
       return 'bg-emerald-50 border-emerald-200 shadow-sm'
     }
-    if (statusCode === 'CV_FAILED' || statusCode === 'HR_INTERVIEW_FAILED' || statusCode === 'SM_AM_INTERVIEW_FAILED' || statusCode === 'OM_PV_INTERVIEW_FAILED' || statusCode === 'BLACKLIST') {
+    if (statusCode === 'HR_INTERVIEW_FAILED' || statusCode === 'SM_AM_INTERVIEW_FAILED' || statusCode === 'OM_PV_INTERVIEW_FAILED' || statusCode === 'BLACKLIST') {
       return 'bg-rose-50 border-rose-200 shadow-sm'
     }
     if (statusCode === 'WAITING_INTERVIEW' || statusCode === 'WAITING_ONBOARDING' || statusCode === 'OFFER_SENT') {
@@ -435,7 +435,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
                       `}
                       >
                         <div className="font-semibold text-sm text-gray-900 mb-2">
-                          {candidate.full_name}
+                          {candidate.fullName}
                         </div>
                         <div className="space-y-1.5">
                           <div className="flex items-center gap-1.5 text-xs text-gray-600">

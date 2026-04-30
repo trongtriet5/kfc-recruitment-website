@@ -67,7 +67,7 @@ export class CandidateWriteService {
     const candidate = await this.prisma.candidate.create({
       data: {
         ...rest,
-        full_name: fullName,
+        fullName: fullName,
         sourceId,
         statusId: status?.id,
         slaDueDate,
@@ -116,7 +116,7 @@ export class CandidateWriteService {
         recipientId: member.id,
         type: 'NEW_CANDIDATE',
         title: 'Ứng viên mới',
-        message: `Ứng viên ${candidate.full_name} vừa ứng tuyển vào hệ thống`,
+        message: `Ứng viên ${candidate.fullName} vừa ứng tuyển vào hệ thống`,
         actionUrl: `/recruitment/candidates?id=${candidate.id}`,
         isRead: false
       }));
@@ -167,7 +167,7 @@ export class CandidateWriteService {
     const { fullName, dateOfBirth, availableStartDate, status: statusName, ...rest } = data;
     const updateData: any = { ...rest };
     
-    if (fullName) updateData.full_name = fullName;
+    if (fullName) updateData.fullName = fullName;
     if (dateOfBirth) updateData.dateOfBirth = new Date(dateOfBirth);
     if (availableStartDate) updateData.availableStartDate = new Date(availableStartDate);
     
@@ -237,17 +237,17 @@ export class CandidateWriteService {
     });
     
     const oldPic = oldCandidate?.picId 
-      ? await this.prisma.user.findUnique({ where: { id: oldCandidate.picId }, select: { full_name: true } })
+      ? await this.prisma.user.findUnique({ where: { id: oldCandidate.picId }, select: { fullName: true } })
       : null;
-    const newPic = await this.prisma.user.findUnique({ where: { id: picId }, select: { full_name: true } });
+    const newPic = await this.prisma.user.findUnique({ where: { id: picId }, select: { fullName: true } });
     
     await this.prisma.candidateAuditLog.create({
       data: {
         candidateId,
         action: 'PIC_ASSIGNED',
-        fromValue: oldPic?.full_name || 'Chưa phân công',
-        toValue: newPic?.full_name || picId,
-        notes: `Thay đổi người phụ trách từ ${oldPic?.full_name || 'Chưa phân công'} sang ${newPic?.full_name || picId}`,
+        fromValue: oldPic?.fullName || 'Chưa phân công',
+        toValue: newPic?.fullName || picId,
+        notes: `Thay đổi người phụ trách từ ${oldPic?.fullName || 'Chưa phân công'} sang ${newPic?.fullName || picId}`,
       }
     });
     

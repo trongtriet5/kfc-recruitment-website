@@ -36,13 +36,13 @@ describe('StatusTransitionService', () => {
   describe('getAllowedTransitions', () => {
     it('should return allowed transitions for ADMIN from CV_FILTERING', () => {
       const transitions = service.getAllowedTransitions('CV_FILTERING', 'ADMIN');
-      expect(transitions).toContain('CV_PASSED');
-      expect(transitions).toContain('CV_FAILED');
+      expect(transitions).toContain('WAITING_INTERVIEW');
+      expect(transitions).not.toContain('CV_PASSED');
     });
 
-    it('should limit transitions for USER from CV_PASSED', () => {
-      const transitions = service.getAllowedTransitions('CV_PASSED', 'USER');
-      expect(transitions).not.toContain('WAITING_INTERVIEW'); // Not allowed for USER
+    it('should limit transitions for USER', () => {
+      const transitions = service.getAllowedTransitions('WAITING_INTERVIEW', 'USER');
+      expect(transitions).not.toContain('HR_INTERVIEW_PASSED'); // Not allowed for USER
     });
   });
 

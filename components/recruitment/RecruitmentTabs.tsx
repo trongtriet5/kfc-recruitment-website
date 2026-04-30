@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Icon from '@/components/icons/Icon'
+import api from '@/lib/api'
 
 const tabs = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', href: '/recruitment/dashboard' },
@@ -13,23 +14,37 @@ const tabs = [
   { id: 'interviews', label: 'Phỏng vấn', icon: 'calendar', href: '/recruitment/interviews' },
 ]
 
-function getTabFromPath(pathname: string): string {
-  if (pathname === '/recruitment' || pathname === '/recruitment/dashboard') return 'dashboard'
-  if (pathname === '/recruitment/candidates') return 'candidates'
-  if (pathname === '/recruitment/forms') return 'forms-links'
-  if (pathname === '/recruitment/proposals') return 'proposals'
-  if (pathname === '/recruitment/campaigns') return 'campaigns'
-  if (pathname === '/recruitment/interviews') return 'interviews'
-  return 'dashboard'
+function getTabFromPath(pathname: string, availableTabs: typeof tabs): string {
+  const currentTab = availableTabs.find(tab => pathname.startsWith(tab.href))
+  return currentTab?.id || (availableTabs.length > 0 ? availableTabs[0].id : 'dashboard')
 }
 
 export default function RecruitmentTabs() {
   const pathname = usePathname()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState('dashboard')
+  const [user, setUser] = useState<any>(null)
+  const [filteredTabs, setFilteredTabs] = useState<typeof tabs>([])
 
   useEffect(() => {
-    setActiveTab(getTabFromPath(pathname))
+    api.get('/auth/me')
+      .then((res) => {
+        setUser(res.data)
+        const role = res.data.role
+        let available: typeof tabs = []
+        
+        if (role === 'ADMIN' || role === 'HEAD_OF_DEPARTMENT') {
+          available = tabs
+        } else if (role === 'MANAGER' || role === 'USER') {
+          available = tabs.filter(t => ['candidates', 'proposals', 'interviews'].includes(t.id))
+        } else if (role === 'RECRUITER') {
+          available = tabs.filter(t => ['dashboard', 'candidates', 'proposals', 'campaigns', 'interviews'].includes(t.id))
+        }
+        
+        setFilteredTabs(available)
+        setActiveTab(getTabFromPath(pathname, available))
+      })
+      .catch(console.error)
   }, [pathname])
 
   const handleTabClick = (href: string) => {
@@ -47,7 +62,7 @@ export default function RecruitmentTabs() {
         </div>
         <div className="bg-gray-50/30 px-2 sm:px-6">
           <nav className="flex space-x-2 overflow-x-auto hide-scrollbar" aria-label="Tabs">
-            {tabs.map((tab) => (
+            {filteredTabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => handleTabClick(tab.href)}

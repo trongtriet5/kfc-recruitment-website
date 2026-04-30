@@ -798,8 +798,6 @@ INSERT INTO stores (id, name, code, address, city, zone, brand, "isActive", "cre
 
 -- Candidate Statuses (20)
 INSERT INTO candidate_statuses (id, name, code, color, "group", "order", "isActive", "slaHours", "createdAt", "updatedAt") VALUES ('cmo9j6ua30000oracm11ky996', 'Lọc CV', 'CV_FILTERING', '#FCD34D', 'application', 1, true, NULL, NOW(), NOW());
-INSERT INTO candidate_statuses (id, name, code, color, "group", "order", "isActive", "slaHours", "createdAt", "updatedAt") VALUES ('cmo9j6ucg0001orac987p2qez', 'Ứng viên đạt', 'CV_PASSED', '#34D399', 'application', 2, true, NULL, NOW(), NOW());
-INSERT INTO candidate_statuses (id, name, code, color, "group", "order", "isActive", "slaHours", "createdAt", "updatedAt") VALUES ('cmo9j6udi0002oracohqliix2', 'Ứng viên loại', 'CV_FAILED', '#F87171', 'application', 3, true, NULL, NOW(), NOW());
 INSERT INTO candidate_statuses (id, name, code, color, "group", "order", "isActive", "slaHours", "createdAt", "updatedAt") VALUES ('cmo9j6uen0003oracdcxbr69b', 'Blacklist', 'BLACKLIST', '#111827', 'application', 4, true, NULL, NOW(), NOW());
 INSERT INTO candidate_statuses (id, name, code, color, "group", "order", "isActive", "slaHours", "createdAt", "updatedAt") VALUES ('cmo9j6ufs0004oracsij4nhtf', 'Không liên hệ được', 'CANNOT_CONTACT', '#9CA3AF', 'application', 5, true, NULL, NOW(), NOW());
 INSERT INTO candidate_statuses (id, name, code, color, "group", "order", "isActive", "slaHours", "createdAt", "updatedAt") VALUES ('cmo9j6uhg0005orac65zebhh8', 'Khu vực chưa tuyển dụng', 'AREA_NOT_RECRUITING', '#D1D5DB', 'application', 6, true, NULL, NOW(), NOW());

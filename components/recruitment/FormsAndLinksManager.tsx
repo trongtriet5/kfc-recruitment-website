@@ -8,6 +8,7 @@ import FormDesigner from './FormDesigner'
 import Icon from '@/components/icons/Icon'
 import { toast } from 'sonner'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
+import Modal from '@/components/common/Modal'
 import { SearchableSelect } from '@/components/ui/select-searchable'
 
 interface FormField {
@@ -218,6 +219,7 @@ export default function FormsAndLinksManager() {
       textColor: form.textColor || '#111827',
       isActive: form.isActive,
     })
+    setShowCreateForm(true)
   }
 
   const handleDuplicate = (form: RecruitmentForm) => {
@@ -330,211 +332,200 @@ export default function FormsAndLinksManager() {
       </div>
 
       {/* Create/Edit Form Modal */}
-      {showCreateForm && (
-        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div ref={createFormRef} className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto my-8">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">
-                {editingForm ? 'Chỉnh sửa' : duplicatingForm ? 'Nhân bản' : 'Tạo mới'} Form
-              </h3>
-              <button
-                onClick={() => {
-                  setShowCreateForm(false)
-                  setEditingForm(null)
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                ✕
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              {/* Basic Info */}
-              <div className="border-b border-gray-200 pb-4">
-                <h4 className="font-medium text-gray-900 mb-3">Thông tin cơ bản</h4>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tiêu đề <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.title}
-                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
-                    <textarea
-                      value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      rows={3}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nguồn <span className="text-red-500">*</span>
-                    </label>
-                    <SearchableSelect
-                      options={sources.map(s => ({ id: s.id, name: s.name }))}
-                      value={formData.sourceId}
-                      onChange={(val) => setFormData({ ...formData, sourceId: val })}
-                      placeholder="Chọn nguồn..."
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Form Customization */}
-              <div className="border-b border-gray-200 pb-4">
-                <h4 className="font-medium text-gray-900 mb-3">Tùy chỉnh Form ứng tuyển</h4>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tiêu đề Form
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.formTitle}
-                      onChange={(e) => setFormData({ ...formData, formTitle: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      placeholder="Để trống sẽ dùng tiêu đề mặc định"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nội dung Form
-                    </label>
-                    <textarea
-                      value={formData.formContent}
-                      onChange={(e) => setFormData({ ...formData, formContent: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      rows={5}
-                      placeholder="Nhập nội dung mô tả form"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      URL Banner
-                    </label>
-                    <input
-                      type="url"
-                      value={formData.bannerUrl}
-                      onChange={(e) => setFormData({ ...formData, bannerUrl: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      placeholder="https://example.com/banner.jpg"
-                    />
-                    {formData.bannerUrl && (
-                      <img
-                        src={formData.bannerUrl}
-                        alt="Banner preview"
-                        className="mt-2 max-w-full h-32 object-cover rounded-md"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none'
-                        }}
-                      />
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Status */}
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="isActive"
-                  checked={formData.isActive}
-                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                  className="mr-2"
-                />
-                <label htmlFor="isActive" className="text-sm text-gray-700">
-                  Kích hoạt
-                </label>
-              </div>
-
-              <div className="flex justify-end space-x-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowCreateForm(false)
-                    setEditingForm(null)
-                  }}
-                  className="px-4 py-2 border border-gray-300 rounded-md"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-slate-800 text-white rounded-md hover:bg-slate-900"
-                >
-                  {editingForm ? 'Cập nhật' : 'Tạo'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Form Designer Modal */}
-      {showDesigner && designingForm && (
-        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto my-8">
-            <FormDesigner
-              formId={designingForm.id}
-              formData={{
-                formTitle: designingForm.formTitle || '',
-                formContent: designingForm.formContent || '',
-                bannerUrl: designingForm.bannerUrl || '',
-                primaryColor: designingForm.primaryColor || '#E31837',
-                secondaryColor: designingForm.secondaryColor || '#FFFFFF',
-                backgroundColor: designingForm.backgroundColor || '#FFFFFF',
-                textColor: designingForm.textColor || '#111827',
-              }}
-              fields={designingForm.fields || []}
-              onSave={handleDesignSave}
-              onCancel={() => {
-                setShowDesigner(false)
-                setDesigningForm(null)
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Preview Modal */}
-      {showPreview && selectedForm && (
-        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
-          <div ref={previewRef} className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+      <Modal
+        isOpen={showCreateForm}
+        onClose={() => {
+          setShowCreateForm(false)
+          setEditingForm(null)
+        }}
+        title={`${editingForm ? 'Chỉnh sửa' : duplicatingForm ? 'Nhân bản' : 'Tạo mới'} Form`}
+        maxWidth="max-w-4xl"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Basic Info */}
+          <div className="border-b border-gray-200 pb-4">
+            <h4 className="font-medium text-gray-900 mb-3">Thông tin cơ bản</h4>
+            <div className="space-y-4">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">{selectedForm.title}</h3>
-                <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{selectedForm.description}</p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tiêu đề <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  required
+                />
               </div>
-              <button
-                onClick={() => {
-                  setShowPreview(false)
-                  setSelectedForm(null)
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                ✕
-              </button>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  rows={3}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nguồn <span className="text-red-500">*</span>
+                </label>
+                <SearchableSelect
+                  options={sources.map(s => ({ id: s.id, name: s.name }))}
+                  value={formData.sourceId}
+                  onChange={(val) => setFormData({ ...formData, sourceId: val })}
+                  placeholder="Chọn nguồn..."
+                />
+              </div>
             </div>
-            <div className="p-6">
+          </div>
+
+          {/* Form Customization */}
+          <div className="border-b border-gray-200 pb-4">
+            <h4 className="font-medium text-gray-900 mb-3">Tùy chỉnh Form ứng tuyển</h4>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tiêu đề Form
+                </label>
+                <input
+                  type="text"
+                  value={formData.formTitle}
+                  onChange={(e) => setFormData({ ...formData, formTitle: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="Để trống sẽ dùng tiêu đề mặc định"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nội dung Form
+                </label>
+                <textarea
+                  value={formData.formContent}
+                  onChange={(e) => setFormData({ ...formData, formContent: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  rows={5}
+                  placeholder="Nhập nội dung mô tả form"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  URL Banner
+                </label>
+                <input
+                  type="url"
+                  value={formData.bannerUrl}
+                  onChange={(e) => setFormData({ ...formData, bannerUrl: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="https://example.com/banner.jpg"
+                />
+                {formData.bannerUrl && (
+                  <img
+                    src={formData.bannerUrl}
+                    alt="Banner preview"
+                    className="mt-2 max-w-full h-32 object-cover rounded-md"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Status */}
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="isActive"
+              checked={formData.isActive}
+              onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+              className="mr-2"
+            />
+            <label htmlFor="isActive" className="text-sm text-gray-700">
+              Kích hoạt
+            </label>
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <button
+              type="button"
+              onClick={() => {
+                setShowCreateForm(false)
+                setEditingForm(null)
+              }}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-slate-800 text-white rounded-md hover:bg-slate-900 text-sm"
+            >
+              {editingForm ? 'Cập nhật' : 'Tạo'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        isOpen={showDesigner}
+        onClose={() => {
+          setShowDesigner(false)
+          setDesigningForm(null)
+        }}
+        title={`Thiết kế Form: ${designingForm?.title}`}
+        maxWidth="max-w-5xl"
+      >
+        {designingForm && (
+          <FormDesigner
+            formId={designingForm.id}
+            formData={{
+              formTitle: designingForm.formTitle || '',
+              formContent: designingForm.formContent || '',
+              bannerUrl: designingForm.bannerUrl || '',
+              primaryColor: designingForm.primaryColor || '#E31837',
+              secondaryColor: designingForm.secondaryColor || '#FFFFFF',
+              backgroundColor: designingForm.backgroundColor || '#FFFFFF',
+              textColor: designingForm.textColor || '#111827',
+            }}
+            fields={designingForm.fields || []}
+            onSave={handleDesignSave}
+            onCancel={() => {
+              setShowDesigner(false)
+              setDesigningForm(null)
+            }}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={showPreview}
+        onClose={() => {
+          setShowPreview(false)
+          setSelectedForm(null)
+        }}
+        title={selectedForm?.title || 'Xem trước form'}
+        maxWidth="max-w-4xl"
+      >
+        {selectedForm && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600 whitespace-pre-wrap">{selectedForm.description}</p>
+            <div className="p-4 bg-gray-50 rounded-lg">
               <p className="text-gray-600 text-sm mb-4">
                 Form này được dùng chung cho các chiến dịch. Dưới đây là link để ứng viên điền thông tin:
               </p>
               <div className="flex items-center gap-2">
                 <input
                   readOnly
-                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/apply?link=${selectedForm?.link}`}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-50"
+                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/apply?link=${selectedForm.link}`}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm bg-white"
                 />
                 <button
+                  className="px-4 py-2 bg-gray-900 text-white rounded-md text-sm hover:bg-gray-800"
                   onClick={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}/apply?link=${selectedForm?.link}`)
+                    navigator.clipboard.writeText(`${window.location.origin}/apply?link=${selectedForm.link}`)
                     toast.success('Đã copy link')
                   }}
                 >
@@ -543,8 +534,8 @@ export default function FormsAndLinksManager() {
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Forms List */}
       <div className="bg-white shadow overflow-hidden sm:rounded-md">

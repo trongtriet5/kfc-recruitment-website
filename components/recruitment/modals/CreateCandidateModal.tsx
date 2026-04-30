@@ -14,7 +14,7 @@ interface CreateCandidateModalProps {
 export function CreateCandidateModal({ open, onOpenChange, onSuccess }: CreateCandidateModalProps) {
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
-    full_name: '',
+    fullName: '',
     phone: '',
     email: '',
     campaignId: '',
@@ -45,8 +45,8 @@ export function CreateCandidateModal({ open, onOpenChange, onSuccess }: CreateCa
             <div>
               <Label>Họ và tên</Label>
               <Input
-                value={formData.full_name}
-                onChange={e => setFormData({ ...formData, full_name: e.target.value })}
+                value={formData.fullName}
+                onChange={e => setFormData({ ...formData, fullName: e.target.value })}
                 required
               />
             </div>

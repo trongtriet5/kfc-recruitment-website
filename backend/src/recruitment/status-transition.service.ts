@@ -12,8 +12,6 @@ import {
 
 export const STATUS_GROUPS: Record<string, string> = {
   CV_FILTERING: 'application',
-  CV_PASSED: 'application',
-  CV_FAILED: 'application',
   BLACKLIST: 'application',
   CANNOT_CONTACT: 'application',
   AREA_NOT_RECRUITING: 'application',

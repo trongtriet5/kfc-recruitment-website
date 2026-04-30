@@ -153,6 +153,38 @@ export class RecruitmentService {
   getCampaign(id: string, user: any) { return this.campaignService.getCampaign(id, user); }
   
   async createCampaign(data: any, user: any) {
+    // Ensure formId is provided (required field)
+    if (!data.formId) {
+      // Try to get formId from proposal if proposalId is provided
+      if (data.proposalId) {
+        const proposal = await this.prisma.recruitmentProposal.findUnique({
+          where: { id: data.proposalId },
+          select: { storeId: true }
+        });
+        if (proposal?.storeId) {
+          const existingCampaign = await this.prisma.campaign.findFirst({
+            where: { storeId: proposal.storeId, formId: { not: null } },
+            select: { formId: true },
+          });
+          if (existingCampaign?.formId) {
+            data.formId = existingCampaign.formId;
+          }
+        }
+      }
+      
+      // If still no formId, get the first active form
+      if (!data.formId) {
+        const defaultForm = await this.prisma.recruitmentForm.findFirst({
+          where: { isActive: true },
+          select: { id: true },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (defaultForm) {
+          data.formId = defaultForm.id;
+        }
+      }
+    }
+
     const campaign = await this.prisma.campaign.create({
       data: {
         ...data,
@@ -268,9 +300,9 @@ export class RecruitmentService {
     if (statusId && statusId !== 'ALL') where.statusId = statusId;
     
     if (storeId && storeId !== 'ALL') {
-      if (storeId.startsWith('CITY:')) {
-        const city = storeId.replace('CITY:', '');
-        const stores = await this.prisma.store.findMany({ where: { city }, select: { id: true } });
+      if (storeId.startsWith('PROVINCE:')) {
+        const provinceCode = storeId.replace('PROVINCE:', '');
+        const stores = await this.prisma.store.findMany({ where: { provinceCode }, select: { id: true } });
         where.storeId = { in: stores.map(s => s.id) };
       } else {
         where.storeId = storeId;
@@ -424,7 +456,7 @@ export class RecruitmentService {
       
       return {
         taId: ta.id,
-        taName: ta.full_name,
+        taName: ta.fullName,
         taEmail: ta.email,
         taRole: ta.role,
         totalCandidates: total,
@@ -491,7 +523,7 @@ export class RecruitmentService {
   async getSourceByCode(code: string) { return this.prisma.source.findUnique({ where: { code } }); }
 
   // Public
-  async getPublicStores() { return this.prisma.store.findMany({ where: { isActive: true }, select: { id: true, name: true, code: true, city: true } }); }
+  async getPublicStores() { return this.prisma.store.findMany({ where: { isActive: true }, select: { id: true, name: true, code: true, provinceCode: true } }); }
   async getPublicPositions() { return this.prisma.position.findMany({ where: { isActive: true } }); }
 
   // Notifications

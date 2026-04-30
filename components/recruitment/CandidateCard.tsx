@@ -15,7 +15,7 @@ export function CandidateCard({ candidate, onClick, onContextMenu }: CandidateCa
     >
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="font-medium text-gray-900">{candidate.full_name}</h3>
+          <h3 className="font-medium text-gray-900">{candidate.fullName}</h3>
           <p className="text-sm text-gray-500">{candidate.phone}</p>
         </div>
         {candidate.status && (
@@ -33,7 +33,7 @@ export function CandidateCard({ candidate, onClick, onContextMenu }: CandidateCa
       <div className="flex items-center justify-between mt-3 text-xs text-gray-400">
         <span>{new Date(candidate.createdAt).toLocaleDateString('vi-VN')}</span>
         {candidate.pic && (
-          <span>PIC: {candidate.pic.full_name}</span>
+          <span>PIC: {candidate.pic.fullName}</span>
         )}
       </div>
     </div>

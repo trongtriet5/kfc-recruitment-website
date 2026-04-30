@@ -362,12 +362,6 @@ export default function CampaignsList() {
               </div>
             </div>
             <div className="bg-white rounded-lg shadow p-4">
-              <div className="text-sm text-gray-600">Ứng viên đạt</div>
-              <div className="text-2xl font-bold text-green-600 mt-1">
-                {statistics.candidatesByStatus?.find((s: any) => s.status === 'CV_PASSED')?._count || 0}
-              </div>
-            </div>
-            <div className="bg-white rounded-lg shadow p-4">
               <div className="text-sm text-gray-600">Đã trúng tuyển</div>
               <div className="text-2xl font-bold text-yellow-600 mt-1">
                 {statistics.candidatesByStatus?.find((s: any) => s.status === 'ONBOARDING_ACCEPTED')?._count || 0}
@@ -662,101 +656,100 @@ export default function CampaignsList() {
           onConfirm={handleConfirmAction}
         />
 
-        {/* Edit Modal */}
-        {showEditModal && editingCampaign && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
-            <div ref={editModalRef} className="bg-white rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-medium mb-4">Chỉnh sửa chiến dịch</h3>
-              <form onSubmit={handleUpdate} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tên chiến dịch <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    rows={3}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Cửa hàng
-                  </label>
-                  <SearchableSelect
-                    options={stores
-                      .sort((a, b) => (a.code || '').localeCompare(b.code || ''))
-                      .map(s => ({ id: s.id, name: s.code ? `${s.code} - ${s.name}` : s.name }))
-                    }
-                    value={formData.storeId}
-                    onChange={(val) => setFormData({ ...formData, storeId: val })}
-                    placeholder="Chọn cửa hàng"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Ngày bắt đầu <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.startDate}
-                      onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Ngày kết thúc</label>
-                    <input
-                      type="date"
-                      value={formData.endDate}
-                      onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="editIsActive"
-                    checked={formData.isActive}
-                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                    className="mr-2"
-                  />
-                  <label htmlFor="editIsActive" className="text-sm text-gray-700">
-                    Kích hoạt
-                  </label>
-                </div>
-                <div className="flex justify-end space-x-3">
-                  <button
-                    type="button"
-                    onClick={() => { setShowEditModal(false); setEditingCampaign(null) }}
-                    className="px-4 py-2 border border-gray-300 rounded-md"
-                  >
-                    Hủy
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-slate-800 text-white rounded-md hover:bg-slate-900"
-                  >
-                    Lưu
-                  </button>
-                </div>
-              </form>
+        <Modal
+          isOpen={showEditModal}
+          onClose={() => { setShowEditModal(false); setEditingCampaign(null) }}
+          title="Chỉnh sửa chiến dịch"
+          maxWidth="max-w-md"
+        >
+          <form onSubmit={handleUpdate} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tên chiến dịch <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                required
+              />
             </div>
-          </div>
-        )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                rows={3}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Cửa hàng
+              </label>
+              <SearchableSelect
+                options={stores
+                  .sort((a, b) => (a.code || '').localeCompare(b.code || ''))
+                  .map(s => ({ id: s.id, name: s.code ? `${s.code} - ${s.name}` : s.name }))
+                }
+                value={formData.storeId}
+                onChange={(val) => setFormData({ ...formData, storeId: val })}
+                placeholder="Chọn cửa hàng"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ngày bắt đầu <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={formData.startDate}
+                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ngày kết thúc</label>
+                <input
+                  type="date"
+                  value={formData.endDate}
+                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+            </div>
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="editIsActive"
+                checked={formData.isActive}
+                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                className="mr-2"
+              />
+              <label htmlFor="editIsActive" className="text-sm text-gray-700">
+                Kích hoạt
+              </label>
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => { setShowEditModal(false); setEditingCampaign(null) }}
+                className="px-4 py-2 border border-gray-300 rounded-md"
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-slate-800 text-white rounded-md hover:bg-slate-900"
+              >
+                Lưu
+              </button>
+            </div>
+          </form>
+        </Modal>
 
         {/* Detail Modal */}
         <Modal isOpen={showDetailModal} onClose={() => setShowDetailModal(false)} title={`Chiến dịch: ${detailCampaign?.name || ''}`} maxWidth="max-w-4xl">

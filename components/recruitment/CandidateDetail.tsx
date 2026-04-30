@@ -12,7 +12,7 @@ import { formatDate, formatDateTime } from '@/lib/utils'
 
 interface CandidateDetail {
   id: string
-  full_name: string
+  fullName: string
   email: string | null
   phone: string
   cvUrl: string | null
@@ -30,7 +30,7 @@ interface CandidateDetail {
     notes: string | null
     interviewer: {
       id: string
-      full_name: string
+      fullName: string
       email: string
     }
   }>
@@ -41,12 +41,12 @@ interface CandidateDetail {
     toValue: string | null
     notes: string | null
     createdAt: string
-    actor: { id: string; full_name: string } | null
+    actor: { id: string; fullName: string } | null
     campaign: { id: string; name: string } | null
   }>
   createdAt: string
   updatedAt: string
-  pic?: { id: string; full_name: string; email: string } | null
+  pic?: { id: string; fullName: string; email: string } | null
   source?: { id: string; name: string; code: string } | null
   availableStartDate: string | null
   canWorkTet: string | null
@@ -159,10 +159,10 @@ export default function CandidateDetail({
     if (statusCode === 'CV_FILTERING') {
       return 'bg-sky-50 text-sky-700 border border-sky-200'
     }
-    if (statusCode === 'CV_PASSED' || statusCode === 'HR_INTERVIEW_PASSED' || statusCode === 'SM_AM_INTERVIEW_PASSED' || statusCode === 'OM_PV_INTERVIEW_PASSED') {
+    if (statusCode === 'HR_INTERVIEW_PASSED' || statusCode === 'SM_AM_INTERVIEW_PASSED' || statusCode === 'OM_PV_INTERVIEW_PASSED') {
       return 'bg-emerald-50 text-emerald-700 border border-emerald-200'
     }
-    if (statusCode === 'CV_FAILED' || statusCode === 'HR_INTERVIEW_FAILED' || statusCode === 'SM_AM_INTERVIEW_FAILED' || statusCode === 'OM_PV_INTERVIEW_FAILED' || statusCode === 'BLACKLIST') {
+    if (statusCode === 'HR_INTERVIEW_FAILED' || statusCode === 'SM_AM_INTERVIEW_FAILED' || statusCode === 'OM_PV_INTERVIEW_FAILED' || statusCode === 'BLACKLIST') {
       return 'bg-rose-50 text-rose-700 border border-rose-200'
     }
     if (statusCode === 'WAITING_INTERVIEW' || statusCode === 'WAITING_ONBOARDING' || statusCode === 'OFFER_SENT') {
@@ -252,7 +252,7 @@ export default function CandidateDetail({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            {candidate.full_name || 'Unknown'}
+            {candidate.fullName || 'Unknown'}
           </h1>
           <p className="mt-2 text-sm text-gray-600">
             Chi tiết ứng viên
@@ -373,7 +373,7 @@ export default function CandidateDetail({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-500">Họ và tên</label>
-              <p className="mt-1 text-sm text-gray-900">{candidate.full_name || 'Unknown'}</p>
+              <p className="mt-1 text-sm text-gray-900">{candidate.fullName || 'Unknown'}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Email</label>
@@ -542,7 +542,7 @@ export default function CandidateDetail({
                     </div>
                   </div>
                   <div className="text-sm text-gray-600">
-                    <p>Người phỏng vấn: {interview.interviewer?.fullName || interview.interviewer?.full_name || 'N/A'}</p>
+                    <p>Người phỏng vấn: {interview.interviewer?.fullName || interview.interviewer?.fullName || 'N/A'}</p>
                     {interview.location && <p>Địa điểm: {interview.location}</p>}
                     {interview.notes && <p className="mt-1 whitespace-pre-wrap">Ghi chú: {interview.notes}</p>}
                   </div>
@@ -580,7 +580,7 @@ export default function CandidateDetail({
                       <span className="text-gray-500 text-xs">{formatDateTime(log.createdAt)}</span>
                     </div>
                     <div className="text-gray-600 text-xs mt-1">
-                      {log.actor?.full_name && <span>Người thực hiện: {log.actor.full_name}</span>}
+                      {log.actor?.fullName && <span>Người thực hiện: {log.actor.fullName}</span>}
                       {log.action === 'STATUS_CHANGE' && log.fromValue && log.toValue && (
                         <span className="ml-2">- {log.fromValue} → {log.toValue}</span>
                       )}

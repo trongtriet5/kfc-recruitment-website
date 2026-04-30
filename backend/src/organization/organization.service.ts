@@ -38,7 +38,8 @@ export class OrganizationService {
     name: true,
     code: true,
     address: true,
-    city: true,
+    provinceCode: true,
+    wardCode: true,
     zone: true,
     brand: true,
     isActive: true,
@@ -50,8 +51,10 @@ export class OrganizationService {
     group: true,
     smId: true,
     amId: true,
-    manager: { select: { id: true, full_name: true, email: true } },
-    am: { select: { id: true, full_name: true, email: true } },
+    province: { select: { code: true, name: true, fullName: true } },
+    ward: { select: { code: true, name: true, fullName: true } },
+    manager: { select: { id: true, fullName: true, email: true } },
+    am: { select: { id: true, fullName: true, email: true } },
   } as const;
 
   private mapStorePayload(data: any) {
@@ -63,6 +66,9 @@ export class OrganizationService {
       amName,
       omName,
       odName,
+      district,
+      phone,
+      city,
       ...rest
     } = data || {};
 
@@ -84,6 +90,10 @@ export class OrganizationService {
       od: store.odName ?? null,
       taIncharge: store.taIncharge ?? null,
       group: store.group ?? null,
+      city: store.province?.fullName || store.province?.name || null,
+      district: store.ward?.fullName || store.ward?.name || null,
+      provinceCode: store.provinceCode ?? null,
+      wardCode: store.wardCode ?? null,
     });
   }
 
@@ -267,12 +277,12 @@ export class OrganizationService {
     return {
       province: province ? {
         code: province.code,
-        name: province.full_name || province.name,
+        name: province.fullName || province.name,
         unit: unit?.[0]?.short_name || null
       } : null,
       ward: ward ? {
         code: ward.code,
-        name: ward.full_name || ward.name,
+        name: ward.fullName || ward.name,
         unit: ward.administrative_unit_id ? await this.getAdministrativeUnitName(ward.administrative_unit_id) : null
       } : null
     };

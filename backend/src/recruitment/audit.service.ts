@@ -44,7 +44,7 @@ async getAuditLogs(candidateId: string, options?: { limit?: number; offset?: num
   const uniqueActorIds = [...new Set(logs.map(l => l.actorId).filter(Boolean))];
   const uniqueCampaignIds = [...new Set(logs.map(l => l.campaignId).filter(Boolean))];
   const [users, campaigns] = await Promise.all([
-    this.prisma.user.findMany({ where: { id: { in: uniqueActorIds } }, select: { id: true, full_name: true, email: true, role: true } }),
+    this.prisma.user.findMany({ where: { id: { in: uniqueActorIds } }, select: { id: true, fullName: true, email: true, role: true } }),
     this.prisma.campaign.findMany({ where: { id: { in: uniqueCampaignIds } }, select: { id: true, name: true } })
   ]);
   const userMap = Object.fromEntries(users.map(u => [u.id, u]));
@@ -69,8 +69,8 @@ async getAuditLogsByCampaign(campaignId: string, options?: { limit?: number; off
   const uniqueActorIds = [...new Set(logs.map(l => l.actorId).filter(Boolean))];
   const uniqueCandidateIds = [...new Set(logs.map(l => l.candidateId))];
   const [users, candidates] = await Promise.all([
-    this.prisma.user.findMany({ where: { id: { in: uniqueActorIds } }, select: { id: true, full_name: true, email: true, role: true } }),
-    this.prisma.candidate.findMany({ where: { id: { in: uniqueCandidateIds } }, select: { id: true, full_name: true, statusId: true } })
+    this.prisma.user.findMany({ where: { id: { in: uniqueActorIds } }, select: { id: true, fullName: true, email: true, role: true } }),
+    this.prisma.candidate.findMany({ where: { id: { in: uniqueCandidateIds } }, select: { id: true, fullName: true, statusId: true } })
   ]);
   const userMap = Object.fromEntries(users.map(u => [u.id, u]));
   const candidateMap = Object.fromEntries(candidates.map(c => [c.id, c]));

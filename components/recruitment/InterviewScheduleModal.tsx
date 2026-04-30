@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import api from '@/lib/api'
 import Icon from '@/components/icons/Icon'
 import toast from 'react-hot-toast'
+import Modal from '@/components/common/Modal'
 
 interface Candidate {
   id: string
@@ -109,162 +110,150 @@ export default function InterviewScheduleModal({ candidate, campaign, onClose, o
 
   if (!campaign) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
-        <div className="bg-white rounded-lg p-6 w-full max-w-md">
-          <div className="text-center">
-            <Icon name="alert-circle" size={48} className="mx-auto text-yellow-500 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Không thể tạo lịch phỏng vấn</h3>
-            <p className="text-gray-600 mb-4">Ứng viên chưa được gán vào chiến dịch tuyển dụng nào.</p>
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800"
-            >
-              Đóng
-            </button>
-          </div>
+      <Modal isOpen={true} onClose={onClose} title="Không thể tạo lịch" maxWidth="max-w-md">
+        <div className="text-center py-4">
+          <Icon name="alert-circle" size={48} className="mx-auto text-yellow-500 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Không thể tạo lịch phỏng vấn</h3>
+          <p className="text-gray-600 mb-6">Ứng viên chưa được gán vào chiến dịch tuyển dụng nào.</p>
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800"
+          >
+            Đóng
+          </button>
         </div>
-      </div>
+      </Modal>
     )
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium">Tạo lịch phỏng vấn</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <Icon name="x" size={20} />
-          </button>
+    <Modal isOpen={true} onClose={onClose} title="Tạo lịch phỏng vấn" maxWidth="max-w-md">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="bg-gray-50 p-3 rounded-md">
+          <div className="text-sm text-gray-600">Ứng viên</div>
+          <div className="font-medium text-gray-900">{candidate.fullName}</div>
+          <div className="text-sm text-gray-500">{candidate.phone}</div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="bg-gray-50 p-3 rounded-md">
-            <div className="text-sm text-gray-600">Ứng viên</div>
-            <div className="font-medium">{candidate.fullName}</div>
-            <div className="text-sm text-gray-500">{candidate.phone}</div>
+        <div className="bg-gray-50 p-3 rounded-md">
+          <div className="text-sm text-gray-600">Chiến dịch</div>
+          <div className="font-medium text-gray-900">{campaign.name}</div>
+          <div className="text-sm text-gray-500">
+            {campaign.store?.name} - {campaign.position?.name}
           </div>
-
-          <div className="bg-gray-50 p-3 rounded-md">
-            <div className="text-sm text-gray-600">Chiến dịch</div>
-            <div className="font-medium">{campaign.name}</div>
-            <div className="text-sm text-gray-500">
-              {campaign.store?.name} - {campaign.position?.name}
+          {(campaign.pic || campaign.recruiter) && (
+            <div className="text-sm text-gray-500 mt-1">
+              Người phỏng vấn: {campaign.recruiter?.fullName || campaign.pic?.fullName}
             </div>
-            {(campaign.pic || campaign.recruiter) && (
-              <div className="text-sm text-gray-500 mt-1">
-                Người phỏng vấn: {campaign.recruiter?.fullName || campaign.pic?.fullName}
-              </div>
-            )}
-          </div>
+          )}
+        </div>
 
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Ngày phỏng vấn <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="date"
+            value={formData.date}
+            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-slate-500 focus:border-slate-500"
+            required
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Ngày phỏng vấn <span className="text-red-500">*</span>
+              Từ giờ <span className="text-red-500">*</span>
             </label>
             <input
-              type="date"
-              value={formData.date}
-              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              type="time"
+              value={formData.fromTime}
+              onChange={(e) => setFormData({ ...formData, fromTime: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-slate-500 focus:border-slate-500"
               required
             />
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Từ giờ <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="time"
-                value={formData.fromTime}
-                onChange={(e) => setFormData({ ...formData, fromTime: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Đến giờ <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="time"
-                value={formData.toTime}
-                onChange={(e) => setFormData({ ...formData, toTime: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                required
-              />
-            </div>
-          </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Người phỏng vấn
+              Đến giờ <span className="text-red-500">*</span>
             </label>
-            <select
-              value={formData.interviewerId}
-              onChange={(e) => setFormData({ ...formData, interviewerId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
-            >
-              <option value="">Mặc định: {campaign.recruiter?.fullName || campaign.pic?.fullName || 'Người lọc hồ sơ'}</option>
-              {users.filter(u => ['ADMIN', 'RECRUITER', 'HEAD_OF_DEPARTMENT', 'MANAGER', 'USER'].includes(u.role)).map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.fullName} ({user.email})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Địa điểm phỏng vấn
-            </label>
-            <select
-              value={formData.location}
-              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
-            >
-              <option value="">Chọn cửa hàng</option>
-              {stores.map((store) => (
-                <option key={store.id} value={store.id}>
-                  {store.code} - {store.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Ghi chú
-            </label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
-              rows={3}
-              placeholder="Ghi chú thêm về buổi phỏng vấn..."
+            <input
+              type="time"
+              value={formData.toTime}
+              onChange={(e) => setFormData({ ...formData, toTime: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-slate-500 focus:border-slate-500"
+              required
             />
           </div>
+        </div>
 
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 disabled:opacity-50"
-            >
-              {loading ? 'Đang xử lý...' : 'Tạo lịch'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Người phỏng vấn
+          </label>
+          <select
+            value={formData.interviewerId}
+            onChange={(e) => setFormData({ ...formData, interviewerId: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-slate-500 focus:border-slate-500"
+          >
+            <option value="">Mặc định: {campaign.recruiter?.fullName || campaign.pic?.fullName || 'Người lọc hồ sơ'}</option>
+            {users.filter(u => ['ADMIN', 'RECRUITER', 'HEAD_OF_DEPARTMENT', 'MANAGER', 'USER'].includes(u.role)).map((user) => (
+              <option key={user.id} value={user.id}>
+                {user.fullName} ({user.email})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Địa điểm phỏng vấn
+          </label>
+          <select
+            value={formData.location}
+            onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-slate-500 focus:border-slate-500"
+          >
+            <option value="">Chọn cửa hàng</option>
+            {stores.map((store) => (
+              <option key={store.id} value={store.id}>
+                {store.code} - {store.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Ghi chú
+          </label>
+          <textarea
+            value={formData.notes}
+            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-slate-500 focus:border-slate-500"
+            rows={3}
+            placeholder="Ghi chú thêm về buổi phỏng vấn..."
+          />
+        </div>
+
+        <div className="flex justify-end space-x-3 pt-4 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
+          >
+            Hủy
+          </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-4 py-2 bg-gray-900 text-white rounded-md text-sm hover:bg-black disabled:opacity-50"
+          >
+            {loading ? 'Đang xử lý...' : 'Tạo lịch'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   )
 }
-

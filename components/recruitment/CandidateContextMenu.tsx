@@ -8,7 +8,7 @@ import Icon from '@/components/icons/Icon'
 
 interface Candidate {
   id: string
-  full_name: string
+  fullName: string
   status: string | { id: string; name: string; code: string } | null
   [key: string]: any
 }
@@ -280,7 +280,7 @@ export default function CandidateContextMenu({
         const statusText = typeof candidate.status === 'object' 
           ? candidate.status?.name || candidate.status?.code || 'Chưa có trạng thái'
           : candidate.status || 'Chưa có trạng thái'
-        const info = `${candidate.full_name}\nID: ${candidate.id}\nTrạng thái: ${statusText}`
+        const info = `${candidate.fullName}\nID: ${candidate.id}\nTrạng thái: ${statusText}`
         navigator.clipboard.writeText(info)
         onClose()
       },

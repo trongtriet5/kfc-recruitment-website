@@ -641,13 +641,14 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
     const proposals = await this.prisma.recruitmentProposal.findMany({
       where,
       include: {
-         store: true,
-         approver: { select: { id: true, full_name: true } },
-         workflowHistory: { 
-           where: { action: 'SUBMIT' },
-           orderBy: { createdAt: 'asc' },
-           take: 1,
-         },
+        store: true,
+        position: true,
+        approver: { select: { id: true, fullName: true } },
+        workflowHistory: { 
+          where: { action: 'SUBMIT' },
+          orderBy: { createdAt: 'asc' },
+          take: 1,
+        },
       },
       orderBy: [
         { urgency: 'asc' },
@@ -739,10 +740,11 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
       where: { id },
       include: {
     store: true,
-    approver: { select: { id: true, full_name: true } },
+    position: true,
+    approver: { select: { id: true, fullName: true } },
     workflowHistory: {
       include: {
-        actor: { select: { id: true, full_name: true, role: true } },
+        actor: { select: { id: true, fullName: true, role: true } },
       },
       orderBy: { createdAt: 'asc' },
     },

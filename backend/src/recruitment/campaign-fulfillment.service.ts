@@ -68,7 +68,7 @@ export class CampaignFulfillmentService {
       ['CV_FILTERING'].includes(statusMap[c.statusId] || '')
     ).length;
     const passedScreening = candidates.filter(c =>
-      ['CV_PASSED', 'WAITING_INTERVIEW', 'HR_INTERVIEW_PASSED', 'HR_INTERVIEW_FAILED',
+      ['WAITING_INTERVIEW', 'HR_INTERVIEW_PASSED', 'HR_INTERVIEW_FAILED',
        'SM_AM_INTERVIEW_PASSED', 'SM_AM_INTERVIEW_FAILED', 'SM_AM_NO_SHOW',
        'OM_PV_INTERVIEW_PASSED', 'OM_PV_INTERVIEW_FAILED', 'OM_PV_NO_SHOW'].includes(statusMap[c.statusId] || '')
     ).length;
@@ -170,7 +170,7 @@ export class CampaignFulfillmentService {
       const isBreached = candidate.slaBreachFlag;
       return {
         candidateId: candidate.id,
-        candidateName: candidate.full_name,
+        candidateName: candidate.fullName,
         statusCode: candidate.statusId || null,
         statusName: null, // populate if needed
         hoursInStage,

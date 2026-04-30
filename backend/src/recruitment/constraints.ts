@@ -89,7 +89,7 @@ export const PERMISSIONS: Record<Role, PermissionAction[]> = {
     'CANDIDATE_CREATE', 'CANDIDATE_READ', 'CANDIDATE_UPDATE',
     'CANDIDATE_STATUS_CHANGE', 'CANDIDATE_ASSIGN_PIC', 'CANDIDATE_TRANSFER_CAMPAIGN',
     'PROPOSAL_READ',
-    'CAMPAIGN_READ', 'CAMPAIGN_UPDATE',
+    'CAMPAIGN_CREATE', 'CAMPAIGN_READ', 'CAMPAIGN_UPDATE', 'CAMPAIGN_MANAGE',
     'INTERVIEW_CREATE', 'INTERVIEW_READ', 'INTERVIEW_UPDATE',
     'OFFER_CREATE', 'OFFER_READ', 'OFFER_UPDATE', 'OFFER_SEND',
     'REPORT_VIEW',
@@ -144,14 +144,12 @@ export interface TransitionCondition {
 export const STATUS_TRANSITIONS: TransitionRule[] = [
   // Application stage - HR/Recruiter only
   { from: ['*'], to: 'CV_FILTERING', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
-  { from: ['CV_FILTERING'], to: 'CV_PASSED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
-  { from: ['CV_FILTERING'], to: 'CV_FAILED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'], requiresReason: true },
+  { from: ['CV_FILTERING'], to: 'WAITING_INTERVIEW', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
   { from: ['CV_FILTERING'], to: 'BLACKLIST', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT'], requiresReason: true },
   { from: ['CV_FILTERING'], to: 'CANNOT_CONTACT', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
   { from: ['CV_FILTERING'], to: 'AREA_NOT_RECRUITING', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
 
   // Interview stage - HR schedules, SM/AM/OM updates
-  { from: ['CV_PASSED'], to: 'WAITING_INTERVIEW', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
   { from: ['WAITING_INTERVIEW'], to: 'HR_INTERVIEW_PASSED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
   { from: ['WAITING_INTERVIEW'], to: 'HR_INTERVIEW_FAILED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'], requiresReason: true },
 
@@ -175,15 +173,13 @@ export const STATUS_TRANSITIONS: TransitionRule[] = [
   { from: ['WAITING_ONBOARDING'], to: 'ONBOARDING_ACCEPTED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER', 'MANAGER', 'USER'] },
   { from: ['WAITING_ONBOARDING'], to: 'ONBOARDING_REJECTED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'], requiresReason: true },
 
-  // Revert rules (ADMIN only)
-  { from: ['*'], to: 'CV_FILTERING', allowedRoles: ['ADMIN'] },
+  // Revert rules (ADMIN & RECRUITER)
+  { from: ['*'], to: 'CV_FILTERING', allowedRoles: ['ADMIN', 'RECRUITER'] },
 ];
 
 // Status groups for UI organization
 export const STATUS_GROUPS: Record<string, string> = {
   CV_FILTERING: 'application',
-  CV_PASSED: 'application',
-  CV_FAILED: 'application',
   BLACKLIST: 'application',
   CANNOT_CONTACT: 'application',
   AREA_NOT_RECRUITING: 'application',
@@ -209,7 +205,6 @@ export const STATUS_GROUPS: Record<string, string> = {
 
 export const TERMINAL_STATUSES = [
   'BLACKLIST',
-  'CV_FAILED',
   'HR_INTERVIEW_FAILED',
   'SM_AM_INTERVIEW_FAILED',
   'OM_PV_INTERVIEW_FAILED',
@@ -408,7 +403,7 @@ export const INTERVIEW_RESULTS: Record<Role, InterviewResultConfig> = {
     isAdmin: false,
   },
   USER: {
-    allowedResults: ['SM_AM_PASSED', 'SM_AM_FAILED', 'SM_AM_NO_SHOW'],
+    allowedResults: ['SM_AM_PASSED', 'SM_AM_FAILED', 'SM_AM_NO_SHOW', 'OM_PV_PASSED', 'OM_PV_FAILED', 'OM_PV_NO_SHOW'],
     isAdmin: false,
   },
 };
@@ -439,12 +434,12 @@ export function getAllowedInterviewResults(role: Role): { code: string; name: st
   }
 
   const labels: Record<string, string> = {
-    SM_AM_PASSED: 'SM/AM PV đạt',
-    SM_AM_FAILED: 'SM/AM PV loại',
-    SM_AM_NO_SHOW: 'SM/AM PV không đến',
-    OM_PV_PASSED: 'OM PV đạt',
-    OM_PV_FAILED: 'OM PV loại',
-    OM_PV_NO_SHOW: 'OM PV không đến',
+    SM_AM_PASSED: 'SM/AM PV Đạt',
+    SM_AM_FAILED: 'SM/AM PV Loại',
+    SM_AM_NO_SHOW: 'Không đến phỏng vấn',
+    OM_PV_PASSED: 'OM PV Đạt',
+    OM_PV_FAILED: 'OM PV Loại',
+    OM_PV_NO_SHOW: 'Không đến phỏng vấn',
   };
 
   return constraint.allowedResults.map((code) => ({

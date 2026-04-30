@@ -96,10 +96,10 @@ export default function UsersManagementPage() {
     setLoading(true)
     try { 
       const res = await api.get('/users')
-      // Transform full_name to fullName for UI
+      // Transform fullName to fullName for UI
       const transformed = res.data.map((u: any) => ({
         ...u,
-        fullName: u.full_name,
+        fullName: u.fullName,
       }))
       setUsers(transformed) 
     }
@@ -115,10 +115,10 @@ export default function UsersManagementPage() {
   // Stores available for SM: unassigned OR currently assigned to this user
   const availableForSM = stores.filter(s => !s.smId || s.smId === editingUser?.id)
   // Stores available for AM: any active store
-  const storesByCity = stores.reduce((acc, s) => {
-    const city = s.city || 'Khác'
-    if (!acc[city]) acc[city] = []
-    acc[city].push(s)
+  const storesByProvince = stores.reduce((acc, s) => {
+    const province = s.city || 'Khác'
+    if (!acc[province]) acc[province] = []
+    acc[province].push(s)
     return acc
   }, {} as Record<string, Store[]>)
 
@@ -141,6 +141,22 @@ export default function UsersManagementPage() {
       storeIds: user.managedStores?.map(s => s.id) || [],
     })
     setShowModal(true)
+  }
+
+  const handleDuplicate = (user: User) => {
+    setEditingUser(null)
+    setFormData({
+      fullName: `${user.fullName} (Copy)`,
+      email: '',
+      phone: user.phone || '',
+      password: '',
+      role: user.role,
+      isActive: true,
+      storeId: user.managedStore?.id || '',
+      storeIds: user.managedStores?.map(s => s.id) || [],
+    })
+    setShowModal(true)
+    setContextMenu(null)
   }
 
   const handleDelete = async (user: User) => {
@@ -394,7 +410,7 @@ export default function UsersManagementPage() {
                   </Select>
                 </div>
 
-                {/* SM: single store picker — grouped by city */}
+                {/* SM: single store picker — grouped by province */}
                 {isSMRole && (
                   <div>
                     <Label className="flex items-center gap-1">
@@ -407,19 +423,12 @@ export default function UsersManagementPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none__">— Không gán —</SelectItem>
-                        {Object.entries(
-                          availableForSM.reduce((acc, s) => {
-                            const city = s.city || 'Khác'
-                            if (!acc[city]) acc[city] = []
-                            acc[city].push(s)
-                            return acc
-                          }, {} as Record<string, Store[]>)
-                        ).sort(([a], [b]) => a.localeCompare(b)).map(([city, cityStores]) => (
-                          <SelectGroup key={city}>
+                        {Object.entries(storesByProvince).sort(([a], [b]) => a.localeCompare(b)).map(([province, provinceStores]) => (
+                          <SelectGroup key={province}>
                             <SelectLabel className="font-bold text-gray-900 bg-gray-50 px-2 py-1.5 text-xs uppercase tracking-wide">
-                              {city}
+                              {province}
                             </SelectLabel>
-                            {[...cityStores].sort((a, b) => a.code.localeCompare(b.code)).map(s => (
+                            {[...provinceStores].sort((a, b) => a.code.localeCompare(b.code)).map(s => (
                               <SelectItem key={s.id} value={s.id} className="pl-4">
                                 {s.code} – {s.name}
                               </SelectItem>
@@ -454,14 +463,14 @@ export default function UsersManagementPage() {
                       Cửa hàng quản lý ({formData.storeIds.length} đã chọn)
                     </Label>
                     <div className="border border-gray-200 rounded-lg max-h-64 overflow-y-auto divide-y divide-gray-100">
-                      {Object.entries(storesByCity).sort(([a], [b]) => a.localeCompare(b)).map(([city, cityStores]) => (
-                        <div key={city}>
+                      {Object.entries(storesByProvince).sort(([a], [b]) => a.localeCompare(b)).map(([province, provinceStores]) => (
+                        <div key={province}>
                           <div className="px-3 py-1.5 bg-gray-50 flex items-center justify-between">
-                            <span className="text-xs font-semibold text-gray-700 uppercase">{city}</span>
+                            <span className="text-xs font-semibold text-gray-700 uppercase">{province}</span>
                             <button
                               type="button"
                               onClick={() => {
-                                const ids = cityStores.map(s => s.id)
+                                const ids = provinceStores.map(s => s.id)
                                 const allSelected = ids.every(id => formData.storeIds.includes(id))
                                 setFormData(prev => ({
                                   ...prev,
@@ -472,10 +481,10 @@ export default function UsersManagementPage() {
                               }}
                               className="text-xs text-blue-600 hover:underline"
                             >
-                              {cityStores.every(s => formData.storeIds.includes(s.id)) ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                              {provinceStores.every(s => formData.storeIds.includes(s.id)) ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
                             </button>
                           </div>
-                          {cityStores.map(s => (
+                          {provinceStores.map(s => (
                             <label key={s.id} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 cursor-pointer">
                               <input
                                 type="checkbox"
@@ -536,15 +545,21 @@ export default function UsersManagementPage() {
           >
             <Icon name="edit" size={14} /> Chỉnh sửa
           </button>
-          {contextMenu.user.email !== 'thinh.nguyenthevinh@kfcvietnam.com.vn' && (
-            <button
-              onClick={() => { handleDelete(contextMenu.user); setContextMenu(null) }}
-              className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 ${contextMenu.user.isActive ? 'text-red-600' : 'text-green-600'}`}
-            >
-              <Icon name={contextMenu.user.isActive ? 'trash' : 'check'} size={14} />
-              {contextMenu.user.isActive ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}
-            </button>
-          )}
+          <button
+             onClick={() => handleDuplicate(contextMenu.user)}
+             className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+           >
+             <Icon name="copy" size={14} /> Nhân bản tài khoản
+           </button>
+           {contextMenu.user.email !== 'thinh.nguyenthevinh@kfcvietnam.com.vn' && (
+             <button
+               onClick={() => { handleDelete(contextMenu.user); setContextMenu(null) }}
+               className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 ${contextMenu.user.isActive ? 'text-red-600' : 'text-green-600'}`}
+             >
+               <Icon name={contextMenu.user.isActive ? 'trash' : 'check'} size={14} />
+               {contextMenu.user.isActive ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}
+             </button>
+           )}
         </div>
       )}
 

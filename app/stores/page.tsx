@@ -19,14 +19,27 @@ interface PersonRef {
   email: string
 }
 
+interface Province {
+  code: string
+  name: string
+  fullName: string
+}
+
+interface Ward {
+  code: string
+  name: string
+  fullName: string
+}
+
 interface Store {
   id: string
   name: string
   code: string
   address?: string
-  phone?: string
-  district?: string
+  provinceCode?: string | null
+  wardCode?: string | null
   city?: string
+  district?: string
   amName?: string | null
   am?: string | PersonRef | null
   omName?: string | null
@@ -39,6 +52,8 @@ interface Store {
   taIncharge?: string | PersonRef | null
   group?: string | null
   isActive: boolean
+  province?: Province | null
+  ward?: Ward | null
 }
 
 interface FormErrors {
@@ -122,9 +137,8 @@ export default function StoresManagementPage() {
     name: '',
     code: '',
     address: '',
-    phone: '',
-    district: '',
-    city: '',
+    provinceCode: '',
+    wardCode: '',
     am: '',
     om: '',
     od: '',
@@ -133,6 +147,10 @@ export default function StoresManagementPage() {
     taIncharge: '',
     group: '',
   })
+  const [provinces, setProvinces] = useState<Province[]>([])
+  const [wards, setWards] = useState<Ward[]>([])
+  const [loadingProvinces, setLoadingProvinces] = useState(false)
+  const [loadingWards, setLoadingWards] = useState(false)
   const [formErrors, setFormErrors] = useState<FormErrors>({})
 
   useEffect(() => {
@@ -150,9 +168,8 @@ export default function StoresManagementPage() {
       name: '',
       code: '',
       address: '',
-      phone: '',
-      district: '',
-      city: '',
+      provinceCode: '',
+      wardCode: '',
       am: '',
       om: '',
       od: '',
@@ -162,6 +179,7 @@ export default function StoresManagementPage() {
       group: '',
     })
     setFormErrors({})
+    setWards([])
   }
 
   const closeStoreModal = () => {
@@ -176,6 +194,8 @@ export default function StoresManagementPage() {
     om: store.om ?? store.omName ?? '',
     od: store.od ?? store.odName ?? '',
     taIncharge: store.taIncharge ?? store.icName ?? '',
+    city: store.province?.fullName || store.province?.name || '',
+    district: store.ward?.fullName || store.ward?.name || '',
   })
 
   const loadStores = async (showRefreshToast = false) => {
@@ -193,6 +213,22 @@ export default function StoresManagementPage() {
       setRefreshing(false)
     }
   }
+
+  const loadProvinces = async () => {
+    setLoadingProvinces(true)
+    try {
+      const res = await api.get('/locations/provinces')
+      setProvinces(res.data || [])
+    } catch {
+      setProvinces([])
+    } finally {
+      setLoadingProvinces(false)
+    }
+  }
+
+  useEffect(() => {
+    loadProvinces()
+  }, [])
 
   const validateForm = () => {
     const errors: FormErrors = {}
@@ -234,15 +270,24 @@ export default function StoresManagementPage() {
     }
   }
 
+  const loadWardsForProvince = async (provinceCode: string) => {
+    if (!provinceCode) { setWards([]); return }
+    setLoadingWards(true)
+    try {
+      const res = await api.get(`/locations/provinces/code/${provinceCode}/wards`)
+      setWards(res.data || [])
+    } catch { setWards([]) }
+    finally { setLoadingWards(false) }
+  }
+
   const handleEdit = (store: Store) => {
     setEditingStore(store)
     setFormData({
       name: store.name,
       code: store.code,
       address: store.address || '',
-      phone: store.phone || '',
-      district: store.district || '',
-      city: store.city || '',
+      provinceCode: store.provinceCode || '',
+      wardCode: store.wardCode || '',
       am: getPersonDisplayName(store.am),
       om: getPersonDisplayName(store.om),
       od: getPersonDisplayName(store.od),
@@ -251,6 +296,9 @@ export default function StoresManagementPage() {
       taIncharge: getPersonDisplayName(store.taIncharge),
       group: store.group || '',
     })
+    if (store.provinceCode) {
+      loadWardsForProvince(store.provinceCode)
+    }
     setShowCreateModal(true)
   }
 
@@ -282,21 +330,21 @@ export default function StoresManagementPage() {
   const handleExport = () => {
     void (async () => {
       try {
-      const headers = ['Mã', 'Tên cửa hàng', 'Địa chỉ', 'Quận/Huyện', 'Thành phố', 'AM', 'OM', 'OD', 'Zone', 'Area', 'TA IC', 'Group']
-      const data = filteredStores.map((s) => [
-        s.code,
-        s.name,
-        s.address || '',
-        s.district || '',
-        s.city || '',
-        getPersonDisplayName(s.am),
-        getPersonDisplayName(s.om),
-        getPersonDisplayName(s.od),
-        s.zone || '',
-        s.area || '',
-        getPersonDisplayName(s.taIncharge),
-        s.group || '',
-      ])
+    const headers = ['Mã', 'Tên cửa hàng', 'Địa chỉ', 'Phường/Xã', 'Tỉnh/Thành', 'AM', 'OM', 'OD', 'Zone', 'Area', 'TA IC', 'Group']
+    const data = filteredStores.map((s) => [
+      s.code,
+      s.name,
+      s.address || '',
+      s.district || '',
+      s.city || '',
+      getPersonDisplayName(s.am),
+      getPersonDisplayName(s.om),
+      getPersonDisplayName(s.od),
+      s.zone || '',
+      s.area || '',
+      getPersonDisplayName(s.taIncharge),
+      s.group || '',
+    ])
 
       const maxWidth = data.reduce((w, r) => Math.max(w, (r[1] as string)?.length || 10), 20)
       const exportRows = [headers, ...data].map((row) => row.map((value) => ({ value })))
@@ -355,8 +403,8 @@ export default function StoresManagementPage() {
               code: String(code).trim(),
               name: String(name).trim(),
               address: row['Địa chỉ'] || row['Äá»‹a chá»‰'] || row['address'] || '',
-              district: row['Quận/Huyện'] || row['Quáº­n/Huyá»‡n'] || row['district'] || '',
-              city: row['Thành phố'] || row['ThÃ nh phá»‘'] || row['city'] || '',
+              provinceCode: row['Tỉnh/Thành'] || row['province_code'] || row['provinceCode'] || '',
+              wardCode: row['Phường/Xã'] || row['ward_code'] || row['wardCode'] || '',
               am: row['AM'] || row['am'] || '',
               om: row['OM'] || row['om'] || '',
               od: row['OD'] || row['od'] || '',
@@ -465,8 +513,8 @@ export default function StoresManagementPage() {
                     <th className="px-3 py-4 text-left text-xs font-bold text-gray-500 uppercase border-l">AM</th>
                     <th className="px-3 py-4 text-left text-xs font-bold text-gray-500 uppercase">OM</th>
                     <th className="px-3 py-4 text-left text-xs font-bold text-gray-500 uppercase">OD</th>
-                    <th className="px-3 py-4 text-left text-xs font-bold text-gray-500 uppercase border-l">Thành phố</th>
-                    <th className="px-3 py-4 text-left text-xs font-bold text-gray-500 uppercase">Quận/Huyện</th>
+                    <th className="px-3 py-4 text-left text-xs font-bold text-gray-500 uppercase border-l">Tỉnh/Thành</th>
+                    <th className="px-3 py-4 text-left text-xs font-bold text-gray-500 uppercase">Phường/Xã</th>
                     <th className="px-3 py-4 text-left text-xs font-bold text-gray-500 uppercase border-l">Vùng miền</th>
                     <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase border-l w-24">Thao tác</th>
                   </tr>
@@ -528,8 +576,46 @@ export default function StoresManagementPage() {
                     <div className="grid grid-cols-1 gap-4 mt-3">
                       <div><Label className="text-xs font-medium">Địa chỉ cụ thể</Label><Input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} /></div>
                       <div className="grid grid-cols-2 gap-4">
-                        <div><Label className="text-xs font-medium">Quận/Huyện</Label><Input type="text" value={formData.district} onChange={(e) => setFormData({ ...formData, district: e.target.value })} /></div>
-                        <div><Label className="text-xs font-medium">Thành phố</Label><Input type="text" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} /></div>
+                        <div>
+                          <Label className="text-xs font-medium">Tỉnh/Thành phố</Label>
+                          <Select
+                            value={formData.provinceCode || '__none__'}
+                            onValueChange={(v) => {
+                              const newProvinceCode = v === '__none__' ? '' : v
+                              setFormData({ ...formData, provinceCode: newProvinceCode, wardCode: '' })
+                              if (newProvinceCode) loadWardsForProvince(newProvinceCode)
+                              else setWards([])
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder={loadingProvinces ? 'Đang tải...' : 'Chọn Tỉnh/Thành phố'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">— Chọn Tỉnh/Thành —</SelectItem>
+                              {provinces.map(p => (
+                                <SelectItem key={p.code} value={p.code}>{p.fullName || p.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium">Phường/Xã</Label>
+                          <Select
+                            value={formData.wardCode || '__none__'}
+                            onValueChange={(v) => setFormData({ ...formData, wardCode: v === '__none__' ? '' : v })}
+                            disabled={!formData.provinceCode || loadingWards}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder={loadingWards ? 'Đang tải...' : 'Chọn Phường/Xã'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">— Chọn Phường/Xã —</SelectItem>
+                              {wards.map(w => (
+                                <SelectItem key={w.code} value={w.code}>{w.fullName || w.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     </div>
                   </div>

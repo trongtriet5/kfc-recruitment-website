@@ -299,10 +299,10 @@ export default function CandidatesList() {
     if (statusCode === 'CV_FILTERING') {
       return 'bg-sky-50 text-sky-700 border border-sky-200'
     }
-    if (statusCode === 'CV_PASSED' || statusCode === 'HR_INTERVIEW_PASSED' || statusCode === 'SM_AM_INTERVIEW_PASSED' || statusCode === 'OM_PV_INTERVIEW_PASSED') {
+    if (statusCode === 'HR_INTERVIEW_PASSED' || statusCode === 'SM_AM_INTERVIEW_PASSED' || statusCode === 'OM_PV_INTERVIEW_PASSED') {
       return 'bg-emerald-50 text-emerald-700 border border-emerald-200'
     }
-    if (statusCode === 'CV_FAILED' || statusCode === 'HR_INTERVIEW_FAILED' || statusCode === 'SM_AM_INTERVIEW_FAILED' || statusCode === 'OM_PV_INTERVIEW_FAILED' || statusCode === 'BLACKLIST') {
+    if (statusCode === 'HR_INTERVIEW_FAILED' || statusCode === 'SM_AM_INTERVIEW_FAILED' || statusCode === 'OM_PV_INTERVIEW_FAILED' || statusCode === 'BLACKLIST') {
       return 'bg-rose-50 text-rose-700 border border-rose-200'
     }
     if (statusCode === 'WAITING_INTERVIEW' || statusCode === 'WAITING_ONBOARDING' || statusCode === 'OFFER_SENT') {
@@ -466,8 +466,8 @@ export default function CandidatesList() {
                     { id: '__all__', name: 'Tất cả cửa hàng' },
                     ...stores
                       .sort((a, b) => (a.city || '').localeCompare(b.city || '') || (a.code || '').localeCompare(b.code || ''))
-                      .map(s => ({ 
-                        id: s.id, 
+                      .map(s => ({
+                        id: s.id,
                         name: `${s.code} - ${s.name}`,
                         group: s.city || 'Khác'
                       }))
@@ -732,55 +732,51 @@ export default function CandidatesList() {
           />
         )}
       </Modal>
-      {transferModal.isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-4 pb-2 border-b">
-              <h3 className="text-lg font-semibold text-gray-900">Chuyển chiến dịch tuyển dụng</h3>
-              <button onClick={() => setTransferModal(prev => ({ ...prev, isOpen: false }))}>
-                <span className="text-gray-400 hover:text-gray-600 font-bold text-xl">×</span>
-              </button>
-            </div>
+      <Modal
+        isOpen={transferModal.isOpen}
+        onClose={() => setTransferModal(prev => ({ ...prev, isOpen: false }))}
+        title="Chuyển chiến dịch tuyển dụng"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4">
+          <div>
+            <p className="text-sm text-gray-600 mb-4">
+              Ứng viên: <span className="font-semibold text-gray-900">{transferModal.candidate?.fullName}</span>
+            </p>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Chọn chiến dịch mới <span className="text-red-500">*</span>
+            </label>
+            <select
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              value={transferModal.selectedCampaignId}
+              onChange={e => setTransferModal(prev => ({ ...prev, selectedCampaignId: e.target.value }))}
+              disabled={transferModal.loading}
+            >
+              <option value="">-- Chọn chiến dịch mới --</option>
+              {transferModal.campaigns.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
 
-            <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-4">
-                Ứng viên: <span className="font-semibold text-gray-900">{transferModal.candidate?.fullName}</span>
-              </p>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Chọn chiến dịch mới <span className="text-red-500">*</span>
-              </label>
-              <select
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                value={transferModal.selectedCampaignId}
-                onChange={e => setTransferModal(prev => ({ ...prev, selectedCampaignId: e.target.value }))}
-                disabled={transferModal.loading}
-              >
-                <option value="">-- Chọn chiến dịch mới --</option>
-                {transferModal.campaigns.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-              <button
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 bg-white text-gray-700"
-                onClick={() => setTransferModal(prev => ({ ...prev, isOpen: false }))}
-                disabled={transferModal.loading}
-              >
-                Hủy
-              </button>
-              <button
-                className="px-4 py-2 bg-slate-800 text-white rounded-md text-sm hover:bg-slate-900 disabled:opacity-50 flex items-center gap-2"
-                onClick={submitTransferCampaign}
-                disabled={!transferModal.selectedCampaignId || transferModal.loading}
-              >
-                {transferModal.loading ? 'Đang chuyển...' : 'Xác nhận chuyển'}
-              </button>
-            </div>
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <button
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 bg-white text-gray-700"
+              onClick={() => setTransferModal(prev => ({ ...prev, isOpen: false }))}
+              disabled={transferModal.loading}
+            >
+              Hủy
+            </button>
+            <button
+              className="px-4 py-2 bg-slate-800 text-white rounded-md text-sm hover:bg-slate-900 disabled:opacity-50 flex items-center gap-2"
+              onClick={submitTransferCampaign}
+              disabled={!transferModal.selectedCampaignId || transferModal.loading}
+            >
+              {transferModal.loading ? 'Đang chuyển...' : 'Xác nhận chuyển'}
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
       {/* Edit Candidate Modal */}
       <Modal
         isOpen={!!editCandidateId}
@@ -829,55 +825,51 @@ export default function CandidatesList() {
         onClose={() => setDeleteCandidateId(null)}
         onConfirm={handleDeleteCandidate}
       />
-      {picModal.isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-4 pb-2 border-b">
-              <h3 className="text-lg font-semibold text-gray-900">Gán Người phụ trách (TA)</h3>
-              <button onClick={() => setPicModal(prev => ({ ...prev, isOpen: false }))}>
-                <span className="text-gray-400 hover:text-gray-600 font-bold text-xl">×</span>
-              </button>
-            </div>
+      <Modal
+        isOpen={picModal.isOpen}
+        onClose={() => setPicModal(prev => ({ ...prev, isOpen: false }))}
+        title="Gán Người phụ trách (TA)"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4">
+          <div>
+            <p className="text-sm text-gray-600 mb-4">
+              Ứng viên: <span className="font-semibold text-gray-900">{picModal.candidate?.fullName}</span>
+            </p>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Chọn TA phụ trách <span className="text-red-500">*</span>
+            </label>
+            <select
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              value={picModal.selectedPicId}
+              onChange={e => setPicModal(prev => ({ ...prev, selectedPicId: e.target.value }))}
+              disabled={picModal.loading}
+            >
+              <option value="">-- Chọn TA --</option>
+              {picModal.tas.map(t => (
+                <option key={t.id} value={t.id}>{t.fullName}</option>
+              ))}
+            </select>
+          </div>
 
-            <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-4">
-                Ứng viên: <span className="font-semibold text-gray-900">{picModal.candidate?.fullName}</span>
-              </p>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Chọn TA phụ trách <span className="text-red-500">*</span>
-              </label>
-              <select
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                value={picModal.selectedPicId}
-                onChange={e => setPicModal(prev => ({ ...prev, selectedPicId: e.target.value }))}
-                disabled={picModal.loading}
-              >
-                <option value="">-- Chọn TA --</option>
-                {picModal.tas.map(t => (
-                  <option key={t.id} value={t.id}>{t.fullName}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-              <button
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 bg-white text-gray-700"
-                onClick={() => setPicModal(prev => ({ ...prev, isOpen: false }))}
-                disabled={picModal.loading}
-              >
-                Hủy
-              </button>
-              <button
-                className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
-                onClick={submitAssignPIC}
-                disabled={picModal.loading}
-              >
-                {picModal.loading ? 'Đang lưu...' : 'Xác nhận'}
-              </button>
-            </div>
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <button
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 bg-white text-gray-700"
+              onClick={() => setPicModal(prev => ({ ...prev, isOpen: false }))}
+              disabled={picModal.loading}
+            >
+              Hủy
+            </button>
+            <button
+              className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+              onClick={submitAssignPIC}
+              disabled={picModal.loading}
+            >
+              {picModal.loading ? 'Đang lưu...' : 'Xác nhận'}
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   )
 }
