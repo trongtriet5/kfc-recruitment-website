@@ -7,12 +7,14 @@ import toast from 'react-hot-toast'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import Modal from '@/components/common/Modal'
 import Icon from '@/components/icons/Icon'
+import { SearchableSelect } from '@/components/ui/select-searchable'
 
 interface Proposal {
   id: string
   title: string
   description: string | null
   quantity: number
+  recruitmentType: string | null
   reason: string | null
   status: string | { id: string; name: string; code: string } | null
   store: { id: string; name: string } | null
@@ -49,12 +51,18 @@ export default function ProposalsList() {
     description: '',
     storeId: '',
     positionId: '',
+    recruitmentType: 'KE_HOACH',
     quantity: 1,
     reason: '',
     startDate: '',
     endDate: '',
     isUntilFilled: false,
   })
+  const [recruitmentTypes, setRecruitmentTypes] = useState<any[]>([
+    { id: 'ke_hoach', code: 'KE_HOACH', name: 'Tuyển theo kế hoạch' },
+    { id: 'thay_the', code: 'THAY_THE', name: 'Tuyển thay thế' },
+    { id: 'ngoai_kh', code: 'NGOAI_KE_HOACH', name: 'Tuyển ngoài kế hoạch' },
+  ])
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null)
   const [showDetail, setShowDetail] = useState(false)
   const [confirmApprove, setConfirmApprove] = useState(false)
@@ -103,7 +111,6 @@ export default function ProposalsList() {
 
   const loadUser = () => {
     api.get('/auth/me').then((res) => {
-      console.log('User role:', res.data?.role)
       setUser(res.data)
     }).catch(console.error)
   }
@@ -117,7 +124,10 @@ export default function ProposalsList() {
   }
 
   const loadProposals = () => {
-    api.get('/recruitment/proposals').then((res) => setProposals(res.data || [])).catch(console.error).finally(() => setLoading(false))
+    api.get('/recruitment/proposals')
+      .then((res) => setProposals(Array.isArray(res.data) ? res.data : (res.data?.data || [])))
+      .catch(console.error)
+      .finally(() => setLoading(false))
   }
 
   const canEditTitle = user && (user.role === 'ADMIN' || user.role === 'HEAD_OF_DEPARTMENT' || user.role === 'MANAGER')
@@ -127,7 +137,7 @@ export default function ProposalsList() {
     try {
       await api.post('/recruitment/proposals', formData)
       setShowCreateForm(false)
-      setFormData({ title: '', description: '', storeId: '', positionId: '', quantity: 1, reason: '', startDate: '', endDate: '', isUntilFilled: false })
+      setFormData({ title: '', description: '', storeId: '', positionId: '', recruitmentType: 'KE_HOACH', quantity: 1, reason: '', startDate: '', endDate: '', isUntilFilled: false })
       loadProposals()
       toast.success(user?.role === 'ADMIN' ? 'Tạo đề xuất thành công!' : 'Tạo đề xuất thành công!')
     } catch (err: any) {
@@ -242,30 +252,43 @@ export default function ProposalsList() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Cửa hàng <span className="text-red-500">*</span></label>
-              <select value={formData.storeId} onChange={e => setFormData({ ...formData, storeId: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required>
-                <option value="">Chọn cửa hàng</option>
-                {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+              <SearchableSelect
+                options={stores
+                  .sort((a, b) => (a.code || '').localeCompare(b.code || ''))
+                  .map(s => ({ id: s.id, name: s.code ? `${s.code} - ${s.name}` : s.name }))
+                }
+                value={formData.storeId}
+                onChange={(val) => setFormData({ ...formData, storeId: val })}
+                placeholder="Chọn cửa hàng"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Vị trí <span className="text-red-500">*</span></label>
-              <select value={formData.positionId} onChange={e => setFormData({ ...formData, positionId: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required>
-                <option value="">Chọn vị trí</option>
-                {positions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              <SearchableSelect
+                options={positions.map(p => ({ id: p.id, name: p.name }))}
+                value={formData.positionId}
+                onChange={(val) => setFormData({ ...formData, positionId: val })}
+                placeholder="Chọn vị trí"
+              />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Loại tuyển <span className="text-red-500">*</span></label>
+              <select value={formData.recruitmentType} onChange={e => setFormData({ ...formData, recruitmentType: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required>
+                {recruitmentTypes.map(t => <option key={t.id} value={t.code}>{t.name}</option>)}
+              </select>
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Số lượng <span className="text-red-500">*</span></label>
               <input type="number" min="1" value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })} className="w-full px-3 py-2 border rounded-lg" required />
             </div>
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 mt-6">
-                <input type="checkbox" checked={formData.isUntilFilled} onChange={e => setFormData({ ...formData, isUntilFilled: e.target.checked })} />
-                <span className="text-sm">Tuyển đến khi đủ</span>
-              </label>
-            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={formData.isUntilFilled} onChange={e => setFormData({ ...formData, isUntilFilled: e.target.checked })} />
+              <span className="text-sm">Tuyển đến khi đủ</span>
+            </label>
           </div>
           {!formData.isUntilFilled && (
             <div className="grid grid-cols-2 gap-4">
@@ -324,6 +347,7 @@ export default function ProposalsList() {
                       {proposal.store && <span>Cửa hàng: {proposal.store.name}</span>}
                       {proposal.position && <span>Vị trí: {proposal.position.name}</span>}
                       <span>Số lượng: {proposal.quantity}</span>
+                      {proposal.recruitmentType && <span>Loại: {proposal.recruitmentType === 'KE_HOACH' ? 'Kế hoạch' : proposal.recruitmentType === 'THAY_THE' ? 'Thay thế' : 'Ngoài Kế hoạch'}</span>}
                       <span>Ứng viên: {proposal._count?.candidates || 0}</span>
                     </div>
                   </div>
@@ -441,17 +465,24 @@ export default function ProposalsList() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Cửa hàng <span className="text-red-500">*</span></label>
-              <select value={campaignFormData.storeId} onChange={e => setCampaignFormData({ ...campaignFormData, storeId: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required>
-                <option value="">Chọn cửa hàng</option>
-                {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+              <SearchableSelect
+                options={stores
+                  .sort((a, b) => (a.code || '').localeCompare(b.code || ''))
+                  .map(s => ({ id: s.id, name: s.code ? `${s.code} - ${s.name}` : s.name }))
+                }
+                value={campaignFormData.storeId}
+                onChange={(val) => setCampaignFormData({ ...campaignFormData, storeId: val })}
+                placeholder="Chọn cửa hàng"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Vị trí <span className="text-red-500">*</span></label>
-              <select value={campaignFormData.positionId} onChange={e => setCampaignFormData({ ...campaignFormData, positionId: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required>
-                <option value="">Chọn vị trí</option>
-                {positions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              <SearchableSelect
+                options={positions.map(p => ({ id: p.id, name: p.name }))}
+                value={campaignFormData.positionId}
+                onChange={(val) => setCampaignFormData({ ...campaignFormData, positionId: val })}
+                placeholder="Chọn vị trí"
+              />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -461,18 +492,28 @@ export default function ProposalsList() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Người phụ trách</label>
-              <select value={campaignFormData.picId} onChange={e => setCampaignFormData({ ...campaignFormData, picId: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
-                <option value="">Chọn người phụ trách</option>
-                {allUsers.filter(u => ['ADMIN', 'RECRUITER', 'HEAD_OF_DEPARTMENT', 'MANAGER'].includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.fullName}</option>)}
-              </select>
+              <SearchableSelect
+                options={allUsers
+                  .filter(u => ['ADMIN', 'RECRUITER', 'HEAD_OF_DEPARTMENT', 'MANAGER'].includes(u.role))
+                  .map(u => ({ id: u.id, name: u.fullName }))
+                }
+                value={campaignFormData.picId}
+                onChange={(val) => setCampaignFormData({ ...campaignFormData, picId: val })}
+                placeholder="Chọn người phụ trách"
+              />
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Người lọc hồ sơ</label>
-            <select value={campaignFormData.recruiterId} onChange={e => setCampaignFormData({ ...campaignFormData, recruiterId: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
-              <option value="">Chọn người lọc hồ sơ</option>
-              {allUsers.filter(u => ['ADMIN', 'RECRUITER', 'HEAD_OF_DEPARTMENT', 'MANAGER'].includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.fullName}</option>)}
-            </select>
+            <SearchableSelect
+              options={allUsers
+                .filter(u => ['ADMIN', 'RECRUITER', 'HEAD_OF_DEPARTMENT', 'MANAGER'].includes(u.role))
+                .map(u => ({ id: u.id, name: u.fullName }))
+              }
+              value={campaignFormData.recruiterId}
+              onChange={(val) => setCampaignFormData({ ...campaignFormData, recruiterId: val })}
+              placeholder="Chọn người lọc hồ sơ"
+            />
           </div>
           <div className="flex justify-end gap-3">
             <button type="button" onClick={() => setShowCreateCampaign(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Hủy</button>
@@ -588,7 +629,7 @@ export default function ProposalsList() {
               <div><label className="text-gray-500">Cửa hàng</label><p className="font-medium">{selectedProposal.store?.name || 'N/A'}</p></div>
               <div><label className="text-gray-500">Vị trí</label><p className="font-medium">{selectedProposal.position?.name || 'N/A'}</p></div>
               <div><label className="text-gray-500">Số lượng</label><p className="font-medium">{selectedProposal.quantity}</p></div>
-              <div><label className="text-gray-500">Loại</label><p className="font-medium">{selectedProposal.isUnplanned ? 'Đột xuất' : 'Theo kế hoạch'}</p></div>
+              <div><label className="text-gray-500">Loại tuyển</label><p className="font-medium">{selectedProposal.recruitmentType === 'KE_HOACH' ? 'Tuyển theo kế hoạch' : selectedProposal.recruitmentType === 'THAY_THE' ? 'Tuyển thay thế' : 'Tuyển ngoài kế hoạch'}</p></div>
             </div>
             {selectedProposal.description && <div><label className="text-gray-500 text-sm">Mô tả</label><p className="text-sm">{selectedProposal.description}</p></div>}
             {selectedProposal.reason && <div><label className="text-gray-500 text-sm">Lý do</label><p className="text-sm">{selectedProposal.reason}</p></div>}

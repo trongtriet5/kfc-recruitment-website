@@ -36,7 +36,7 @@ export class RbacService {
       where: { id: userId },
       include: { 
         managedStore: { select: { id: true, amId: true } },
-        managedStores: { select: { id: true } }
+        amStores: { select: { id: true } }
       }
     });
   }
@@ -65,7 +65,7 @@ export class RbacService {
       where: { id: userId },
       include: { 
         managedStore: { select: { id: true } },
-        managedStores: { select: { id: true } }
+        amStores: { select: { id: true } }
       }
     });
 
@@ -80,8 +80,8 @@ export class RbacService {
       return [user.managedStore.id];
     }
 
-    if (userRole === 'MANAGER' && user.managedStores?.length > 0) {
-      return user.managedStores.map(s => s.id);
+    if (userRole === 'MANAGER' && user.amStores?.length > 0) {
+      return user.amStores.map(s => s.id);
     }
 
     return [];

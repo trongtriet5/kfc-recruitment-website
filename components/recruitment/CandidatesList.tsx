@@ -18,6 +18,7 @@ import CreateInterviewForm from './CreateInterviewForm'
 import CandidateDetail from './CandidateDetail'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/select-searchable'
 
 interface Candidate {
   id: string
@@ -446,72 +447,50 @@ export default function CandidatesList() {
 
               {/* Chiến dịch */}
               <div className="relative">
-                <Select value={campaignFilter} onValueChange={setCampaignFilter}>
-                  <SelectTrigger className="pl-9 w-[220px] h-auto min-h-[40px] bg-white [&>span]:line-clamp-none py-2">
-                    <div className="flex items-center gap-2">
-                      <Filter className="w-3.5 h-3.5 text-gray-400" />
-                      <SelectValue placeholder="Chiến dịch" />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Tất cả chiến dịch</SelectItem>
-                    {campaigns.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  options={[
+                    { id: '__all__', name: 'Tất cả chiến dịch' },
+                    ...campaigns.map(c => ({ id: c.id, name: c.name }))
+                  ]}
+                  value={campaignFilter}
+                  onChange={setCampaignFilter}
+                  placeholder="Chiến dịch"
+                  className="w-[220px]"
+                />
               </div>
 
               {/* Cửa hàng */}
               <div className="relative">
-                <Select value={storeFilter} onValueChange={setStoreFilter}>
-                  <SelectTrigger className="pl-9 w-[220px] h-auto min-h-[40px] bg-white [&>span]:line-clamp-none py-2">
-                    <div className="flex items-center gap-2">
-                      <Icon name="store" size={14} className="text-gray-400" />
-                      <SelectValue placeholder="Cửa hàng" />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Tất cả cửa hàng</SelectItem>
-                    {Object.entries(
-                      stores.reduce((acc: any, store: any) => {
-                        const city = store.city || 'Khác';
-                        if (!acc[city]) acc[city] = [];
-                        acc[city].push(store);
-                        return acc;
-                      }, {})
-                    ).sort(([cityA], [cityB]) => cityA.localeCompare(cityB)).map(([city, cityStores]: [string, any]) => (
-                      <SelectGroup key={city}>
-                        <SelectItem value={`CITY:${city}`} className="font-bold text-gray-900 bg-gray-100 focus:bg-gray-200 focus:text-gray-900 py-2">
-                          {city.toUpperCase()}
-                        </SelectItem>
-                        {[...cityStores].sort((a, b) => a.code.localeCompare(b.code)).map((s: any) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.code} - {s.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  options={[
+                    { id: '__all__', name: 'Tất cả cửa hàng' },
+                    ...stores
+                      .sort((a, b) => (a.city || '').localeCompare(b.city || '') || (a.code || '').localeCompare(b.code || ''))
+                      .map(s => ({ 
+                        id: s.id, 
+                        name: `${s.code} - ${s.name}`,
+                        group: s.city || 'Khác'
+                      }))
+                  ]}
+                  value={storeFilter}
+                  onChange={setStoreFilter}
+                  placeholder="Cửa hàng"
+                  className="w-[220px]"
+                />
               </div>
 
               {/* TA Phụ trách */}
               <div className="relative">
-                <Select value={taFilter} onValueChange={setTaFilter}>
-                  <SelectTrigger className="pl-9 w-[250px] h-auto min-h-[40px] bg-white [&>span]:line-clamp-none py-2">
-                    <div className="flex items-center gap-2">
-                      <Icon name="user" size={14} className="text-gray-400" />
-                      <SelectValue placeholder="Người phụ trách" />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Tất cả người phụ trách</SelectItem>
-                    {tas.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>{t.fullName}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  options={[
+                    { id: '__all__', name: 'Tất cả người phụ trách' },
+                    ...tas.map(t => ({ id: t.id, name: t.fullName }))
+                  ]}
+                  value={taFilter}
+                  onChange={setTaFilter}
+                  placeholder="Người phụ trách"
+                  className="w-[250px]"
+                />
               </div>
 
               {(campaignFilter !== '__all__' || storeFilter !== '__all__' || taFilter !== '__all__') && (

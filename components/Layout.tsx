@@ -5,6 +5,9 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import api from '@/lib/api'
 import Icon from '@/components/icons/Icon'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { formatDate, formatDateTime } from '@/lib/utils'
+import { socket } from '@/src/socket'
 
 interface User {
   id: string
@@ -18,8 +21,10 @@ interface Notification {
   type: string
   title: string
   message: string
-  isRead: boolean
   createdAt: string
+  isRead: boolean
+  actionUrl?: string
+  recipientId?: string
 }
 
 const NOTIFICATION_COLORS: Record<string, string> = {
@@ -55,6 +60,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     loadNotifications()
   }
 
+  const handleNotificationClick = (notification: Notification) => {
+    if (!notification.isRead) {
+      markAsRead(notification.id)
+    }
+    if (notification.actionUrl) {
+      router.push(notification.actionUrl)
+    }
+    setShowNotifications(false)
+  }
+
   useEffect(() => {
     const token = localStorage.getItem('token')
 
@@ -78,6 +93,33 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (user) loadNotifications()
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+    const interval = setInterval(() => {
+      loadNotifications()
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+
+    const onNewNotification = (notification: Notification) => {
+      // Check if notification is for this user (recipientId match)
+      // Note: user.id might be stored in the 'user' state
+      if (notification.recipientId && notification.recipientId !== user.id) return;
+
+      setNotifications(prev => [notification, ...prev].slice(0, 50))
+      setUnreadCount(prev => prev + 1)
+    }
+
+    socket.on('notification_received', onNewNotification)
+
+    return () => {
+      socket.off('notification_received', onNewNotification)
+    }
   }, [user])
 
   const handleLogout = async () => {
@@ -140,11 +182,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href))
+              className={`flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors ${pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href))
                   ? 'bg-kfc-red text-white'
                   : 'text-gray-700 hover:bg-gray-100'
-              }`}
+                }`}
             >
               <span className="mr-3">
                 <Icon name={item.icon} size={20} />
@@ -159,11 +200,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="p-4 border-t">
             <button
               onClick={() => setShowNotifications(!showNotifications)}
-              className={`w-full flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                showNotifications
+              className={`w-full flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors ${showNotifications
                   ? 'bg-kfc-red text-white'
                   : 'text-gray-700 hover:bg-gray-100'
-              }`}
+                }`}
             >
               <span className="mr-3">
                 <Icon name="bell" size={20} />
@@ -206,44 +246,42 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto bg-gray-50 ml-64">
-        {/* Notification Modal - expands from sidebar to cover main content */}
-        {showNotifications && (
-          <div className="fixed left-64 top-0 right-0 bottom-0 bg-white z-40 overflow-auto">
-            <div className="p-4 border-b flex items-center justify-between sticky top-0 bg-white">
-              <span className="font-semibold">Thông báo</span>
-              <button onClick={() => setShowNotifications(false)} className="p-1 hover:bg-gray-100 rounded-lg">
-                <Icon name="narrow-back" size={18} />
-              </button>
-            </div>
-            <div>
+        <Dialog open={showNotifications} onOpenChange={setShowNotifications}>
+          <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Thông báo</DialogTitle>
+            </DialogHeader>
+            <div className="mt-4">
               {notifications.length === 0 ? (
-                <div className="p-4 text-center text-gray-500 text-sm">Không có thông báo</div>
+                <div className="p-8 text-center text-gray-500 text-sm">Không có thông báo</div>
               ) : (
-                notifications.slice(0, 10).map(n => (
-                  <div
-                    key={n.id}
-                    onClick={() => markAsRead(n.id)}
-                    className={`p-4 border-b hover:bg-gray-50 cursor-pointer ${!n.isRead ? 'bg-blue-50' : ''}`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={`p-2 rounded-full ${NOTIFICATION_COLORS[n.type] || 'bg-gray-100 text-gray-600'} flex-shrink-0`}>
-                        <Icon name="bell" size={16} />
+                <div className="divide-y divide-gray-100">
+                  {notifications.slice(0, 20).map(n => (
+                    <div
+                      key={n.id}
+                      onClick={() => handleNotificationClick(n)}
+                      className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors rounded-lg mb-2 ${!n.isRead ? 'bg-blue-50 border-l-4 border-blue-500' : ''}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-full ${NOTIFICATION_COLORS[n.type] || 'bg-gray-100 text-gray-600'} flex-shrink-0`}>
+                          <Icon name="bell" size={16} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium ${!n.isRead ? 'text-blue-900' : 'text-gray-900'}`}>{n.title}</p>
+                          <p className="text-sm text-gray-600 mt-1">{n.message}</p>
+                          <p className="text-xs text-gray-400 mt-2">
+                            {formatDateTime(n.createdAt)}
+                          </p>
+                        </div>
+                        {!n.isRead && <div className="w-2 h-2 bg-blue-500 rounded-full mt-2" />}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">{n.title}</p>
-                        <p className="text-sm text-gray-500">{n.message}</p>
-                        <p className="text-xs text-gray-400 mt-2">
-                          {new Date(n.createdAt).toLocaleString('vi-VN')}
-                        </p>
-                      </div>
-                      {!n.isRead && <div className="w-3 h-3 bg-blue-500 rounded-full flex-shrink-0" />}
                     </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
-          </div>
-        )}
+          </DialogContent>
+        </Dialog>
 
         <div className="py-8 px-6 sm:px-10 lg:px-16 xl:px-24 2xl:px-32 w-full max-w-[1600px] mx-auto pt-20">
           {children}

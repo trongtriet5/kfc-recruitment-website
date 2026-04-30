@@ -46,6 +46,200 @@ interface FormDesignerProps {
   onCancel: () => void
 }
 
+function FieldEditorModal({
+  field,
+  onSave,
+  onCancel,
+}: {
+  field: FormField
+  onSave: (field: FormField) => void
+  onCancel: () => void
+}) {
+  const [formData, setFormData] = useState<FormField>(field)
+  const [newOption, setNewOption] = useState({ value: '', label: '' })
+
+  useEffect(() => {
+    setFormData(field)
+  }, [field])
+
+  const addOption = () => {
+    if (newOption.value && newOption.label) {
+      setFormData({
+        ...formData,
+        options: [...(formData.options || []), { ...newOption }],
+      })
+      setNewOption({ value: '', label: '' })
+    }
+  }
+
+  const removeOption = (index: number) => {
+    const newOptions = formData.options?.filter((_, i) => i !== index) || []
+    setFormData({ ...formData, options: newOptions })
+  }
+
+  const needsOptions = ['SELECT', 'MULTISELECT', 'RADIO', 'CHECKBOX'].includes(formData.type)
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+          <h3 className="text-lg font-semibold">
+            {field.id ? 'Chỉnh sửa câu hỏi' : 'Thêm câu hỏi'}
+          </h3>
+          <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+            ✕
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Câu hỏi <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.label}
+              onChange={(e) => setFormData({ ...formData, label: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
+              required
+              placeholder="Nhập câu hỏi"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Loại câu hỏi
+            </label>
+            <select
+              value={formData.type}
+              onChange={(e) => {
+                const newType = e.target.value as FormField['type']
+                setFormData({
+                  ...formData,
+                  type: newType,
+                  options: needsOptions ? formData.options : undefined,
+                })
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
+            >
+              <option value="TEXT">Văn bản ngắn</option>
+              <option value="TEXTAREA">Đoạn văn bản</option>
+              <option value="NUMBER">Số</option>
+              <option value="EMAIL">Email</option>
+              <option value="PHONE">Điện thoại</option>
+              <option value="DATE">Ngày</option>
+              <option value="SELECT">Trình đơn thả xuống</option>
+              <option value="CHECKBOX">Nhiều lựa chọn</option>
+              <option value="RADIO">Một lựa chọn</option>
+              <option value="FILE">Tải tệp lên</option>
+            </select>
+          </div>
+
+          {['TEXT', 'TEXTAREA', 'NUMBER', 'EMAIL', 'PHONE'].includes(formData.type) && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Văn bản mẫu (Placeholder)
+              </label>
+              <input
+                type="text"
+                value={formData.placeholder || ''}
+                onChange={(e) => setFormData({ ...formData, placeholder: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
+                placeholder="Nhập văn bản mẫu"
+              />
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="required"
+              checked={formData.required}
+              onChange={(e) => setFormData({ ...formData, required: e.target.checked })}
+              className="w-4 h-4 text-yellow-600 border-gray-300 rounded focus:ring-slate-500"
+            />
+            <label htmlFor="required" className="text-sm font-medium text-gray-700">
+              Bắt buộc
+            </label>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Văn bản trợ giúp
+            </label>
+            <input
+              type="text"
+              value={formData.helpText || ''}
+              onChange={(e) => setFormData({ ...formData, helpText: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
+              placeholder="Văn bản hiển thị dưới câu hỏi"
+            />
+          </div>
+
+          {needsOptions && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tùy chọn
+              </label>
+              <div className="space-y-2 mb-3">
+                {formData.options?.map((option, index) => (
+                  <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                    <span className="flex-1 text-sm">{option.label}</span>
+                    <span className="text-xs text-gray-400">({option.value})</span>
+                    <button
+                      onClick={() => removeOption(index)}
+                      className="text-red-600 hover:text-red-700 text-sm"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newOption.label}
+                  onChange={(e) => setNewOption({ ...newOption, label: e.target.value })}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
+                  placeholder="Nhãn hiển thị"
+                />
+                <input
+                  type="text"
+                  value={newOption.value}
+                  onChange={(e) => setNewOption({ ...newOption, value: e.target.value })}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
+                  placeholder="Giá trị"
+                />
+                <button
+                  onClick={addOption}
+                  className="px-4 py-2 bg-slate-800 text-white rounded-md hover:bg-slate-900"
+                >
+                  Thêm
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 flex justify-end gap-3">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+          >
+            Hủy
+          </button>
+          <button
+            onClick={() => onSave(formData)}
+            className="px-4 py-2 bg-slate-800 text-white rounded-md hover:bg-slate-900"
+          >
+            Lưu
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function FormDesigner({ formId, formData, fields: initialFields, onSave, onCancel }: FormDesignerProps) {
   const [designData, setDesignData] = useState(formData)
   const [fields, setFields] = useState<FormField[]>(initialFields || [])
@@ -59,7 +253,8 @@ export default function FormDesigner({ formId, formData, fields: initialFields, 
 
   useEffect(() => {
     setDesignData(formData)
-    setFields(initialFields || [])
+    const fieldsToUse = initialFields && initialFields.length > 0 ? initialFields : []
+    setFields(fieldsToUse)
   }, [formData, initialFields])
 
   const addField = (type: FormField['type'] = 'TEXT') => {
@@ -232,13 +427,13 @@ export default function FormDesigner({ formId, formData, fields: initialFields, 
               />
             )}
 
-            {field.type === 'SELECT' && (
+            {field.type === 'SELECT' && Array.isArray(field.options) && (
               <select
                 className={`${baseInputClass} bg-gray-50 border-gray-200`}
                 disabled
               >
                 <option>Chọn...</option>
-                {field.options?.map((opt, i) => (
+                {field.options.map((opt, i) => (
                   <option key={i} value={opt.value}>
                     {opt.label}
                   </option>
@@ -246,9 +441,9 @@ export default function FormDesigner({ formId, formData, fields: initialFields, 
               </select>
             )}
 
-            {field.type === 'CHECKBOX' && (
+            {field.type === 'CHECKBOX' && Array.isArray(field.options) && (
               <div className="space-y-2">
-                {field.options?.map((opt, i) => (
+                {field.options.map((opt, i) => (
                   <label key={i} className="flex items-center gap-2">
                     <input type="checkbox" className="w-4 h-4 rounded" disabled />
                     <span className="text-sm text-gray-600">{opt.label}</span>
@@ -257,9 +452,9 @@ export default function FormDesigner({ formId, formData, fields: initialFields, 
               </div>
             )}
 
-            {field.type === 'RADIO' && (
+            {field.type === 'RADIO' && Array.isArray(field.options) && (
               <div className="space-y-2">
-                {field.options?.map((opt, i) => (
+                {field.options.map((opt, i) => (
                   <label key={i} className="flex items-center gap-2">
                     <input type="radio" name={field.name} className="w-4 h-4" disabled />
                     <span className="text-sm text-gray-600">{opt.label}</span>
@@ -279,13 +474,6 @@ export default function FormDesigner({ formId, formData, fields: initialFields, 
           </div>
 
           <div className="flex flex-col gap-1">
-            <button
-              onClick={() => editField(field)}
-              className="p-1 text-gray-400 hover:text-blue-600"
-              title="Chỉnh sửa"
-            >
-              <Icon name="edit" size={16} />
-            </button>
             <button
               onClick={() => duplicateField(index)}
               className="p-1 text-gray-400 hover:text-green-600"
@@ -507,7 +695,7 @@ export default function FormDesigner({ formId, formData, fields: initialFields, 
                 className="text-2xl font-bold"
                 style={{ color: designData.textColor || '#111827' }}
               >
-                {designData.formTitle || 'Ứng tuy��n KFC'}
+                {designData.formTitle || 'Ứng tuyển KFC'}
               </h1>
               <p
                 className="mt-2 text-sm whitespace-pre-wrap"
@@ -575,196 +763,3 @@ export default function FormDesigner({ formId, formData, fields: initialFields, 
   )
 }
 
-function FieldEditorModal({
-  field,
-  onSave,
-  onCancel,
-}: {
-  field: FormField
-  onSave: (field: FormField) => void
-  onCancel: () => void
-}) {
-  const [formData, setFormData] = useState<FormField>(field)
-  const [newOption, setNewOption] = useState({ value: '', label: '' })
-
-  useEffect(() => {
-    setFormData(field)
-  }, [field])
-
-  const addOption = () => {
-    if (newOption.value && newOption.label) {
-      setFormData({
-        ...formData,
-        options: [...(formData.options || []), { ...newOption }],
-      })
-      setNewOption({ value: '', label: '' })
-    }
-  }
-
-  const removeOption = (index: number) => {
-    const newOptions = formData.options?.filter((_, i) => i !== index) || []
-    setFormData({ ...formData, options: newOptions })
-  }
-
-  const needsOptions = ['SELECT', 'MULTISELECT', 'RADIO', 'CHECKBOX'].includes(formData.type)
-
-  return (
-    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold">
-            {field.id ? 'Chỉnh sửa câu hỏi' : 'Thêm câu hỏi'}
-          </h3>
-          <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
-            ✕
-          </button>
-        </div>
-
-        <div className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Câu hỏi <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={formData.label}
-              onChange={(e) => setFormData({ ...formData, label: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
-              required
-              placeholder="Nhập câu hỏi"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Loại câu hỏi
-            </label>
-            <select
-              value={formData.type}
-              onChange={(e) => {
-                const newType = e.target.value as FormField['type']
-                setFormData({
-                  ...formData,
-                  type: newType,
-                  options: needsOptions ? formData.options : undefined,
-                })
-              }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
-            >
-              <option value="TEXT">Văn bản ngắn</option>
-              <option value="TEXTAREA">Đoạn văn bản</option>
-              <option value="NUMBER">Số</option>
-              <option value="EMAIL">Email</option>
-              <option value="PHONE">Điện thoại</option>
-              <option value="DATE">Ngày</option>
-              <option value="SELECT">Trình đơn thả xuống</option>
-              <option value="CHECKBOX">Nhiều lựa chọn</option>
-              <option value="RADIO">Một lựa chọn</option>
-              <option value="FILE">Tải tệp lên</option>
-            </select>
-          </div>
-
-          {['TEXT', 'TEXTAREA', 'NUMBER', 'EMAIL', 'PHONE'].includes(formData.type) && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Văn bản mẫu (Placeholder)
-              </label>
-              <input
-                type="text"
-                value={formData.placeholder || ''}
-                onChange={(e) => setFormData({ ...formData, placeholder: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
-                placeholder="Nhập văn bản mẫu"
-              />
-            </div>
-          )}
-
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="required"
-              checked={formData.required}
-              onChange={(e) => setFormData({ ...formData, required: e.target.checked })}
-              className="w-4 h-4 text-yellow-600 border-gray-300 rounded focus:ring-slate-500"
-            />
-            <label htmlFor="required" className="text-sm font-medium text-gray-700">
-              Bắt buộc
-            </label>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Văn bản trợ giúp
-            </label>
-            <input
-              type="text"
-              value={formData.helpText || ''}
-              onChange={(e) => setFormData({ ...formData, helpText: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
-              placeholder="Văn bản hiển thị dưới câu hỏi"
-            />
-          </div>
-
-          {needsOptions && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Tùy chọn
-              </label>
-              <div className="space-y-2 mb-3">
-                {formData.options?.map((option, index) => (
-                  <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
-                    <span className="flex-1 text-sm">{option.label}</span>
-                    <span className="text-xs text-gray-400">({option.value})</span>
-                    <button
-                      onClick={() => removeOption(index)}
-                      className="text-red-600 hover:text-red-700 text-sm"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newOption.label}
-                  onChange={(e) => setNewOption({ ...newOption, label: e.target.value })}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
-                  placeholder="Nhãn hiển thị"
-                />
-                <input
-                  type="text"
-                  value={newOption.value}
-                  onChange={(e) => setNewOption({ ...newOption, value: e.target.value })}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
-                  placeholder="Giá trị"
-                />
-                <button
-                  onClick={addOption}
-                  className="px-4 py-2 bg-slate-800 text-white rounded-md hover:bg-slate-900"
-                >
-                  Thêm
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 flex justify-end gap-3">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-          >
-            Hủy
-          </button>
-          <button
-            onClick={() => onSave(formData)}
-            className="px-4 py-2 bg-slate-800 text-white rounded-md hover:bg-slate-900"
-          >
-            Lưu
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}

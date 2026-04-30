@@ -1,9 +1,11 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { RecruitmentService } from './recruitment.service';
+import { CandidateWriteService } from './candidate-write.service';
 import { StatusTransitionService } from './status-transition.service';
 import { AuditService } from './audit.service';
 import { ProposalService } from './proposal.service';
 import { CampaignFulfillmentService } from './campaign-fulfillment.service';
+import { CandidateReadService } from './candidate-read.service';
 import { CurrentUser } from '../auth/decorators/user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -16,14 +18,14 @@ export class RecruitmentController {
     private audit: AuditService,
     private proposalService: ProposalService,
     private campaignFulfillment: CampaignFulfillmentService,
+    private candidateReadService: CandidateReadService,
+    private candidateWriteService: CandidateWriteService,
   ) {}
 
   // Forms
   @Get('forms')
   getForms() { return this.service.getForms(); }
   
-  @Get('forms/link/:link')
-  getFormByLink(@Param('link') link: string) { return this.service.getFormByLink(decodeURIComponent(link)); }
   
   @Get('forms/:id')
   getForm(@Param('id') id: string) { return this.service.getForm(id); }
@@ -40,10 +42,6 @@ export class RecruitmentController {
   // Campaigns
   @Get('campaigns')
   getCampaigns(@CurrentUser() user: any) { return this.service.getCampaigns(user); }
-  @Get('campaigns/link/:link')
-  getCampaignByLink(@Param('link') link: string) {
-    return this.service.getCampaignByLink(decodeURIComponent(link));
-  }
   
   @Get('campaigns/statistics')
   getCampaignStatistics(@Query('campaignId') campaignId?: string) {
@@ -70,11 +68,16 @@ export class RecruitmentController {
     return this.service.getCandidates(query, user); 
   }
   
-  @Get('candidates/:id')
-  getCandidate(@Param('id') id: string, @CurrentUser() user: any) { return this.service.getCandidate(id, user); }
+@Get('candidates/:id')
+  async getCandidate(@Param('id') id: string, @CurrentUser() user: any) { 
+    const candidateReadService = this.candidateReadService;
+    return candidateReadService.getCandidate(id, user); 
+  }
   
   @Post('candidates')
-  createCandidate(@Body() data: any, @CurrentUser() user: any) { return this.service.createCandidate(data, user); }
+  createCandidate(@Body() data: any, @CurrentUser() user: any) {
+    return this.candidateWriteService.createCandidate(data, user);
+  }
   
   @Patch('candidates/:id')
   updateCandidate(@Param('id') id: string, @Body() data: any, @CurrentUser() user: any) { 
@@ -277,14 +280,6 @@ export class RecruitmentController {
   @Get('sources/code/:code')
   getSourceByCode(@Param('code') code: string) { return this.service.getSourceByCode(code); }
 
-  @Post('apply')
-  apply(@Body() data: any) { return this.service.apply(data); }
-
-  @Get('public/stores')
-  getPublicStores() { return this.service.getPublicStores(); }
-
-  @Get('public/positions')
-  getPublicPositions() { return this.service.getPublicPositions(); }
 
   @Get('positions')
   getPositions() { return this.service.getPublicPositions(); }

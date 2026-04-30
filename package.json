@@ -7,10 +7,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "lint:fix": "eslint . --fix && prettier --write .",
+    "typecheck": "tsc --noEmit",
+    "prepare": "husky",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "dev:full": "concurrently \"npm run dev\" \"cd backend && npm run start:dev\""
   },
   "dependencies": {
     "@prisma/client": "^5.7.1",
@@ -37,6 +41,7 @@
     "react-hook-form": "^7.49.2",
     "react-hot-toast": "^2.6.0",
     "read-excel-file": "^6.0.3",
+    "socket.io-client": "^4.8.3",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "write-excel-file": "^2.3.10",
@@ -46,15 +51,24 @@
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.5",
-    "@types/node": "^20.10.6",
+    "@types/node": "^20.19.39",
     "@types/react": "^18.2.46",
     "@types/react-dom": "^18.2.18",
     "autoprefixer": "^10.4.16",
+    "concurrently": "^9.2.1",
     "eslint": "^9.39.1",
     "eslint-config-next": "^16.2.4",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "postcss": "^8.4.32",
     "prisma": "^5.7.1",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.3.3"
+  },
+  "lint-staged": {
+    "{app,components,lib,types,src}/**/*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
   }
 }

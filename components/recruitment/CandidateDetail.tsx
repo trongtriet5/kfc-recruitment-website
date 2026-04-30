@@ -8,10 +8,11 @@ import Icon from '@/components/icons/Icon'
 import { useCandidateStatuses } from '@/lib/useCandidateStatuses'
 import EditCandidateForm from '@/components/recruitment/EditCandidateForm'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { formatDate, formatDateTime } from '@/lib/utils'
 
 interface CandidateDetail {
   id: string
-  fullName: string
+  full_name: string
   email: string | null
   phone: string
   cvUrl: string | null
@@ -20,27 +21,18 @@ interface CandidateDetail {
   preferredStoreNames: string[]
   notes: string | null
   status: string | { id: string; name: string; code: string } | null
-  form: { id: string; title: string } | null
   campaign: { id: string; name: string } | null
   store: { id: string; name: string; code?: string } | null
-  [key: string]: any
   interviews: Array<{
     id: string
-    type: string | { id: string; name: string; code: string } | null
-    result: string | { id: string; name: string; code: string } | null
     scheduledAt: string
     location: string | null
     notes: string | null
     interviewer: {
       id: string
-      fullName: string
+      full_name: string
       email: string
     }
-  }>
-  proposals: Array<{
-    id: string
-    title: string
-    status: string | { id: string; name: string; code: string } | null
   }>
   auditLogs: Array<{
     id: string
@@ -49,12 +41,19 @@ interface CandidateDetail {
     toValue: string | null
     notes: string | null
     createdAt: string
-    actor: { id: string; fullName: string } | null
+    actor: { id: string; full_name: string } | null
     campaign: { id: string; name: string } | null
   }>
   createdAt: string
   updatedAt: string
-  pic?: { id: string; fullName: string; email: string } | null
+  pic?: { id: string; full_name: string; email: string } | null
+  source?: { id: string; name: string; code: string } | null
+  availableStartDate: string | null
+  canWorkTet: string | null
+  referrer: string | null
+  referrerName: string | null
+  workExperience: string | null
+  dateOfBirth: string | null
 }
 
 interface User {
@@ -178,36 +177,6 @@ export default function CandidateDetail({
     return 'bg-blue-50 text-blue-700 border border-blue-200'
   }
 
-  const getTypeLabel = (type: string | { id: string; name: string; code: string } | null | undefined) => {
-    if (!type) return 'Chưa có loại'
-    if (typeof type === 'object') return String(type.name || '')
-    const labels: Record<string, string> = {
-      HR_SCREENING: 'HR Sơ vấn',
-      SM_AM_INTERVIEW: 'SM/AM Phỏng vấn',
-      OM_PV_INTERVIEW: 'OM/PV Phỏng vấn',
-    }
-    return labels[String(type)] || String(type)
-  }
-
-  const getResultLabel = (result: string | { id: string; name: string; code: string } | null | undefined) => {
-    if (!result) return 'Chưa có kết quả'
-    if (typeof result === 'object') return String(result.name || '')
-    const labels: Record<string, string> = {
-      PASSED: 'Đạt',
-      FAILED: 'Không đạt',
-      NO_SHOW: 'Không đến',
-    }
-    return labels[String(result)] || String(result)
-  }
-
-  const getResultColor = (result: string | { id: string; name: string; code: string } | null | undefined) => {
-    if (!result) return 'bg-gray-100 text-gray-800'
-    const resultCode = typeof result === 'object' ? result.code : result
-    if (resultCode === 'PASSED') return 'bg-green-100 text-green-800'
-    if (resultCode === 'FAILED') return 'bg-red-100 text-red-800'
-    return 'bg-yellow-100 text-yellow-800'
-  }
-
   const getAllowedStatuses = (): string[] => {
     if (!user) return []
     if (user.role === 'ADMIN' || user.role === 'HEAD_OF_DEPARTMENT') {
@@ -283,7 +252,7 @@ export default function CandidateDetail({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            {typeof candidate === 'object' && candidate !== null && 'fullName' in candidate ? candidate.fullName : 'Unknown'}
+            {candidate.full_name || 'Unknown'}
           </h1>
           <p className="mt-2 text-sm text-gray-600">
             Chi tiết ứng viên
@@ -404,7 +373,7 @@ export default function CandidateDetail({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-500">Họ và tên</label>
-              <p className="mt-1 text-sm text-gray-900">{typeof candidate === 'object' && candidate !== null && 'fullName' in candidate ? candidate.fullName : 'Unknown'}</p>
+              <p className="mt-1 text-sm text-gray-900">{candidate.full_name || 'Unknown'}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Email</label>
@@ -429,17 +398,60 @@ export default function CandidateDetail({
               <p className="mt-1 text-sm text-gray-900">{typeof candidate.campaign === 'object' && candidate.campaign !== null && 'name' in candidate.campaign ? (candidate.campaign as { name: string }).name.replace(/^Chiến dịch\s*[-–]?\s*|\s*[-–]?\s*Chiến dịch\s*$/gi, '').trim() : 'Chưa có'}</p>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-500">Địa điểm mong muốn làm việc</label>
-              <p className="mt-1 text-sm text-gray-900">
-                {candidate.preferredStoreNames && candidate.preferredStoreNames.length > 0
-                  ? candidate.preferredStoreNames.join(', ')
-                  : getCityName(candidate.currentCity)}
-              </p>
+              <label className="text-sm font-medium text-gray-500">Nguồn</label>
+              <p className="mt-1 text-sm text-gray-900">{candidate.source?.name || candidate.source?.code || candidate.source || 'Chưa có'}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">
+                Địa điểm mong muốn làm việc
+              </label>
+
+              <div className="mt-1 text-sm text-gray-900">
+              {candidate.preferredStoreNames && candidate.preferredStoreNames.length > 0 ? (
+                candidate.preferredStoreNames.map((store, index) => (
+                  <p key={index}>{store}</p>
+                ))
+              ) : (
+                <p>{getCityName(candidate.currentCity)}</p>
+              )}
+              </div>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Ngày tạo</label>
               <p className="mt-1 text-sm text-gray-900">
-                {new Date(candidate.createdAt).toLocaleString('vi-VN')}
+                {formatDateTime(candidate.createdAt)}
+              </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Ngày sinh</label>
+              <p className="mt-1 text-sm text-gray-900">
+                {formatDate(candidate.dateOfBirth)}
+              </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Ngày bắt đầu làm việc</label>
+              <p className="mt-1 text-sm text-gray-900">
+                {formatDate(candidate.availableStartDate)}
+              </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Có thể làm Tết</label>
+              <p className="mt-1 text-sm text-gray-900">
+                {candidate.canWorkTet || 'Chưa có thông tin'}
+              </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Người giới thiệu</label>
+              <p className="mt-1 text-sm text-gray-900">
+                {candidate.referrer === 'Nhân viên công ty' || candidate.referrer === 'Cộng tác viên' 
+                  ? `${candidate.referrer} (${candidate.referrerName})`
+                  : candidate.referrer || 'Không có'}
+              </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Kinh nghiệm làm việc</label>
+              <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">
+                {candidate.workExperience || 'Chưa có thông tin'}
               </p>
             </div>
             <div>
@@ -451,7 +463,7 @@ export default function CandidateDetail({
             <div>
               <label className="text-sm font-medium text-gray-500">Cập nhật lần cuối</label>
               <p className="mt-1 text-sm text-gray-900">
-                {new Date(candidate.updatedAt).toLocaleString('vi-VN')}
+                {formatDateTime(candidate.updatedAt)}
               </p>
             </div>
           </div>
@@ -493,36 +505,10 @@ export default function CandidateDetail({
                             </p>
                           </div>
                         )}
-                        {notesObj.availableStartDate && (
-                          <div>
-                            <label className="text-sm font-medium text-gray-500">Ngày có thể bắt đầu</label>
-                            <p className="mt-1 text-sm text-gray-900">{new Date(notesObj.availableStartDate).toLocaleDateString('vi-VN')}</p>
-                          </div>
-                        )}
                         {notesObj.preferredWorkShift && (
                           <div>
                             <label className="text-sm font-medium text-gray-500">Ca làm việc mong muốn</label>
                             <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">{notesObj.preferredWorkShift}</p>
-                          </div>
-                        )}
-                        {notesObj.canWorkTet && (
-                          <div>
-                            <label className="text-sm font-medium text-gray-500">Làm Tết</label>
-                            <p className="mt-1 text-sm text-gray-900">{notesObj.canWorkTet}</p>
-                          </div>
-                        )}
-                        {notesObj.referrer && (
-                          <div>
-                            <label className="text-sm font-medium text-gray-500">Người giới thiệu</label>
-                            <p className="mt-1 text-sm text-gray-900">
-                              {notesObj.referrer === 'Có' && notesObj.referrerName ? notesObj.referrerName : notesObj.referrer}
-                            </p>
-                          </div>
-                        )}
-                        {notesObj.workExperience && (
-                          <div>
-                            <label className="text-sm font-medium text-gray-500">Kinh nghiệm làm việc</label>
-                            <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">{notesObj.workExperience}</p>
                           </div>
                         )}
                       </div>
@@ -551,22 +537,14 @@ export default function CandidateDetail({
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-gray-900">
-                        {new Date(interview.scheduledAt).toLocaleString('vi-VN')}
-                      </span>
-                      <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">
-                        {getTypeLabel(interview.type)}
-                      </span>
-                      <span
-                        className={`text-xs px-2 py-1 rounded ${getResultColor(interview.result)}`}
-                      >
-                        {getResultLabel(interview.result)}
+                        {formatDateTime(interview.scheduledAt)}
                       </span>
                     </div>
                   </div>
                   <div className="text-sm text-gray-600">
-                    <p>Người phỏng vấn: {typeof interview.interviewer === 'object' && 'fullName' in interview.interviewer ? String(interview.interviewer.fullName || 'N/A') : 'N/A'} ({typeof interview.interviewer === 'object' && 'email' in interview.interviewer ? String(interview.interviewer.email || '') : ''})</p>
-                    {interview.location && <p>Địa điểm: {String(interview.location || '')}</p>}
-                    {interview.notes && <p className="mt-1 whitespace-pre-wrap">Ghi chú: {String(interview.notes || '')}</p>}
+                    <p>Người phỏng vấn: {interview.interviewer?.fullName || interview.interviewer?.full_name || 'N/A'}</p>
+                    {interview.location && <p>Địa điểm: {interview.location}</p>}
+                    {interview.notes && <p className="mt-1 whitespace-pre-wrap">Ghi chú: {interview.notes}</p>}
                   </div>
                 </div>
               ))}
@@ -586,27 +564,27 @@ export default function CandidateDetail({
               {candidate.auditLogs.map((log: any) => (
                 <div key={log.id} className="flex gap-3 text-sm">
                   <div className="flex flex-col items-center">
-                    <div className={`w-3 h-3 rounded-full ${log.action === 'CANDIDATE_CREATED' ? 'bg-blue-500' : log.action === 'STATUS_CHANGE' && log.toValue ? 'bg-green-500' : log.action === 'PIC_ASSIGN' ? 'bg-blue-500' : log.action === 'CAMPAIGN_TRANSFER' ? 'bg-purple-500' : 'bg-gray-500'}`}></div>
+                    <div className={`w-3 h-3 rounded-full ${log.action === 'CANDIDATE_CREATED' ? 'bg-blue-500' : log.action === 'STATUS_CHANGE' && log.toValue ? 'bg-green-500' : log.action === 'PIC_ASSIGNED' ? 'bg-blue-500' : log.action === 'CAMPAIGN_TRANSFER' ? 'bg-purple-500' : 'bg-gray-500'}`}></div>
                   </div>
                   <div className="flex-1 pb-3 border-b border-gray-100 last:border-0">
                     <div className="flex justify-between">
                       <span className="font-medium">
                         {log.action === 'CANDIDATE_CREATED' && 'Tạo ứng viên'}
                         {log.action === 'STATUS_CHANGE' && 'Thay đổi trạng thái'}
-                        {log.action === 'PIC_ASSIGN' && 'Gán người phụ trách'}
+                        {log.action === 'PIC_ASSIGNED' && 'Gán người phụ trách'}
                         {log.action === 'CAMPAIGN_TRANSFER' && 'Chuyển chiến dịch'}
                         {log.action === 'INTERVIEW_SCHEDULED' && 'Đặt lịch phỏng vấn'}
                         {log.action === 'OFFER_SENT' && 'Gửi offer'}
-                        {!['CANDIDATE_CREATED', 'STATUS_CHANGE', 'PIC_ASSIGN', 'CAMPAIGN_TRANSFER', 'INTERVIEW_SCHEDULED', 'OFFER_SENT'].includes(log.action) && log.action}
+                        {!['CANDIDATE_CREATED', 'STATUS_CHANGE', 'PIC_ASSIGNED', 'CAMPAIGN_TRANSFER', 'INTERVIEW_SCHEDULED', 'OFFER_SENT'].includes(log.action) && log.action}
                       </span>
-                      <span className="text-gray-500 text-xs">{new Date(log.createdAt).toLocaleString('vi-VN')}</span>
+                      <span className="text-gray-500 text-xs">{formatDateTime(log.createdAt)}</span>
                     </div>
                     <div className="text-gray-600 text-xs mt-1">
-                      {log.actor?.fullName && <span>Người thực hiện: {log.actor.fullName}</span>}
+                      {log.actor?.full_name && <span>Người thực hiện: {log.actor.full_name}</span>}
                       {log.action === 'STATUS_CHANGE' && log.fromValue && log.toValue && (
                         <span className="ml-2">- {log.fromValue} → {log.toValue}</span>
                       )}
-                      {log.action === 'PIC_ASSIGN' && log.toValue && (
+                      {log.action === 'PIC_ASSIGNED' && log.toValue && (
                         <span className="ml-2">- Gán cho: {log.toValue}</span>
                       )}
                       {log.action === 'CAMPAIGN_TRANSFER' && log.campaign?.name && (
@@ -675,4 +653,3 @@ export default function CandidateDetail({
     </div>
   )
 }
-

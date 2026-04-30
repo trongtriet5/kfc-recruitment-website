@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import toast from 'react-hot-toast'
+import { SearchableSelect } from '@/components/ui/select-searchable'
 
 interface Store {
   id: string
@@ -190,91 +191,70 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Cửa hàng
             </label>
-            <select
+            <SearchableSelect
+              options={stores
+                .sort((a, b) => (a.city || '').localeCompare(b.city || '') || (a.code || '').localeCompare(b.code || ''))
+                .map(s => ({ 
+                  id: s.id, 
+                  name: `${s.code} - ${s.name}`,
+                  group: s.city || 'Khác'
+                }))}
               value={formData.storeId}
-              onChange={(e) => setFormData({ ...formData, storeId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
-            >
-              <option value="">Chọn cửa hàng</option>
-              {stores.map((store) => (
-                <option key={store.id} value={store.id}>
-                  {store.code} - {store.name}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setFormData({ ...formData, storeId: val })}
+              placeholder="Chọn cửa hàng"
+            />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Chiến dịch
             </label>
-            <select
+            <SearchableSelect
+              options={campaigns.map(c => ({ id: c.id, name: c.name }))}
               value={formData.campaignId}
-              onChange={(e) => setFormData({ ...formData, campaignId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
-            >
-              <option value="">Chọn chiến dịch (tùy chọn)</option>
-              {campaigns.map((campaign) => (
-                <option key={campaign.id} value={campaign.id}>
-                  {campaign.name}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setFormData({ ...formData, campaignId: val })}
+              placeholder="Chọn chiến dịch"
+            />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Đề xuất tuyển dụng
             </label>
-            <select
+            <SearchableSelect
+              options={proposals.filter(p => p.status === 'APPROVED').map(p => ({ 
+                id: p.id, 
+                name: `${p.title} - ${p.quantity} người` 
+              }))}
               value={formData.proposalId}
-              onChange={(e) => setFormData({ ...formData, proposalId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
-            >
-              <option value="">Chọn đề xuất (tùy chọn)</option>
-              {proposals.filter(p => p.status === 'APPROVED').map((proposal) => (
-                <option key={proposal.id} value={proposal.id}>
-                  {proposal.title} - {proposal.quantity} người
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setFormData({ ...formData, proposalId: val })}
+              placeholder="Chọn đề xuất"
+            />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Trạng thái <span className="text-red-500">*</span>
             </label>
-            <select
+            <SearchableSelect
+              options={statuses.map(s => ({ id: s.code, name: s.name }))}
               value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
-              required
-            >
-              <option value="">Chọn trạng thái</option>
-              {statuses.map((status) => (
-                <option key={status.id} value={status.code}>
-                  {status.name}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setFormData({ ...formData, status: val })}
+              placeholder="Chọn trạng thái"
+              error={!formData.status && error && error.includes('trạng thái') ? error : ''}
+            />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Người phụ trách (TA)
+              Người phụ trách (PIC)
             </label>
-            <select
+            <SearchableSelect
+              options={users.map(u => ({ id: u.id, name: u.fullName }))}
               value={formData.picId}
-              onChange={(e) => setFormData({ ...formData, picId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
-            >
-              <option value="">-- Chọn TA phụ trách --</option>
-              {users.map((user) => (
-                <option key={typeof user === 'object' && user !== null && 'id' in user ? user.id : ''} value={typeof user === 'object' && user !== null && 'id' in user ? user.id : ''}>
-                  {typeof user === 'object' && user !== null && 'fullName' in user ? String(user.fullName || 'Unknown') : 'Unknown'}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setFormData({ ...formData, picId: val })}
+              placeholder="Chọn người phụ trách"
+            />
           </div>
 
           <div>

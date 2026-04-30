@@ -78,17 +78,6 @@ export class StoresController {
 export class OrganizationController {
   constructor(private service: OrganizationService) {}
 
-  @Get('departments')
-  getDepartments() { return this.service.getDepartments(); }
-  
-  @Post('departments')
-  createDepartment(@Body() data: any) { return this.service.createDepartment(data); }
-  
-  @Patch('departments/:id')
-  updateDepartment(@Param('id') id: string, @Body() data: any) { return this.service.updateDepartment(id, data); }
-  
-  @Delete('departments/:id')
-  deleteDepartment(@Param('id') id: string) { return this.service.deleteDepartment(id); }
 
   @Get('positions')
   getPositions() { return this.service.getPositions(); }

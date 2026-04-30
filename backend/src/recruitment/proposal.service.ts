@@ -106,12 +106,12 @@ export class ProposalService {
     if (userRole !== 'ADMIN' && !storeId) {
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
-        include: { managedStore: true, managedStores: true },
+        include: { managedStore: true, amStores: true },
       });
       if (userRole === 'USER' && user?.managedStore) {
         storeId = user.managedStore.id;
-      } else if (userRole === 'MANAGER' && user?.managedStores?.length === 1) {
-        storeId = user.managedStores[0].id;
+      } else if (userRole === 'MANAGER' && user?.amStores?.length === 1) {
+        storeId = user.amStores[0].id;
       }
     }
 
@@ -159,6 +159,7 @@ export class ProposalService {
         description: data.description,
         storeId,
         positionId: data.positionId,
+        recruitmentType: data.recruitmentType || 'KE_HOACH',
         quantity: data.quantity || 1,
         reason: data.reason,
         businessReason: data.businessReason,
@@ -169,7 +170,7 @@ export class ProposalService {
         isUnplanned: data.isUnplanned ?? false,
         status: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'MANAGER'].includes(userRole) ? 'SUBMITTED' : 'DRAFT',
         requestedById: userId,
-        departmentId: data.departmentId,
+
         startDate: data.startDate ? new Date(data.startDate) : null,
         endDate: data.endDate ? new Date(data.endDate) : null,
         isUntilFilled: data.isUntilFilled ?? false,
@@ -447,16 +448,13 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
       where: { id: proposalId },
       include: {
         store: true,
-        position: true,
-        department: true,
-        workflowHistory: { orderBy: { createdAt: 'desc' }, take: 10 },
+        workflowHistory: { 
+          orderBy: { createdAt: 'desc' }, 
+          take: 10 
+        },
         fulfillment: true,
-      },
+      }
     });
-
-    if (!proposal) {
-      throw new NotFoundException('Đề xuất không tồn tại');
-    }
 
     if (userRole === 'ADMIN') return proposal;
 
@@ -474,9 +472,9 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
     if (userRole === 'MANAGER') {
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
-        include: { managedStores: true },
+        include: { amStores: true },
       });
-      const managedIds = user?.managedStores?.map(s => s.id) || [];
+      const managedIds = user?.amStores?.map(s => s.id) || [];
       if (!managedIds.includes(proposal.storeId || '')) {
         throw new ForbiddenException('Bạn không có quyền truy cập đề xuất này');
       }
@@ -630,9 +628,9 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
       } else if (filters.userRole === 'MANAGER') {
         const user = await this.prisma.user.findUnique({
           where: { id: filters.userId },
-          include: { managedStores: true },
+          include: { amStores: true },
         });
-        const storeIds = user?.managedStores?.map(s => s.id) || [];
+        const storeIds = user?.amStores?.map(s => s.id) || [];
         where.storeId = { in: storeIds };
       }
     }
@@ -643,15 +641,13 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
     const proposals = await this.prisma.recruitmentProposal.findMany({
       where,
       include: {
-        store: true,
-        position: true,
-        department: true,
-        approver: { select: { id: true, fullName: true } },
-        workflowHistory: { 
-          where: { action: 'SUBMIT' },
-          orderBy: { createdAt: 'asc' },
-          take: 1,
-        },
+         store: true,
+         approver: { select: { id: true, full_name: true } },
+         workflowHistory: { 
+           where: { action: 'SUBMIT' },
+           orderBy: { createdAt: 'asc' },
+           take: 1,
+         },
       },
       orderBy: [
         { urgency: 'asc' },
@@ -697,11 +693,17 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
       where: { proposalId: { in: proposalIds } }
     });
 
-    const campaignCounts = await this.prisma.candidate.groupBy({
+    const campaignProposals = await this.prisma.campaign.findMany({
+      where: { proposalId: { in: proposalIds } },
+      select: { id: true }
+    });
+    const localCampaignIds = campaignProposals.map(c => c.id);
+    
+    const campaignCounts = localCampaignIds.length > 0 ? await this.prisma.candidate.groupBy({
       by: ['campaignId'],
       _count: { id: true },
-      where: { campaign: { proposalId: { in: proposalIds } } }
-    });
+      where: { campaignId: { in: localCampaignIds } }
+    }) : [];
 
     const countMap: Record<string, number> = {};
     directCounts.forEach(c => {
@@ -736,24 +738,17 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
     const proposal = await this.prisma.recruitmentProposal.findUnique({
       where: { id },
       include: {
-        store: true,
-        position: true,
-        department: true,
-        approver: { select: { id: true, fullName: true } },
-        workflowHistory: {
-          include: {
-            actor: { select: { id: true, fullName: true, role: true } },
-          },
-          orderBy: { createdAt: 'asc' },
-        },
-        fulfillment: true,
-        candidates: {
-          include: {
-            status: true,
-            pic: { select: { id: true, fullName: true } },
-          },
-        },
+    store: true,
+    approver: { select: { id: true, full_name: true } },
+    workflowHistory: {
+      include: {
+        actor: { select: { id: true, full_name: true, role: true } },
       },
+      orderBy: { createdAt: 'asc' },
+    },
+    fulfillment: true,
+    candidates: true,
+  }
     });
 
     if (!proposal) throw new NotFoundException('Đề xuất không tồn tại');
@@ -766,9 +761,9 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
       if (userRole === 'MANAGER') {
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
-          include: { managedStores: true },
+          include: { amStores: true },
         });
-        const managedIds = user?.managedStores?.map(s => s.id) || [];
+        const managedIds = user?.amStores?.map(s => s.id) || [];
         if (!managedIds.includes(proposal.storeId || '')) {
           throw new ForbiddenException();
         }

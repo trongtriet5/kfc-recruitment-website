@@ -12,7 +12,7 @@ import { useCandidateStatuses } from '@/lib/useCandidateStatuses'
 
 interface Candidate {
   id: string
-  fullName: string
+  full_name: string
   email: string | null
   phone: string
   status: string | { id: string; name: string; code: string } | null
@@ -435,7 +435,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
                       `}
                       >
                         <div className="font-semibold text-sm text-gray-900 mb-2">
-                          {candidate.fullName}
+                          {candidate.full_name}
                         </div>
                         <div className="space-y-1.5">
                           <div className="flex items-center gap-1.5 text-xs text-gray-600">

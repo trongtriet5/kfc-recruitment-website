@@ -28,7 +28,7 @@ export class ScopeGuard implements CanActivate {
       where: { id: user.id },
       include: { 
         managedStore: { select: { id: true, name: true } },
-        managedStores: { select: { id: true, name: true } }
+        amStores: { select: { id: true, name: true } }
       }
     });
 
@@ -39,8 +39,8 @@ export class ScopeGuard implements CanActivate {
         return true;
       }
       // MANAGER (AM) can access stores they manage
-      if (user.role === 'MANAGER' && userWithStore?.managedStores?.length > 0) {
-        request.storeScope = userWithStore.managedStores.map(s => s.id);
+      if (user.role === 'MANAGER' && userWithStore?.amStores?.length > 0) {
+        request.storeScope = userWithStore.amStores.map(s => s.id);
         return true;
       }
       throw new ForbiddenException('Bạn không được phân cửa hàng nào');

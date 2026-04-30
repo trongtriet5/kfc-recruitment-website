@@ -48,8 +48,10 @@ export class OrganizationService {
     omName: true,
     odName: true,
     group: true,
-    sm: { select: { id: true, fullName: true, email: true } },
-    am: { select: { id: true, fullName: true, email: true } },
+    smId: true,
+    amId: true,
+    manager: { select: { id: true, full_name: true, email: true } },
+    am: { select: { id: true, full_name: true, email: true } },
   } as const;
 
   private mapStorePayload(data: any) {
@@ -85,33 +87,6 @@ export class OrganizationService {
     });
   }
 
-  // Departments
-  async getDepartments() {
-    const cached = this.cache.get<any[]>(CACHE_KEYS.DEPARTMENTS);
-    if (cached) return cached;
-
-    const departments = await this.prisma.department.findMany({
-      where: { isActive: true },
-      orderBy: { name: 'asc' },
-    });
-    const result = fixUtf8Encoding(departments);
-    this.cache.set(CACHE_KEYS.DEPARTMENTS, result);
-    return result;
-  }
-
-  async createDepartment(data: any) {
-    const existing = await this.prisma.department.findUnique({ where: { code: data.code } });
-    if (existing) throw new ConflictException(`Department ${data.code} already exists`);
-    return this.prisma.department.create({ data });
-  }
-
-  async updateDepartment(id: string, data: any) {
-    return this.prisma.department.update({ where: { id }, data });
-  }
-
-  async deleteDepartment(id: string) {
-    return this.prisma.department.update({ where: { id }, data: { isActive: false } });
-  }
 
 // Positions
   async getPositions() {
@@ -169,14 +144,14 @@ export class OrganizationService {
         where: { id: user.id },
         include: { 
           managedStore: { select: { id: true } },
-          managedStores: { select: { id: true } }
+          amStores: { select: { id: true } }
         }
       });
       
       if (user.role === 'USER' && userWithStore?.managedStore) {
         where.id = userWithStore.managedStore.id;
-      } else if (user.role === 'MANAGER' && userWithStore?.managedStores?.length > 0) {
-        where.id = { in: userWithStore.managedStores.map(s => s.id) };
+      } else if (user.role === 'MANAGER' && userWithStore?.amStores?.length > 0) {
+        where.id = { in: userWithStore.amStores.map(s => s.id) };
       }
     }
 

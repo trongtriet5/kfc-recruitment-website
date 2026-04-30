@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
+import { SearchableSelect } from '@/components/ui/select-searchable'
 
 interface Candidate {
   id: string
@@ -52,6 +53,12 @@ export default function EditCandidateForm({
     status: '',
     picId: '',
     notes: '',
+    availableStartDate: '',
+    canWorkTet: '',
+    referrer: '',
+    referrerName: '',
+    workExperience: '',
+    dateOfBirth: '',
   })
 
   useEffect(() => {
@@ -75,6 +82,12 @@ export default function EditCandidateForm({
         picId: String(candidateData.pic?.id || ''),
         status: String(candidateData.status?.code || candidateData.status || ''),
         notes: String(candidateData.notes || ''),
+        availableStartDate: candidateData.availableStartDate ? new Date(candidateData.availableStartDate).toISOString().split('T')[0] : '',
+        canWorkTet: String(candidateData.canWorkTet || ''),
+        referrer: String(candidateData.referrer || ''),
+        referrerName: String(candidateData.referrerName || ''),
+        workExperience: String(candidateData.workExperience || ''),
+        dateOfBirth: candidateData.dateOfBirth ? new Date(candidateData.dateOfBirth).toISOString().split('T')[0] : '',
       })
 
       // Load stores and statuses (optional, don't fail if these fail)
@@ -265,56 +278,125 @@ export default function EditCandidateForm({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Cửa hàng
             </label>
-            <select
+            <SearchableSelect
+              options={stores
+                .sort((a, b) => (a.city || '').localeCompare(b.city || '') || (a.code || '').localeCompare(b.code || ''))
+                .map(s => ({ 
+                  id: s.id, 
+                  name: `${s.code} - ${s.name}`,
+                  group: s.city || 'Khác'
+                }))}
               value={formData.storeId}
-              onChange={(e) => setFormData({ ...formData, storeId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
-            >
-              <option value="">Chọn cửa hàng</option>
-              {Array.isArray(stores) && stores.length > 0 && stores.map((store) => (
-                <option key={store.id} value={store.id}>
-                  {String(store.code || '')} - {String(store.name || '')}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setFormData({ ...formData, storeId: val })}
+              placeholder="Chọn cửa hàng"
+            />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Trạng thái <span className="text-red-500">*</span>
             </label>
-            <select
+            <SearchableSelect
+              options={statuses.map(s => ({ id: s.code, name: s.name }))}
               value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              onChange={(val) => setFormData({ ...formData, status: val })}
+              placeholder="Chọn trạng thái"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Người phụ trách (PIC)
+            </label>
+            <SearchableSelect
+              options={users.map(u => ({ id: u.id, name: u.fullName }))}
+              value={formData.picId}
+              onChange={(val) => setFormData({ ...formData, picId: val })}
+              placeholder="Chọn người phụ trách"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Ngày sinh
+            </label>
+            <input
+              type="date"
+              value={formData.dateOfBirth}
+              onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
-              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Ngày có thể bắt đầu
+            </label>
+            <input
+              type="date"
+              value={formData.availableStartDate}
+              onChange={(e) => setFormData({ ...formData, availableStartDate: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Có thể làm Tết
+            </label>
+            <select
+              value={formData.canWorkTet}
+              onChange={(e) => setFormData({ ...formData, canWorkTet: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
             >
-              <option value="">Chọn trạng thái</option>
-              {Array.isArray(statuses) && statuses.length > 0 && statuses.map((status) => (
-                <option key={status.id} value={status.code}>
-                  {String(status.name || '')}
-                </option>
-              ))}
+              <option value="">Chọn...</option>
+              <option value="Có">Có</option>
+              <option value="Không">Không</option>
             </select>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Người phụ trách (TA)
+              Người giới thiệu
             </label>
             <select
-              value={formData.picId}
-              onChange={(e) => setFormData({ ...formData, picId: e.target.value })}
+              value={formData.referrer}
+              onChange={(e) => setFormData({ ...formData, referrer: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
             >
-              <option value="">-- Chọn TA phụ trách --</option>
-              {Array.isArray(users) && users.length > 0 && users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {String(user.fullName || '')}
-                </option>
-              ))}
+              <option value="">Chọn...</option>
+              <option value="Nhân viên công ty">Nhân viên công ty</option>
+              <option value="Cộng tác viên">Cộng tác viên</option>
+              <option value="Không có">Không có</option>
             </select>
           </div>
+
+          {(formData.referrer === 'Nhân viên công ty' || formData.referrer === 'Cộng tác viên') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tên người giới thiệu
+              </label>
+              <input
+                type="text"
+                value={formData.referrerName}
+                onChange={(e) => setFormData({ ...formData, referrerName: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              />
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Kinh nghiệm làm việc
+          </label>
+          <textarea
+            value={formData.workExperience}
+            onChange={(e) => setFormData({ ...formData, workExperience: e.target.value })}
+            rows={3}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            placeholder="Mô tả kinh nghiệm..."
+          />
         </div>
 
         <div>

@@ -8,6 +8,7 @@ import FormDesigner from './FormDesigner'
 import Icon from '@/components/icons/Icon'
 import { toast } from 'sonner'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
+import { SearchableSelect } from '@/components/ui/select-searchable'
 
 interface FormField {
   id?: string
@@ -30,7 +31,8 @@ interface RecruitmentForm {
   id: string
   title: string
   description: string | null
-  source: string
+  sourceId: string
+  source?: { id: string; name: string } | null
   link: string
   formTitle: string | null
   formContent: string | null
@@ -52,7 +54,7 @@ interface RecruitmentForm {
 export default function FormsAndLinksManager() {
   const router = useRouter()
   const [forms, setForms] = useState<RecruitmentForm[]>([])
-  const [sources, setSources] = useState<{id: string, name: string}[]>([])
+  const [sources, setSources] = useState<{ id: string, name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [editingForm, setEditingForm] = useState<RecruitmentForm | null>(null)
@@ -67,7 +69,7 @@ export default function FormsAndLinksManager() {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    source: '',
+    sourceId: '',
     formTitle: '',
     formContent: '',
     bannerUrl: '',
@@ -86,7 +88,7 @@ export default function FormsAndLinksManager() {
       setFormData({
         title: '',
         description: '',
-        source: '',
+        sourceId: '',
         formTitle: '',
         formContent: '',
         bannerUrl: '',
@@ -148,7 +150,7 @@ export default function FormsAndLinksManager() {
       setFormData({
         title: '',
         description: '',
-        source: '',
+        sourceId: '',
         formTitle: '',
         formContent: '',
         bannerUrl: '',
@@ -159,7 +161,6 @@ export default function FormsAndLinksManager() {
         isActive: true,
       })
       loadForms()
-      toast.success(editingForm ? 'Cập nhật form thành công' : 'Tạo form thành công')
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Có lỗi xảy ra')
     }
@@ -202,12 +203,12 @@ export default function FormsAndLinksManager() {
     setShowDesigner(true)
   }
 
-const handleEdit = (form: RecruitmentForm) => {
+  const handleEdit = (form: RecruitmentForm) => {
     setEditingForm(form)
     setFormData({
       title: form.title,
       description: form.description || '',
-      source: form.source,
+      sourceId: form.sourceId || '',
       formTitle: form.formTitle || '',
       formContent: form.formContent || '',
       bannerUrl: form.bannerUrl || '',
@@ -224,7 +225,7 @@ const handleEdit = (form: RecruitmentForm) => {
     setFormData({
       title: `${form.title} (Copy)`,
       description: form.description || '',
-      source: form.source,
+      sourceId: form.sourceId || '',
       formTitle: form.formTitle || '',
       formContent: form.formContent || '',
       bannerUrl: form.bannerUrl || '',
@@ -249,7 +250,7 @@ const handleEdit = (form: RecruitmentForm) => {
       setFormData({
         title: '',
         description: '',
-        source: '',
+        sourceId: '',
         formTitle: '',
         formContent: '',
         bannerUrl: '',
@@ -304,13 +305,13 @@ const handleEdit = (form: RecruitmentForm) => {
       </div>
 
       <div className="flex justify-between items-center">
-      <button
+        <button
           onClick={() => {
             setEditingForm(null)
             setFormData({
               title: '',
               description: '',
-              source: '',
+              sourceId: '',
               formTitle: '',
               formContent: '',
               bannerUrl: '',
@@ -376,19 +377,12 @@ const handleEdit = (form: RecruitmentForm) => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Nguồn <span className="text-red-500">*</span>
                     </label>
-                    <select
-                      value={formData.source}
-                      onChange={(e) => setFormData({ ...formData, source: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      required
-                    >
-                      <option value="">Chọn nguồn...</option>
-                      {sources.map((source) => (
-                        <option key={source.id} value={source.name}>
-                          {source.name}
-                        </option>
-                      ))}
-                    </select>
+                    <SearchableSelect
+                      options={sources.map(s => ({ id: s.id, name: s.name }))}
+                      value={formData.sourceId}
+                      onChange={(val) => setFormData({ ...formData, sourceId: val })}
+                      placeholder="Chọn nguồn..."
+                    />
                   </div>
                 </div>
               </div>
@@ -580,11 +574,10 @@ const handleEdit = (form: RecruitmentForm) => {
                       <p className="mt-1 text-sm text-gray-500">{form.description}</p>
                     )}
                     <div className="mt-2 flex items-center space-x-4 text-xs text-gray-500">
-                      <span>Nguồn: {form.source}</span>
+                      <span>Nguồn: {form.source?.name || 'Chưa gán'}</span>
                       {form._count && (
                         <>
                           <span>{form._count.candidates} ứng viên</span>
-                          <span>{form._count.campaigns} chiến dịch</span>
                         </>
                       )}
                     </div>
@@ -649,7 +642,22 @@ const handleEdit = (form: RecruitmentForm) => {
           <button onClick={() => { previewForm(contextMenu.form); setContextMenu(null) }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-700">
             <Icon name="eye" size={14} /> Xem
           </button>
-          <button onClick={() => { setConfirmDeleteForm(contextMenu.form); setContextMenu(null) }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-700">
+          <button
+            onClick={() => {
+              if (contextMenu.form.isActive && (contextMenu.form._count?.candidates || 0) > 0) {
+                toast.error('Không thể xóa form đang hoạt động và có ứng viên. Vui lòng tạm dừng form trước.')
+                return
+              }
+              setConfirmDeleteForm(contextMenu.form)
+              setContextMenu(null)
+            }}
+            disabled={contextMenu.form.isActive && (contextMenu.form._count?.candidates || 0) > 0}
+            className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${
+              contextMenu.form.isActive && (contextMenu.form._count?.candidates || 0) > 0
+                ? 'text-gray-300 cursor-not-allowed'
+                : 'hover:bg-gray-100 text-gray-700'
+            }`}
+          >
             <Icon name="trash" size={14} /> Xóa
           </button>
         </div>

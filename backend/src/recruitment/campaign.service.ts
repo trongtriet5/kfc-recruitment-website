@@ -18,27 +18,45 @@ export class CampaignService {
       }
     }
 
-    return this.prisma.campaign.findMany({
+    const campaigns = await this.prisma.campaign.findMany({
       where,
-      include: { 
-        form: true, 
-        candidates: true,
-        store: { select: { id: true, name: true, code: true } },
-        _count: { select: { candidates: true } },
-      },
       orderBy: { createdAt: 'desc' },
     });
+    // Hydrate store, candidate count, and form (if needed)
+    return await Promise.all(campaigns.map(async (c) => {
+      // Hydrate store info
+      const store = c.storeId ? await this.prisma.store.findUnique({
+        where: { id: c.storeId },
+        select: { id: true, name: true, code: true }
+      }) : null;
+
+      // Count candidates
+      const candidateCount = await this.prisma.candidate.count({ where: { campaignId: c.id } });
+
+      // Hydrate form info
+      const form = c.formId ? await this.prisma.recruitmentForm.findUnique({ where: { id: c.formId } }) : null;
+
+      return {
+        ...c,
+        store,
+        candidateCount,
+        form
+      };
+    }));
   }
 
   async getCampaign(id: string, user?: any) {
-    return this.prisma.campaign.findUnique({
-      where: { id },
-      include: { 
-        form: true, 
-        candidates: true, 
-        store: true
-      },
-    });
+    const campaign = await this.prisma.campaign.findUnique({ where: { id } });
+if (!campaign) return null;
+const store = campaign.storeId ? await this.prisma.store.findUnique({ where: { id: campaign.storeId } }) : null;
+const form = campaign.formId ? await this.prisma.recruitmentForm.findUnique({ where: { id: campaign.formId } }) : null;
+const candidates = await this.prisma.candidate.findMany({ where: { campaignId: id } });
+return {
+  ...campaign,
+  store,
+  form,
+  candidates
+};
   }
 
   async getCampaignByLink(link: string) {
@@ -53,27 +71,45 @@ export class CampaignService {
     const campaigns = await this.prisma.campaign.findMany({
       where,
       select: {
-        id: true,
-        _count: { select: { candidates: true } },
+        id: true
       },
     });
-
-    const total = campaigns.reduce((sum, c) => sum + c._count.candidates, 0);
-
+    // Count all candidates for these campaigns
+    let total = 0;
     let byStatus: Record<string, number> = {};
-
-    if (campaignId) {
-      const candidates = await this.prisma.candidate.findMany({
-        where: { campaignId },
-        include: { status: { select: { code: true } } },
+    if (campaigns.length) {
+      const campaignIds = campaigns.map(c => c.id);
+      // Count candidates
+      total = await this.prisma.candidate.count({
+        where: {
+          campaignId: { in: campaignIds }
+        }
       });
-      byStatus = candidates.reduce((acc, c) => {
-        const code = c.status?.code || 'unknown';
-        acc[code] = (acc[code] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
+      // If specific campaign, get breakdown by status
+      if (campaignId) {
+        const candidates = await this.prisma.candidate.findMany({
+          where: { campaignId },
+          select: { statusId: true }
+        });
+        // Map statusId → code
+        const statusIds = candidates.map(c => c.statusId).filter(x => !!x);
+        let statusCodes: Record<string, string> = {};
+        if (statusIds.length) {
+          const statuses = await this.prisma.candidateStatus.findMany({
+            where: { id: { in: statusIds as string[] } },
+            select: { id: true, code: true }
+          });
+          statuses.forEach(s => {
+            statusCodes[s.id] = s.code;
+          });
+        }
+        byStatus = candidates.reduce((acc, c) => {
+          const code = c.statusId ? statusCodes[c.statusId] || 'unknown' : 'unknown';
+          acc[code] = (acc[code] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+      }
     }
-
     return { total, byStatus };
   }
 
@@ -94,9 +130,9 @@ export class CampaignService {
     if (user.role === 'MANAGER') {
       const u = await this.prisma.user.findUnique({
         where: { id: user.id },
-        include: { managedStores: { select: { id: true } } }
+        include: { amStores: { select: { id: true } } }
       });
-      return u?.managedStores?.map(s => s.id) || [];
+      return u?.amStores?.map(s => s.id) || [];
     }
 
     return [];

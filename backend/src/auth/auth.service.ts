@@ -66,7 +66,7 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
-        fullName: user.fullName,
+        fullName: user.full_name,
         role: user.role,
       },
     };
@@ -82,6 +82,9 @@ export class AuthService {
     }
 
     const { password: _, ...result } = user;
-    return result;
+    return {
+      ...result,
+      fullName: user.full_name,
+    };
   }
 }

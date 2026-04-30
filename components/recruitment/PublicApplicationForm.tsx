@@ -106,7 +106,15 @@ export default function PublicApplicationForm() {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
   const [stores, setStores] = useState<any[]>([])
   const [availableStores, setAvailableStores] = useState<any[]>([])
+  const [storeSearch, setStoreSearch] = useState('')
   const [positions, setPositions] = useState<PositionOption[]>([])
+
+  const filteredStores = storeSearch
+    ? availableStores.filter(s => 
+        s.name?.toLowerCase().includes(storeSearch.toLowerCase()) ||
+        s.address?.toLowerCase().includes(storeSearch.toLowerCase())
+      )
+    : availableStores
 
   useEffect(() => {
     loadProvinces()
@@ -1167,13 +1175,22 @@ export default function PublicApplicationForm() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Địa điểm mong muốn làm việc <span className="text-red-500">*</span>
                   </label>
+                  <div className="mb-2">
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm cửa hàng..."
+                      value={storeSearch}
+                      onChange={(e) => setStoreSearch(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                    />
+                  </div>
                   <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto border rounded-md p-3 ${
                     validationErrors.preferredLocations
                       ? 'border-red-500'
                       : 'border-gray-300'
                   }`}>
-                    {availableStores.length > 0 ? (
-                      availableStores.map((store) => (
+                    {filteredStores.length > 0 ? (
+                      filteredStores.map((store) => (
                         <label key={store.id} className="flex items-start space-x-2 p-2 hover:bg-gray-50 rounded-md cursor-pointer border border-transparent hover:border-gray-200 transition-colors">
                           <input
                             type="checkbox"

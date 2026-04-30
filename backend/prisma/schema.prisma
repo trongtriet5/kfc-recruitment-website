@@ -8,660 +8,583 @@ datasource db {
 }
 
 model User {
-  id         String   @id @default(cuid())
-  email      String   @unique
-  password   String
-  fullName   String
-  phone      String?
-  role       String   @default("USER")
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String    @id @default(cuid()) @db.VarChar(50)
+  email     String    @unique @db.VarChar(255)
+  password  String    @db.VarChar(255)
+  full_name String    @db.VarChar(255)
+  phone     String?   @db.VarChar(50)
+  role      String?   @default("USER") @db.VarChar(50)
+  isActive  Boolean?  @default(true)
+  createdAt DateTime? @default(now()) @db.Timestamp(6)
+  updatedAt DateTime? @default(now()) @updatedAt @db.Timestamp(6)
 
-  interviews    Interview[]
-  createdProposals RecruitmentProposal[] @relation("ProposalCreator")
-  picCandidates Candidate[] @relation("CandidatePIC")
-  managedStore  Store?      @relation("StoreSM")
+  managedStore Store?  @relation("UserSM")
+  amStores     Store[] @relation("StoreAM")
 
-  managedStores Store[]    @relation("StoreAM")
+  proposalsRequested RecruitmentProposal[] @relation("RequestedBy")
+  proposalsApproved  RecruitmentProposal[] @relation("ApprovedBy")
+  workflowActions    ProposalWorkflow[]    @relation("WorkflowActor")
+  picCandidates      Candidate[]
+  interviews         Interview[]
 
-  auditLogs     CandidateAuditLog[]
-  communications CandidateCommunicationLog[]
-  notifications Notification[] @relation("NotificationRecipient")
-  sentNotifications Notification[] @relation("NotificationSender")
-  proposalWorkflows ProposalWorkflow[]
-
+  @@index([email], map: "idx_users_email")
   @@map("users")
 }
 
-model Department {
-  id          String   @id @default(cuid())
-  name        String
-  code        String   @unique
-  description String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  headcounts  Headcount[]
-  proposals   RecruitmentProposal[]
-  candidates  Candidate[]
-
-  @@map("departments")
-}
-
 model Position {
-  id          String   @id @default(cuid())
-  name        String
-  code        String   @unique
-  description String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                String                @id @default(cuid()) @db.VarChar(50)
+  name              String                @db.VarChar(255)
+  code              String                @unique @db.VarChar(50)
+  description       String?
+  isActive          Boolean?              @default(true)
+  createdAt         DateTime?             @default(now()) @db.Timestamp(6)
+  updatedAt         DateTime?             @default(now()) @updatedAt @db.Timestamp(6)
+  HeadcountPosition HeadcountPosition[]
+  proposals         RecruitmentProposal[]
 
-  headcountPositions HeadcountPosition[]
-  proposals   RecruitmentProposal[]
-  forms      RecruitmentForm[]
-  campaigns   Campaign[]
-
+  @@index([code], map: "idx_positions_code")
   @@map("positions")
 }
 
 model Store {
-  id          String   @id @default(cuid())
-  name        String
-  code        String   @unique
-  address     String
-  city        String?
-  zone        String?
-  brand       String
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String    @id @default(cuid()) @db.VarChar(50)
+  name      String    @db.VarChar(255)
+  code      String    @unique @db.VarChar(50)
+  address   String?   @db.VarChar(500)
+  city      String?   @db.VarChar(100)
+  zone      String?   @db.VarChar(100)
+  brand     String?   @db.VarChar(50)
+  isActive  Boolean?  @default(true)
+  createdAt DateTime? @default(now()) @db.Timestamp(6)
+  updatedAt DateTime? @default(now()) @updatedAt @db.Timestamp(6)
+  smId      String?   @unique @db.VarChar(50)
+  amId      String?   @db.VarChar(50)
+  amName    String?   @db.VarChar(255)
+  omName    String?   @db.VarChar(255)
+  odName    String?   @db.VarChar(255)
+  group     String?   @db.VarChar(100)
 
-  smId        String?  @unique
-  sm          User?    @relation("StoreSM", fields: [smId], references: [id])
+  manager User? @relation("UserSM", fields: [smId], references: [id])
+  am      User? @relation("StoreAM", fields: [amId], references: [id])
 
-  amId        String?
-  am          User?    @relation("StoreAM", fields: [amId], references: [id])
+  proposals  RecruitmentProposal[] @relation("StoreProposals")
+  headcounts Headcount[]
+  campaigns  Campaign[]
+  candidates Candidate[]
 
-  amName     String?
-  omName     String?
-  odName     String?
-  group      String?
-
-  candidates  Candidate[]
-  campaigns   Campaign[]
-  headcounts  Headcount[]
-  proposals   RecruitmentProposal[]
-
+  @@index([amId], map: "idx_stores_am_id")
+  @@index([code], map: "idx_stores_code")
   @@map("stores")
 }
 
 model RecruitmentForm {
-  id          String   @id @default(cuid())
-  title       String
+  id          String    @id @default(cuid()) @db.VarChar(50)
+  title       String    @db.VarChar(255)
   description String?
-  brand       String
-  source      String
-  link        String   @unique
-  formTitle   String?
+  brand       String?   @db.VarChar(50)
+  sourceId    String?   @db.VarChar(50)
+  link        String?   @unique @db.VarChar(500)
+  formTitle   String?   @db.VarChar(255)
   formContent String?
-  bannerUrl   String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  bannerUrl   String?   @db.VarChar(500)
+  primaryColor   String?   @db.VarChar(20)
+  secondaryColor String?   @db.VarChar(20)
+  backgroundColor String?  @db.VarChar(20)
+  textColor      String?   @db.VarChar(20)
+  isActive    Boolean?  @default(true)
+  createdAt   DateTime? @default(now()) @db.Timestamp(6)
+  updatedAt   DateTime? @default(now()) @updatedAt @db.Timestamp(6)
 
-  campaigns   Campaign[]
-  candidates  Candidate[]
-  fields      FormField[]
-  positions   Position[]
+  campaigns  Campaign[]
+  source     Source?     @relation(fields: [sourceId], references: [id])
+  candidates Candidate[]
 
+  @@index([link], map: "idx_recruitment_forms_link")
   @@map("recruitment_forms")
 }
 
 model FormField {
-  id          String   @id @default(cuid())
-  formId      String
-  name        String
-  label       String
-  type        String
-  placeholder String?
-  required    Boolean  @default(false)
-  order       Int      @default(0)
+  id          String    @id @default(cuid()) @db.VarChar(50)
+  formId      String    @db.VarChar(50)
+  name        String    @db.VarChar(100)
+  label       String    @db.VarChar(255)
+  type        String    @db.VarChar(50)
+  placeholder String?   @db.VarChar(255)
+  required    Boolean?  @default(false)
+  order       Int?      @default(0)
   options     Json?
-  width       String?
-  helpText    String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  width       String?   @db.VarChar(50)
+  helpText    String?   @db.VarChar(500)
+  isActive    Boolean?  @default(true)
+  createdAt   DateTime? @default(now()) @db.Timestamp(6)
+  updatedAt   DateTime? @default(now()) @updatedAt @db.Timestamp(6)
 
-  form        RecruitmentForm @relation(fields: [formId], references: [id], onDelete: Cascade)
-
+  @@index([formId], map: "idx_form_fields_form_id")
   @@map("form_fields")
 }
 
 model Campaign {
-  id           String    @id @default(cuid())
-  name         String
-  description  String?
-  formId       String
-  positionId   String?
-  link         String?   @unique
-  startDate    DateTime?
-  endDate      DateTime?
-  isUntilFilled Boolean  @default(false)
-  isActive     Boolean   @default(true)
-  storeId      String?
-  proposalId   String?   @unique
+  id               String           @id @default(cuid()) @db.VarChar(50)
+  name             String           @db.VarChar(255)
+  description      String?
+  formId           String           @db.VarChar(50)
+  positionId       String?          @db.VarChar(50)
+  link             String?          @unique @db.VarChar(500)
+  startDate        DateTime?        @db.Timestamp(6)
+  endDate          DateTime?        @db.Timestamp(6)
+  isUntilFilled    Boolean?         @default(false)
+  isActive         Boolean?         @default(true)
+  storeId          String?          @db.VarChar(50)
+  proposalId       String?          @db.VarChar(50)
+  targetQty        Int?             @default(0)
+  fulfilledQty     Int?             @default(0)
+  hiredQty         Int?             @default(0)
+  offerAcceptedQty Int?             @default(0)
+  status           String?          @default("ACTIVE") @db.VarChar(50)
+  createdAt        DateTime?        @default(now()) @db.Timestamp(6)
+  updatedAt        DateTime?        @default(now()) @updatedAt @db.Timestamp(6)
+  deletedAt        DateTime?        @db.Timestamp(6)
+  version          Int?             @default(1)
+  Store            Store?           @relation(fields: [storeId], references: [id])
+  form             RecruitmentForm? @relation(fields: [formId], references: [id])
+  candidates       Candidate[]
 
-  // Fulfillment tracking
-  targetQty    Int       @default(0)
-  fulfilledQty Int       @default(0)
-  hiredQty     Int       @default(0)
-  offerAcceptedQty Int   @default(0)
-  status       String    @default("ACTIVE") // ACTIVE, PAUSED, COMPLETED, CANCELLED
-
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  // Soft delete & version control
-  deletedAt    DateTime?
-  version      Int       @default(1)
-
-  form         RecruitmentForm  @relation(fields: [formId], references: [id])
-  position     Position?        @relation(fields: [positionId], references: [id])
-  store        Store?          @relation(fields: [storeId], references: [id])
-  candidates   Candidate[]
-  auditLogs    CandidateAuditLog[]
-  offers       Offer[]
-  proposal     RecruitmentProposal? @relation("ProposalCampaign", fields: [proposalId], references: [id])
-
-  // Database constraints
-  @@index([storeId, status])
-  @@index([positionId, isActive])
+  @@index([deletedAt], map: "idx_campaigns_deleted_at")
+  @@index([formId], map: "idx_campaigns_form_id")
+  @@index([storeId], map: "idx_campaigns_store_id")
+  @@index([storeId, status], map: "idx_campaigns_store_status")
   @@map("campaigns")
 }
 
 model Candidate {
-  id              String   @id @default(cuid())
-  fullName        String
-  email           String?
-  phone           String   @db.VarChar(20)
-  cvUrl           String?
-  formId          String?
-  campaignId      String?
-  proposalId      String?
-  sourceId        String?
-  source          Source?        @relation(fields: [sourceId], references: [id])
-  brand           String?
-  position        String?
-  storeId         String?
-  departmentId    String?
-  statusId        String?
-  status          CandidateStatus?  @relation(fields: [statusId], references: [id])
-  notes           String?
-  gender          String?
-  dateOfBirth     DateTime?
-  cccd            String?  @db.VarChar(12)
-  currentCity     String?
-  currentWard     String?
-  currentStreet   String?
-  permanentSameAsCurrent Boolean? @default(false)
-  permanentCity   String?
-  permanentWard   String?
-  permanentStreet String?
-  appliedPosition String?
-  appliedPositionOther String?
-  availableStartDate DateTime?
-  canWorkTet      String?
-  referrer        String?
-  referrerName    String?
-  preferredLocations String[] @default([])
-  workExperience  String?
+  id         String  @id @default(cuid()) @db.VarChar(50)
+  full_name  String  @db.VarChar(255)
+  email      String? @db.VarChar(255)
+  phone      String  @db.VarChar(20)
+  cvUrl      String? @db.VarChar(500)
+  formId     String? @db.VarChar(50)
+  campaignId String? @db.VarChar(50)
+  proposalId String? @db.VarChar(50)
+  sourceId   String? @db.VarChar(50)
+  picId      String? @db.VarChar(50)
+  brand      String? @db.VarChar(50)
+  position   String? @db.VarChar(100)
+  storeId    String? @db.VarChar(50)
 
-  // SLA & Priority
-  priority        String    @default("NORMAL") // URGENT, HIGH, NORMAL, LOW
-  slaDueDate      DateTime?
-  slaBreachFlag   Boolean   @default(false)
+  statusId               String?              @db.VarChar(50)
+  notes                  String?
+  gender                 String?              @db.VarChar(20)
+  dateOfBirth            DateTime?            @db.Timestamp(6)
+  cccd                   String?              @db.VarChar(12)
+  currentCity            String?              @db.VarChar(100)
+  currentWard            String?              @db.VarChar(100)
+  currentStreet          String?              @db.VarChar(500)
+  permanentSameAsCurrent Boolean?             @default(false)
+  permanentCity          String?              @db.VarChar(100)
+  permanentWard          String?              @db.VarChar(100)
+  permanentStreet        String?              @db.VarChar(500)
+  appliedPosition        String?              @db.VarChar(100)
+  appliedPositionOther   String?              @db.VarChar(100)
+  availableStartDate     DateTime?            @db.Timestamp(6)
+  canWorkTet             String?              @db.VarChar(20)
+  referrer               String?              @db.VarChar(255)
+  referrerName           String?              @db.VarChar(255)
+  preferredLocations     String[]             @default([])
+  workExperience         String?
+  priority               String?              @default("NORMAL") @db.VarChar(20)
+  slaDueDate             DateTime?            @db.Timestamp(6)
+  slaBreachFlag          Boolean?             @default(false)
+  isBlacklisted          Boolean?             @default(false)
+  blacklistedAt          DateTime?            @db.Timestamp(6)
+  blacklistReason        String?
+  blacklistId            String?              @db.VarChar(50)
+  createdAt              DateTime?            @default(now()) @db.Timestamp(6)
+  updatedAt              DateTime?            @default(now()) @updatedAt @db.Timestamp(6)
+  deletedAt              DateTime?            @db.Timestamp(6)
+  version                Int?                 @default(1)
+  RecruitmentProposal    RecruitmentProposal? @relation(fields: [recruitmentProposalId], references: [id])
+  recruitmentProposalId  String?              @db.VarChar(50)
+  campaign               Campaign?            @relation(fields: [campaignId], references: [id])
+  status                 CandidateStatus?     @relation(fields: [statusId], references: [id])
+  pic                    User?                @relation(fields: [picId], references: [id])
+  store                  Store?               @relation(fields: [storeId], references: [id])
+  form                   RecruitmentForm?     @relation(fields: [formId], references: [id])
+  interviews             Interview[]
 
-  // Blacklist tracking
-  isBlacklisted   Boolean   @default(false)
-  blacklistedAt   DateTime?
-  blacklistReason String?
-  blacklistId     String?
-  blacklist       Blacklist? @relation(fields: [blacklistId], references: [id])
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // Soft delete & version control
-  deletedAt       DateTime?
-  version         Int      @default(1)  // For optimistic locking
-
-  form            RecruitmentForm?  @relation(fields: [formId], references: [id])
-  campaign        Campaign?         @relation(fields: [campaignId], references: [id])
-  proposal        RecruitmentProposal? @relation("CandidateDirectProposal", fields: [proposalId], references: [id])
-  store           Store?           @relation(fields: [storeId], references: [id])
-  department      Department?      @relation(fields: [departmentId], references: [id])
-
-  picId           String?
-  pic             User?            @relation("CandidatePIC", fields: [picId], references: [id])
-
-  interviews      Interview[]
-  auditLogs       CandidateAuditLog[]
-  slaLogs         CandidateSLALog[]
-  communications  CandidateCommunicationLog[]
-  offers          Offer[]
-
-  // Database constraints
-  @@index([storeId, statusId])
-  @@index([campaignId, statusId])
-  @@index([phone, storeId])
+  @@index([campaignId], map: "idx_candidates_campaign_id")
+  @@index([campaignId, statusId], map: "idx_candidates_campaign_status")
+  @@index([deletedAt], map: "idx_candidates_deleted_at")
+  @@index([phone, storeId], map: "idx_candidates_phone_store")
+  @@index([statusId], map: "idx_candidates_status_id")
+  @@index([storeId], map: "idx_candidates_store_id")
+  @@index([storeId, statusId], map: "idx_candidates_store_status")
   @@map("candidates")
 }
 
 model CandidateStatus {
-  id          String   @id @default(cuid())
-  name        String
-  code        String   @unique
-  color       String?
-  group       String?
-  order       Int      @default(0)
-  isActive    Boolean  @default(true)
-  slaHours    Int?     // SLA duration in hours for this stage
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String    @id @default(cuid()) @db.VarChar(50)
+  name      String    @db.VarChar(255)
+  code      String    @unique @db.VarChar(50)
+  color     String?   @db.VarChar(20)
+  group     String?   @db.VarChar(50)
+  order     Int?      @default(0)
+  isActive  Boolean?  @default(true)
+  slaHours  Int?
+  createdAt DateTime? @default(now()) @db.Timestamp(6)
+  updatedAt DateTime? @default(now()) @updatedAt @db.Timestamp(6)
 
-  candidates  Candidate[]
+  candidates Candidate[]
 
+  @@index([code], map: "idx_candidate_statuses_code")
   @@map("candidate_statuses")
 }
 
 model Interview {
-  id           String   @id @default(cuid())
-  candidateId  String
-  interviewerId String
-  type         String?  // e.g., PHONE, VIDEO, ONSITE
-  result       String?  // e.g., PASS, FAIL, PENDING
-  position     String?  // Position name at time of interview
-  scheduledAt  DateTime
-  completedAt  DateTime?
-  location    String?
-  notes       String?
-  rating      Int?     // 1-5 scale
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String    @id @default(cuid()) @db.VarChar(50)
+  candidateId   String    @db.VarChar(50)
+  interviewerId String    @db.VarChar(50)
+  type          String?   @db.VarChar(50)
+  result        String?   @db.VarChar(50)
+  position      String?   @db.VarChar(100)
+  scheduledAt   DateTime  @db.Timestamp(6)
+  completedAt   DateTime? @db.Timestamp(6)
+  location      String?   @db.VarChar(500)
+  notes         String?
+  rating        Int?
+  createdAt     DateTime? @default(now()) @db.Timestamp(6)
+  updatedAt     DateTime? @default(now()) @updatedAt @db.Timestamp(6)
 
-  candidate    Candidate  @relation(fields: [candidateId], references: [id])
-  interviewer  User       @relation(fields: [interviewerId], references: [id])
+  candidate   Candidate @relation(fields: [candidateId], references: [id])
+  interviewer User      @relation(fields: [interviewerId], references: [id])
 
-  // Database constraints
-  @@index([candidateId, scheduledAt])
-  @@index([interviewerId, scheduledAt])
-  @@index([scheduledAt])
+  @@index([candidateId], map: "idx_interviews_candidate_id")
+  @@index([interviewerId], map: "idx_interviews_interviewer_id")
   @@map("interviews")
 }
 
 model RecruitmentProposal {
-  id           String   @id @default(cuid())
-  title        String
-  description  String?
-  storeId      String?
-  positionId   String?
-  quantity     Int      @default(1) // Must be at least 1
-  reason       String?
-  businessReason String? // e.g., EXPANSION, REPLACEMENT, SEASONAL, NEW_OPENING
-  replacementFor String? // Employee ID or name being replaced
-
-  // Enhanced request fields
-  urgency      String   @default("NORMAL") // LOW, NORMAL, HIGH, CRITICAL
-  budget       Float?   // Monthly budget per head
-  targetJoinDate DateTime?
-  isUnplanned  Boolean  @default(false)
-
-  // Workflow tracking
-  status       String   @default("DRAFT") // DRAFT, SUBMITTED, AM_REVIEWED, HR_ACCEPTED, APPROVED, REJECTED, CANCELLED
-  requestedById String?
-  amReviewedAt DateTime?
-  hrAssignedAt DateTime?
-  approverId   String?
-  approvedAt  DateTime?
-  rejectedAt  DateTime?
+  id              String    @id @default(cuid()) @db.VarChar(50)
+  title           String    @db.VarChar(255)
+  description     String?
+  storeId         String?   @db.VarChar(50)
+  positionId      String?   @db.VarChar(50)
+  recruitmentType String?   @default("KE_HOACH") @db.VarChar(50)
+  quantity        Int
+  reason          String?
+  businessReason  String?   @db.VarChar(50)
+  replacementFor  String?   @db.VarChar(255)
+  urgency         String?   @default("NORMAL") @db.VarChar(20)
+  budget          Float?
+  targetJoinDate  DateTime? @db.Timestamp(6)
+  isUnplanned     Boolean?  @default(false)
+  status          String?   @default("DRAFT") @db.VarChar(50)
+  requestedById   String?   @db.VarChar(50)
+  amReviewedAt    DateTime? @db.Timestamp(6)
+  hrAssignedAt    DateTime? @db.Timestamp(6)
+  approverId      String?   @db.VarChar(50)
+  approvedAt      DateTime? @db.Timestamp(6)
+  rejectedAt      DateTime? @db.Timestamp(6)
   rejectionReason String?
-  cancelledAt DateTime?
-  cancelledById String?
+  cancelledAt     DateTime? @db.Timestamp(6)
+  cancelledById   String?   @db.VarChar(50)
+  campaignId      String?   @db.VarChar(50)
 
-  campaignId  String?
-  departmentId String?
-  startDate    DateTime?
-  endDate      DateTime?
-  isUntilFilled Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  startDate     DateTime? @db.Timestamp(6)
+  endDate       DateTime? @db.Timestamp(6)
+  isUntilFilled Boolean?  @default(false)
+  createdAt     DateTime? @default(now()) @db.Timestamp(6)
+  updatedAt     DateTime? @default(now()) @updatedAt @db.Timestamp(6)
+  deletedAt     DateTime? @db.Timestamp(6)
+  version       Int?      @default(1)
 
-  // Soft delete & version control
-  deletedAt   DateTime?
-  version     Int       @default(1)
+  store                 Store?               @relation("StoreProposals", fields: [storeId], references: [id])
+  requestedBy           User?                @relation("RequestedBy", fields: [requestedById], references: [id])
+  approver              User?                @relation("ApprovedBy", fields: [approverId], references: [id])
+  workflowHistory       ProposalWorkflow[]   @relation("ProposalHistory")
+  fulfillment           ProposalFulfillment? @relation(fields: [proposalFulfillmentId], references: [id])
+  candidates            Candidate[]
+  position              Position?            @relation(fields: [positionId], references: [id])
+  proposalFulfillmentId String?              @db.VarChar(50)
 
-  store        Store?          @relation(fields: [storeId], references: [id])
-  position     Position?       @relation(fields: [positionId], references: [id])
-  approver     User?           @relation("ProposalCreator", fields: [approverId], references: [id])
-  department  Department?    @relation(fields: [departmentId], references: [id])
-  candidates  Candidate[]     @relation("CandidateDirectProposal")
-  campaign    Campaign?       @relation("ProposalCampaign")
-  workflowHistory ProposalWorkflow[]
-  fulfillment ProposalFulfillment?
-
-  // Database constraints
-  @@index([storeId, status])
-  @@index([positionId, status])
-  @@index([requestedById, status])
+  @@index([deletedAt], map: "idx_recruitment_proposals_deleted_at")
+  @@index([positionId, status], map: "idx_recruitment_proposals_position_status")
+  @@index([requestedById, status], map: "idx_recruitment_proposals_requested_status")
+  @@index([storeId], map: "idx_recruitment_proposals_store_id")
+  @@index([storeId, status], map: "idx_recruitment_proposals_store_status")
   @@map("recruitment_proposals")
 }
 
 model ProposalWorkflow {
-  id          String   @id @default(cuid())
-  proposalId  String
-  proposal    RecruitmentProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
-  
-  fromStatus  String
-  toStatus    String
-  action      String   // SUBMIT, REVIEW, APPROVE, REJECT, CANCEL, ASSIGN
-  actorId     String?
-  actor       User?    @relation(fields: [actorId], references: [id])
-  actorRole   String   // SM, AM, HR, ADMIN
-  notes       String?
-  createdAt   DateTime @default(now())
+  id         String    @id @default(cuid()) @db.VarChar(50)
+  proposalId String    @db.VarChar(50)
+  fromStatus String    @db.VarChar(50)
+  toStatus   String    @db.VarChar(50)
+  action     String    @db.VarChar(50)
+  actorId    String?   @db.VarChar(50)
+  actorRole  String?   @db.VarChar(50)
+  notes      String?
+  createdAt  DateTime? @default(now()) @db.Timestamp(6)
 
+  proposal RecruitmentProposal @relation("ProposalHistory", fields: [proposalId], references: [id])
+  actor    User?               @relation("WorkflowActor", fields: [actorId], references: [id])
+
+  @@index([proposalId], map: "idx_proposal_workflows_proposal_id")
   @@map("proposal_workflows")
 }
 
 model ProposalFulfillment {
-  id           String   @id @default(cuid())
-  proposalId   String   @unique
-  proposal     RecruitmentProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
-  
-  requestedQty Int
-  hiredQty     Int      @default(0)
-  onboardedQty Int      @default(0)
-  
-  completionRate Float  @default(0)
-  lastUpdatedAt  DateTime @updatedAt
+  id                  String                @id @default(cuid()) @db.VarChar(50)
+  proposalId          String                @unique @db.VarChar(50)
+  requestedQty        Int
+  hiredQty            Int?                  @default(0)
+  onboardedQty        Int?                  @default(0)
+  completionRate      Float?                @default(0)
+  lastUpdatedAt       DateTime?             @default(now()) @updatedAt @db.Timestamp(6)
+  RecruitmentProposal RecruitmentProposal[]
 
   @@map("proposal_fulfillments")
 }
 
 model Headcount {
-  id           String   @id @default(cuid())
-  code         String   @unique
-  name         String
-  period       String
-  departmentId String?
-  storeId      String?
-  year         Int
-  month        Int?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id     String @id @default(cuid()) @db.VarChar(50)
+  code   String @unique @db.VarChar(50)
+  name   String @db.VarChar(255)
+  period String @db.VarChar(50)
 
-  department   Department? @relation(fields: [departmentId], references: [id])
-  store        Store?      @relation(fields: [storeId], references: [id])
-  positions    HeadcountPosition[]
+  storeId   String?   @db.VarChar(50)
+  year      Int
+  month     Int?
+  createdAt DateTime? @default(now()) @db.Timestamp(6)
+  updatedAt DateTime? @default(now()) @updatedAt @db.Timestamp(6)
 
+  positions HeadcountPosition[]
+  store     Store?              @relation(fields: [storeId], references: [id])
+
+  @@index([code], map: "idx_headcounts_code")
   @@map("headcounts")
 }
 
 model HeadcountPosition {
-  id          String   @id @default(cuid())
-  headcountId String
-  positionId  String
-  current     Int      @default(0)
+  id          String    @id @default(cuid()) @db.VarChar(50)
+  headcountId String    @db.VarChar(50)
+  positionId  String    @db.VarChar(50)
+  current     Int?      @default(0)
   target      Int
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime? @default(now()) @db.Timestamp(6)
+  updatedAt   DateTime? @default(now()) @updatedAt @db.Timestamp(6)
 
-  headcount   Headcount @relation(fields: [headcountId], references: [id], onDelete: Cascade)
-  position    Position  @relation(fields: [positionId], references: [id])
+  headcount Headcount @relation(fields: [headcountId], references: [id])
+  position  Position  @relation(fields: [positionId], references: [id])
 
   @@unique([headcountId, positionId])
+  @@index([headcountId], map: "idx_headcount_position_headcount_id")
   @@map("headcount_position")
 }
 
 model CandidateToRecruit {
-  id           String   @id @default(cuid())
-  candidateId  String
-  proposalId   String
-  status       String   @default("PENDING")
-  createdAt    DateTime @default(now())
+  id          String    @id @default(cuid()) @db.VarChar(50)
+  candidateId String    @db.VarChar(50)
+  proposalId  String    @db.VarChar(50)
+  status      String?   @default("PENDING") @db.VarChar(50)
+  createdAt   DateTime? @default(now()) @db.Timestamp(6)
 
   @@map("_candidate_to_recruit")
 }
 
 model Source {
-  id          String   @id @default(cuid())
-  name        String
-  code        String   @unique
+  id          String    @id @default(cuid()) @db.VarChar(50)
+  name        String    @db.VarChar(255)
+  code        String    @unique @db.VarChar(50)
   description String?
-  link        String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  link        String?   @db.VarChar(500)
+  isActive    Boolean?  @default(true)
+  createdAt   DateTime? @default(now()) @db.Timestamp(6)
+  updatedAt   DateTime? @default(now()) @updatedAt @db.Timestamp(6)
 
-  candidates  Candidate[]
+  recruitmentForms RecruitmentForm[]
 
+  @@index([code], map: "idx_sources_code")
   @@map("sources")
 }
 
-// Audit trail for all candidate changes
 model CandidateAuditLog {
-  id          String   @id @default(cuid())
-  candidateId String
-  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  
-  actorId     String?
-  actor       User?     @relation(fields: [actorId], references: [id])
-  
-  action      String    // STATUS_CHANGE, PIC_ASSIGN, CAMPAIGN_TRANSFER, INTERVIEW_SCHEDULED, OFFER_SENT, etc.
+  id          String    @id @default(cuid()) @db.VarChar(50)
+  candidateId String    @db.VarChar(50)
+  actorId     String?   @db.VarChar(50)
+  action      String    @db.VarChar(50)
   fromValue   String?
   toValue     String?
-  metadata    Json?     // Additional context
+  metadata    Json?
   notes       String?
-  
-  campaignId  String?
-  campaign    Campaign? @relation(fields: [campaignId], references: [id])
-  
-  createdAt   DateTime @default(now())
+  campaignId  String?   @db.VarChar(50)
+  createdAt   DateTime? @default(now()) @db.Timestamp(6)
 
-  @@index([candidateId, createdAt])
+  @@index([candidateId, createdAt], map: "idx_candidate_audit_logs_candidate_id_created")
   @@map("candidate_audit_logs")
 }
 
-// SLA tracking per candidate status transition
 model CandidateSLALog {
-  id          String   @id @default(cuid())
-  candidateId String
-  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  
-  statusCode  String
-  enteredAt   DateTime
-  exitedAt    DateTime?
-  slaHours    Int      // Expected SLA for this stage
-  breached    Boolean  @default(false)
-  breachHours Int?     // How many hours over SLA
-  
-  createdAt   DateTime @default(now())
+  id          String    @id @default(cuid()) @db.VarChar(50)
+  candidateId String    @db.VarChar(50)
+  statusCode  String    @db.VarChar(50)
+  enteredAt   DateTime  @db.Timestamp(6)
+  exitedAt    DateTime? @db.Timestamp(6)
+  slaHours    Int
+  breached    Boolean?  @default(false)
+  breachHours Int?
+  createdAt   DateTime? @default(now()) @db.Timestamp(6)
 
-  @@index([candidateId, statusCode])
+  @@index([candidateId, statusCode], map: "idx_candidate_sla_logs_candidate_id_status")
   @@map("candidate_sla_logs")
 }
 
-// Blacklist management
 model Blacklist {
-  id          String   @id @default(cuid())
-  phoneHash   String?  @unique  // Hashed phone for lookup
-  emailHash   String?  @unique  // Hashed email for lookup
-  phone       String?           // Original (encrypted or raw based on policy)
-  email       String?
-  fullName    String?
-  reason      String            // NO_SHOW, FAKE_INFO, VIOLATION, OTHER
-  reasonDetail String?
+  id            String    @id @default(cuid()) @db.VarChar(50)
+  phoneHash     String?   @unique @db.VarChar(255)
+  emailHash     String?   @unique @db.VarChar(255)
+  phone         String?   @db.VarChar(255)
+  email         String?   @db.VarChar(255)
+  full_name     String?   @db.VarChar(255)
+  reason        String    @db.VarChar(50)
+  reasonDetail  String?
   recruiterNote String?
-  expiryDate  DateTime?         // Auto-expire blacklist entry
-  isPermanent Boolean  @default(false)
-  createdById String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  expiryDate    DateTime? @db.Timestamp(6)
+  isPermanent   Boolean?  @default(false)
+  createdById   String?   @db.VarChar(50)
+  createdAt     DateTime? @default(now()) @db.Timestamp(6)
+  updatedAt     DateTime? @default(now()) @updatedAt @db.Timestamp(6)
 
-  candidates  Candidate[]
-
+  @@index([emailHash], map: "idx_blacklists_email_hash")
+  @@index([phoneHash], map: "idx_blacklists_phone_hash")
   @@map("blacklists")
 }
 
-// Offer management
 model Offer {
-  id              String   @id @default(cuid())
-  candidateId     String
-  candidate       Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  campaignId      String?
-  campaign        Campaign? @relation(fields: [campaignId], references: [id])
-  
-  status          String   @default("DRAFT") // DRAFT, SENT, ACCEPTED, REJECTED, EXPIRED, WITHDRAWN
-  sentAt          DateTime?
-  acceptedAt      DateTime?
-  rejectedAt      DateTime?
-  expiredAt       DateTime?
-  
-  // Offer details
-  position        String?
-  department      String?
-  storeId         String?
+  id          String    @id @default(cuid()) @db.VarChar(50)
+  candidateId String    @db.VarChar(50)
+  campaignId  String?   @db.VarChar(50)
+  status      String?   @default("DRAFT") @db.VarChar(50)
+  sentAt      DateTime? @db.Timestamp(6)
+  acceptedAt  DateTime? @db.Timestamp(6)
+  rejectedAt  DateTime? @db.Timestamp(6)
+  expiredAt   DateTime? @db.Timestamp(6)
+  position    String?   @db.VarChar(100)
+
+  storeId         String?   @db.VarChar(50)
   salary          Float?
-  probationLength Int?     // Months
+  probationLength Int?
   probationSalary Float?
-  startDate       DateTime?
+  startDate       DateTime? @db.Timestamp(6)
   benefits        String?
   notes           String?
   rejectionReason String?
-  
-  createdById     String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdById     String?   @db.VarChar(50)
+  createdAt       DateTime? @default(now()) @db.Timestamp(6)
+  updatedAt       DateTime? @default(now()) @updatedAt @db.Timestamp(6)
 
-  documents       OfferDocument[]
-
+  @@index([candidateId], map: "idx_offers_candidate_id")
   @@map("offers")
 }
 
 model OfferDocument {
-  id          String   @id @default(cuid())
-  offerId     String
-  offer       Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
-  
-  name        String
-  type        String   // OFFER_LETTER, CONTRACT, ID_COPY, CERTIFICATE, OTHER
-  url         String
-  uploadedById String?
-  createdAt   DateTime @default(now())
+  id           String    @id @default(cuid()) @db.VarChar(50)
+  offerId      String    @db.VarChar(50)
+  name         String    @db.VarChar(255)
+  type         String    @db.VarChar(50)
+  url          String    @db.VarChar(500)
+  uploadedById String?   @db.VarChar(50)
+  createdAt    DateTime? @default(now()) @db.Timestamp(6)
 
+  @@index([offerId], map: "idx_offer_documents_offer_id")
   @@map("offer_documents")
 }
 
-// Communication log
 model CandidateCommunicationLog {
-  id          String   @id @default(cuid())
-  candidateId String
-  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  
-  type        String   // EMAIL, PHONE, SMS, ZALO, MEETING, NOTE
-  direction   String   // INBOUND, OUTBOUND
+  id          String    @id @default(cuid()) @db.VarChar(50)
+  candidateId String    @db.VarChar(50)
+  type        String    @db.VarChar(50)
+  direction   String    @db.VarChar(50)
   content     String
-  subject     String?
-  senderId    String?
-  sender      User?     @relation(fields: [senderId], references: [id])
-  
-  createdAt   DateTime @default(now())
+  subject     String?   @db.VarChar(255)
+  senderId    String?   @db.VarChar(50)
+  createdAt   DateTime? @default(now()) @db.Timestamp(6)
 
-  @@index([candidateId, createdAt])
+  @@index([candidateId, createdAt], map: "idx_candidate_communication_logs_candidate_id_created")
   @@map("candidate_communication_logs")
 }
 
-// Notification system
 model Notification {
-  id          String   @id @default(cuid())
-  recipientId String
-  recipient   User     @relation("NotificationRecipient", fields: [recipientId], references: [id])
-  
-  senderId    String?
-  sender      User?    @relation("NotificationSender", fields: [senderId], references: [id])
-  
-  type        String   // SLA_BREACH, STATUS_CHANGE, PROPOSAL_APPROVAL, INTERVIEW_REMINDER, etc.
-  title       String
+  id          String    @id @default(cuid()) @db.VarChar(50)
+  recipientId String    @db.VarChar(50)
+  senderId    String?   @db.VarChar(50)
+  type        String    @db.VarChar(50)
+  title       String    @db.VarChar(255)
   message     String
-  entityType  String?  // CANDIDATE, PROPOSAL, CAMPAIGN, INTERVIEW
-  entityId    String?
-  
-  isRead      Boolean  @default(false)
-  readAt      DateTime?
-  actionUrl   String?
-  
-  createdAt   DateTime @default(now())
+  entityType  String?   @db.VarChar(50)
+  entityId    String?   @db.VarChar(50)
+  isRead      Boolean?  @default(false)
+  readAt      DateTime? @db.Timestamp(6)
+  actionUrl   String?   @db.VarChar(500)
+  createdAt   DateTime? @default(now()) @db.Timestamp(6)
 
-  @@index([recipientId, isRead, createdAt])
+  @@index([recipientId, isRead, createdAt], map: "idx_notifications_recipient_id_is_read_created")
   @@map("notifications")
 }
 
 model AdministrativeRegion {
-  id           Int      @id
-  name         String
-  nameEn       String   @map("name_en")
-  codeName     String?  @map("code_name")
-  codeNameEn   String?  @map("code_name_en")
+  id         Int     @id
+  name       String  @db.VarChar(100)
+  nameEn     String? @map("name_en") @db.VarChar(100)
+  codeName   String? @map("code_name") @db.VarChar(100)
+  codeNameEn String? @map("code_name_en") @db.VarChar(100)
 
   @@map("administrative_regions")
 }
 
 model AdministrativeUnit {
-  id           Int      @id
-  fullName     String?  @map("full_name")
-  fullNameEn   String?  @map("full_name_en")
-  shortName    String?  @map("short_name")
-  shortNameEn  String?  @map("short_name_en")
-  codeName     String?  @map("code_name")
-  codeNameEn   String?  @map("code_name_en")
-  provinces    Province[]
-  wards        Ward[]
+  id          Int     @id
+  fullName    String? @map("full_name") @db.VarChar(255)
+  fullNameEn  String? @map("full_name_en") @db.VarChar(255)
+  shortName   String? @db.VarChar(50)
+  shortNameEn String? @db.VarChar(50)
+  codeName    String? @map("code_name") @db.VarChar(100)
+  codeNameEn  String? @map("code_name_en") @db.VarChar(100)
 
   @@map("administrative_units")
 }
 
 model Province {
-  code                  String              @id @db.VarChar(20)
-  name                  String
-  nameEn                String?             @map("name_en")
-  fullName              String              @map("full_name")
-  fullNameEn            String?             @map("full_name_en")
-  codeName              String?             @map("code_name")
-  administrativeUnitId  Int?                @map("administrative_unit_id")
-  
-  administrativeUnit    AdministrativeUnit? @relation(fields: [administrativeUnitId], references: [id])
-  wards                 Ward[]
+  code                 String  @id @db.VarChar(20)
+  name                 String  @db.VarChar(255)
+  nameEn               String? @map("name_en") @db.VarChar(255)
+  fullName             String  @map("full_name") @db.VarChar(255)
+  fullNameEn           String? @map("full_name_en") @db.VarChar(255)
+  codeName             String? @map("code_name") @db.VarChar(100)
+  administrativeUnitId Int?    @map("administrative_unit_id")
 
+  @@index([administrativeUnitId], map: "idx_provinces_administrative_unit_id")
   @@map("provinces")
 }
 
 model Ward {
-  code                  String              @id @db.VarChar(20)
-  name                  String
-  nameEn                String?             @map("name_en")
-  fullName              String?             @map("full_name")
-  fullNameEn            String?             @map("full_name_en")
-  codeName              String?             @map("code_name")
-  provinceCode          String?             @map("province_code") @db.VarChar(20)
-  administrativeUnitId  Int?                @map("administrative_unit_id")
-  
-  province              Province?           @relation(fields: [provinceCode], references: [code])
-  administrativeUnit    AdministrativeUnit? @relation(fields: [administrativeUnitId], references: [id])
+  code                 String  @id @db.VarChar(20)
+  name                 String  @db.VarChar(255)
+  nameEn               String? @map("name_en") @db.VarChar(255)
+  fullName             String? @map("full_name") @db.VarChar(255)
+  fullNameEn           String? @map("full_name_en") @db.VarChar(255)
+  codeName             String? @map("code_name") @db.VarChar(100)
+  provinceCode         String? @map("province_code") @db.VarChar(20)
+  administrativeUnitId Int?    @map("administrative_unit_id")
 
+  @@index([provinceCode], map: "idx_wards_province_code")
   @@map("wards")
 }
 
+model PositionToRecruitmentForm {
+  A String
+  B String
+
+  @@unique([A, B], map: "_PositionToRecruitmentForm_AB_unique")
+  @@index([B], map: "_PositionToRecruitmentForm_B_index")
+  @@map("_PositionToRecruitmentForm")
+}

@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import { CandidateGateway } from './candidate.gateway';
 import { PrismaService } from '../prisma/prisma.service';
 
 const ALLOWED_SMAM_RESULTS = [
@@ -12,7 +13,10 @@ const ALLOWED_SMAM_RESULTS = [
 
 @Injectable()
 export class CandidateWriteService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Inject(forwardRef(() => CandidateGateway)) private readonly candidateGateway: CandidateGateway,
+  ) {}
 
   async createCandidate(data: any, user?: any) {
     // Blacklist check
@@ -30,6 +34,17 @@ export class CandidateWriteService {
     });
     
     let sourceId = data.sourceId;
+    
+    // Auto-assign source from Form if formId is present
+    if (data.formId && !sourceId) {
+      const form = await this.prisma.recruitmentForm.findUnique({
+        where: { id: data.formId }
+      });
+      if (form?.sourceId) {
+        sourceId = form.sourceId;
+      }
+    }
+
     if (data.sourceCode && !sourceId) {
       const source = await this.prisma.source.findUnique({
         where: { code: data.sourceCode }
@@ -42,17 +57,24 @@ export class CandidateWriteService {
       ? new Date(Date.now() + status.slaHours * 60 * 60 * 1000)
       : null;
     
-    const { status: statusName, sourceCode, ...rest } = data;
+    const { status: statusName, sourceCode, fullName, ...rest } = data;
     
+    // Ensure DateTime fields are valid JS Date objects
+    if (rest.dateOfBirth) rest.dateOfBirth = new Date(rest.dateOfBirth);
+    if (rest.availableStartDate) rest.availableStartDate = new Date(rest.availableStartDate);
+    if (rest.slaDueDate) rest.slaDueDate = new Date(rest.slaDueDate);
+
     const candidate = await this.prisma.candidate.create({
       data: {
         ...rest,
+        full_name: fullName,
         sourceId,
         statusId: status?.id,
         slaDueDate,
         priority: data.priority || 'NORMAL',
       }
     });
+
 
     // Create initial SLA log
     if (status) {
@@ -76,6 +98,43 @@ export class CandidateWriteService {
         notes: data.sourceCode ? `Nguồn: ${data.sourceCode}` : null,
       }
     });
+
+    // Emit socket event for real-time list updates
+    this.candidateGateway.emitCandidateCreated(candidate);
+
+    // Create notifications for Recruiters and Admins
+    const staff = await this.prisma.user.findMany({
+      where: {
+        role: { in: ['RECRUITER', 'ADMIN'] },
+        isActive: true
+      },
+      select: { id: true }
+    });
+
+    if (staff.length > 0) {
+      const notificationData = staff.map(member => ({
+        recipientId: member.id,
+        type: 'NEW_CANDIDATE',
+        title: 'Ứng viên mới',
+        message: `Ứng viên ${candidate.full_name} vừa ứng tuyển vào hệ thống`,
+        actionUrl: `/recruitment/candidates?id=${candidate.id}`,
+        isRead: false
+      }));
+
+      // Create many doesn't return the objects with IDs in all Prisma versions easily, 
+      // so we create one to emit and use createMany for the rest if possible, 
+      // or just create them in a loop if the number of staff is small.
+      // Given it's a few recruiters/admins, a loop or Promise.all is fine.
+      
+      const createdNotifications = await Promise.all(
+        notificationData.map(n => this.prisma.notification.create({ data: n }))
+      );
+
+      // Emit the first one to trigger the UI toast for everyone online
+      if (createdNotifications.length > 0) {
+        this.candidateGateway.emitNotification(createdNotifications[0]);
+      }
+    }
 
     return candidate;
   }
@@ -105,11 +164,16 @@ export class CandidateWriteService {
       }
     }
 
-    const updateData: any = { ...data };
+    const { fullName, dateOfBirth, availableStartDate, status: statusName, ...rest } = data;
+    const updateData: any = { ...rest };
     
-    if (data.status) {
+    if (fullName) updateData.full_name = fullName;
+    if (dateOfBirth) updateData.dateOfBirth = new Date(dateOfBirth);
+    if (availableStartDate) updateData.availableStartDate = new Date(availableStartDate);
+    
+    if (statusName) {
       const status = await this.prisma.candidateStatus.findUnique({
-        where: { code: data.status }
+        where: { code: statusName }
       });
       if (status) {
         updateData.statusId = status.id;
@@ -162,10 +226,32 @@ export class CandidateWriteService {
   }
 
   async assignPIC(candidateId: string, picId: string) {
-    return this.prisma.candidate.update({
+    const oldCandidate = await this.prisma.candidate.findUnique({
+      where: { id: candidateId },
+      select: { picId: true }
+    });
+    
+    await this.prisma.candidate.update({
       where: { id: candidateId },
       data: { picId }
     });
+    
+    const oldPic = oldCandidate?.picId 
+      ? await this.prisma.user.findUnique({ where: { id: oldCandidate.picId }, select: { full_name: true } })
+      : null;
+    const newPic = await this.prisma.user.findUnique({ where: { id: picId }, select: { full_name: true } });
+    
+    await this.prisma.candidateAuditLog.create({
+      data: {
+        candidateId,
+        action: 'PIC_ASSIGNED',
+        fromValue: oldPic?.full_name || 'Chưa phân công',
+        toValue: newPic?.full_name || picId,
+        notes: `Thay đổi người phụ trách từ ${oldPic?.full_name || 'Chưa phân công'} sang ${newPic?.full_name || picId}`,
+      }
+    });
+    
+    return { success: true };
   }
 
   async transferCampaign(candidateId: string, campaignId: string, user?: any) {
@@ -244,9 +330,9 @@ export class CandidateWriteService {
     if (user.role === 'MANAGER') {
       const u = await this.prisma.user.findUnique({
         where: { id: user.id },
-        include: { managedStores: { select: { id: true } } }
+        include: { amStores: { select: { id: true } } }
       });
-      return u?.managedStores?.map(s => s.id) || [];
+      return u?.amStores?.map(s => s.id) || [];
     }
 
     return [];

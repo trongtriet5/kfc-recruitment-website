@@ -1,8 +1,8 @@
-import axios from 'axios'
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosError, InternalAxiosRequestConfig } from 'axios'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
-export const api = axios.create({
+export const api: AxiosInstance = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
@@ -11,16 +11,16 @@ export const api = axios.create({
 
 // Add request interceptor to include token
 api.interceptors.request.use(
-  (config) => {
+  (config: InternalAxiosRequestConfig) => {
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('token')
-      if (token) {
+      if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`
       }
     }
     return config
   },
-  (error) => {
+  (error: AxiosError) => {
     return Promise.reject(error)
   }
 )
@@ -28,7 +28,7 @@ api.interceptors.request.use(
 // Add response interceptor to handle errors
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  (error: AxiosError) => {
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token')
@@ -38,6 +38,19 @@ api.interceptors.response.use(
     return Promise.reject(error)
   }
 )
+
+export type ApiResponse<T> = {
+  data: T
+  message?: string
+}
+
+export type PaginatedResponse<T> = {
+  data: T[]
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
 
 export default api
 

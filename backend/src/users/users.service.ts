@@ -14,7 +14,7 @@ export class UsersService {
       select: {
         id: true,
         email: true,
-        fullName: true,
+        full_name: true,
         phone: true,
         role: true,
         isActive: true,
@@ -22,7 +22,7 @@ export class UsersService {
         managedStore: {
           select: { id: true, name: true, code: true, city: true }
         },
-        managedStores: {
+        amStores: {
           select: { id: true, name: true, code: true, city: true }
         },
       }
@@ -32,8 +32,8 @@ export class UsersService {
   async getForSelect() {
     return this.prisma.user.findMany({
       where: { isActive: true, role: { not: 'ADMIN' } },
-      select: { id: true, fullName: true, email: true },
-      orderBy: { fullName: 'asc' }
+      select: { id: true, full_name: true, email: true },
+      orderBy: { full_name: 'asc' }
     });
   }
 
@@ -51,8 +51,8 @@ export class UsersService {
         amName: true,
         smId: true,
         amId: true,
-        sm: { select: { id: true, fullName: true } },
-        am: { select: { id: true, fullName: true } },
+        manager: { select: { id: true, full_name: true } },
+        am: { select: { id: true, full_name: true } },
       },
       orderBy: [{ city: 'asc' }, { code: 'asc' }],
     });
@@ -74,7 +74,7 @@ export class UsersService {
       data: {
         email: data.email,
         password: hashedPassword,
-        fullName: data.fullName,
+        full_name: data.full_name,
         phone: data.phone,
         role: data.role || 'USER',
         isActive: data.isActive !== undefined ? data.isActive : true,
@@ -94,9 +94,9 @@ export class UsersService {
     return this.prisma.user.findUnique({
       where: { id: user.id },
       select: {
-        id: true, email: true, fullName: true, phone: true, role: true, isActive: true,
+        id: true, email: true, full_name: true, phone: true, role: true, isActive: true,
         managedStore: { select: { id: true, name: true, code: true } },
-        managedStores: { select: { id: true, name: true, code: true } },
+        amStores: { select: { id: true, name: true, code: true } },
       }
     });
   }
@@ -133,7 +133,7 @@ export class UsersService {
   private async assignUserToStoresByConvention(user: any) {
     if (user.role === 'MANAGER') {
       await this.prisma.store.updateMany({
-        where: { amName: user.fullName },
+        where: { amName: user.full_name },
         data: { amId: user.id }
       });
     } else if (user.role === 'USER') {
@@ -171,6 +171,12 @@ export class UsersService {
 
     const updateData: any = { ...data };
     
+    // Map fullName to full_name for Prisma
+    if (updateData.fullName) {
+      updateData.full_name = updateData.fullName;
+      delete updateData.fullName;
+    }
+    
     // Hash the password if provided
     if (updateData.password) {
       updateData.password = await bcrypt.hash(updateData.password, SALT_ROUNDS);
@@ -205,9 +211,9 @@ export class UsersService {
     return this.prisma.user.findUnique({
       where: { id },
       select: {
-        id: true, email: true, fullName: true, phone: true, role: true, isActive: true,
+        id: true, email: true, full_name: true, phone: true, role: true, isActive: true,
         managedStore: { select: { id: true, name: true, code: true } },
-        managedStores: { select: { id: true, name: true, code: true } },
+        amStores: { select: { id: true, name: true, code: true } },
       }
     });
   }
@@ -225,7 +231,7 @@ export class UsersService {
 
         if (existing) {
           const updateData: any = {
-            fullName: user.fullName || existing.fullName,
+            full_name: user.full_name || existing.full_name,
             phone: user.phone,
             role: user.role || existing.role,
             isActive: user.isActive !== undefined ? user.isActive : existing.isActive,
@@ -244,7 +250,7 @@ export class UsersService {
             data: {
               email: user.email,
               password: await bcrypt.hash(user.password || 'kfc@123', SALT_ROUNDS),
-              fullName: user.fullName,
+              full_name: user.full_name,
               phone: user.phone,
               role: user.role || 'USER',
               isActive: user.isActive !== undefined ? user.isActive : true,

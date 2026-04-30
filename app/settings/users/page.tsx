@@ -94,7 +94,15 @@ export default function UsersManagementPage() {
 
   const loadUsers = async () => {
     setLoading(true)
-    try { const res = await api.get('/users'); setUsers(res.data) }
+    try { 
+      const res = await api.get('/users')
+      // Transform full_name to fullName for UI
+      const transformed = res.data.map((u: any) => ({
+        ...u,
+        fullName: u.full_name,
+      }))
+      setUsers(transformed) 
+    }
     catch { toast.error('Không thể tải danh sách tài khoản') }
     finally { setLoading(false) }
   }
@@ -302,7 +310,7 @@ export default function UsersManagementPage() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
-                          {user.fullName.charAt(0)}
+                          {user.fullName?.charAt(0) || '?'}
                         </div>
                         <div>
                           <div className="text-sm font-bold">{user.fullName}</div>
@@ -481,7 +489,7 @@ export default function UsersManagementPage() {
                               </span>
                               {s.am && s.am.id !== editingUser?.id && (
                                 <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
-                                  AM: {s.am.fullName.split(' ').pop()}
+                                  AM: {s.am.fullName?.split(' ').pop() || 'N/A'}
                                 </span>
                               )}
                             </label>

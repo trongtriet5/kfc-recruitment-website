@@ -21,19 +21,6 @@ CREATE TABLE users (
 );
 CREATE INDEX idx_users_email ON users(email);
 
--- departments
-DROP TABLE IF EXISTS departments CASCADE;
-CREATE TABLE departments (
-  id VARCHAR(50) PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
-  code VARCHAR(50) UNIQUE NOT NULL,
-  description TEXT,
-  "isActive" BOOLEAN DEFAULT true,
-  "createdAt" TIMESTAMP DEFAULT NOW(),
-  "updatedAt" TIMESTAMP DEFAULT NOW()
-);
-CREATE INDEX idx_departments_code ON departments(code);
-
 -- positions
 DROP TABLE IF EXISTS positions CASCADE;
 CREATE TABLE positions (
@@ -538,10 +525,6 @@ CREATE INDEX idx_wards_province_code ON wards(province_code);
 -- Users (2)
 INSERT INTO users (id, email, password, full_name, phone, role, "isActive", "createdAt", "updatedAt") VALUES ('cmoe9kadl0002s6hgovv3z70y', 'thucdh@kfcvietnam.com.vn', '$2a$10$zMDUrNtAJtLc56JPzlYEaetPt1zQlcfHN.8vHU/Yr7otSUG.kPU8y', 'Hồ Đông Thức', '0909888777', 'RECRUITER', true, NOW(), NOW());
 INSERT INTO users (id, email, password, full_name, phone, role, "isActive", "createdAt", "updatedAt") VALUES ('cmo8fpr6k000011lo37xr2fjo', 'admin@kfcvietnam.com.vn', '$2a$10$zMDUrNtAJtLc56JPzlYEaetPt1zQlcfHN.8vHU/Yr7otSUG.kPU8y', 'Nguyễn Trọng Triết', '0772086453', 'ADMIN', true, NOW(), NOW());
-
--- Departments (2)
-INSERT INTO departments (id, name, code, description, "isActive", "createdAt", "updatedAt") VALUES ('cmo8fprim000111lojef0o8vc', 'Nhân sự', 'HR', NULL, true, NOW(), NOW());
-INSERT INTO departments (id, name, code, description, "isActive", "createdAt", "updatedAt") VALUES ('cmo8fpru4000211lo7ceu4h30', 'Cửa hàng', 'STORE', NULL, true, NOW(), NOW());
 
 -- Positions (12)
 INSERT INTO positions (id, name, code, description, "isActive", "createdAt", "updatedAt") VALUES ('cmo9q837l000010ct2y4s57fd', 'All Star', 'ALL_STAR', 'Vị trí KFC', true, NOW(), NOW());

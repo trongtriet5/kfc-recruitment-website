@@ -15,6 +15,11 @@ export class TypesController {
   ];
 
   private readonly staticTypes: Record<string, any[]> = {
+    RECRUITMENT_TYPE: [
+      { id: 'ke_hoach', code: 'KE_HOACH', name: 'Tuyển theo kế hoạch' },
+      { id: 'thay_the', code: 'THAY_THE', name: 'Tuyển thay thế' },
+      { id: 'ngoai_kh', code: 'NGOAI_KE_HOACH', name: 'Tuyển ngoài kế hoạch' },
+    ],
     INTERVIEW_TYPE: [
       { id: 'hr', code: 'HR', name: 'Phỏng vấn HR' },
       { id: 'sm_am', code: 'SM_AM', name: 'Phỏng vấn SM/AM' },
