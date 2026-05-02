@@ -155,15 +155,17 @@ export class RecruitmentService {
   async createCampaign(data: any, user: any) {
     // Ensure formId is provided (required field)
     if (!data.formId) {
-      // Try to get formId from proposal if proposalId is provided
       if (data.proposalId) {
         const proposal = await this.prisma.recruitmentProposal.findUnique({
           where: { id: data.proposalId },
           select: { storeId: true }
         });
         if (proposal?.storeId) {
+          if (!data.storeId) {
+            data.storeId = proposal.storeId;
+          }
           const existingCampaign = await this.prisma.campaign.findFirst({
-            where: { storeId: proposal.storeId, formId: { not: null } },
+            where: { storeId: proposal.storeId },
             select: { formId: true },
           });
           if (existingCampaign?.formId) {
@@ -185,9 +187,19 @@ export class RecruitmentService {
       }
     }
 
+    // Map frontend field names to DB field names
+    const createData = { ...data };
+    if (createData.quantity !== undefined) {
+      createData.targetQty = createData.quantity;
+      delete createData.quantity;
+    }
+    // Remove fields that don't exist on Campaign model
+    delete createData.picId;
+    delete createData.recruiterId;
+
     const campaign = await this.prisma.campaign.create({
       data: {
-        ...data,
+        ...createData,
         isActive: true,
         status: 'ACTIVE'
       }
@@ -420,21 +432,28 @@ export class RecruitmentService {
       });
     }
 
-    // TA Performance
+    // TA Performance - Get all users who are assigned as PIC
+    const picIds = await this.prisma.candidate.findMany({
+      where: { picId: { not: null } },
+      select: { picId: true },
+      distinct: ['picId']
+    });
     const recruiters = await this.prisma.user.findMany({
-      where: { role: 'RECRUITER', isActive: true }
+      where: { 
+        id: { in: picIds.map(p => p.picId as string) },
+        isActive: true 
+      }
     });
 
     const taPerformance = await Promise.all(recruiters.map(async (ta) => {
       const taWhere = { ...where, picId: ta.id };
-      const [total, processed, achieved, onboarded] = await Promise.all([
+      const [total, processed, achieved, onboarded, offerSent, offerAccepted] = await Promise.all([
         this.prisma.candidate.count({ where: taWhere }),
-        // Processed: not statusId 1 (assuming 1 is CV_FILTERING or NEW)
-        // Wait, better use code
+        // Processed: status is not CV_FILTERING
         this.prisma.candidate.count({ 
           where: { ...taWhere, NOT: { status: { code: 'CV_FILTERING' } } } 
         }),
-        // Achieved: status codes 10, 12, 15, 16, 17, 18, 19, 20 based on user requirement
+        // Achieved: status codes 10, 12, 15, 16, 17, 18, 20 based on user requirement
         this.prisma.candidate.count({
           where: { 
             ...taWhere, 
@@ -451,6 +470,14 @@ export class RecruitmentService {
         // Onboarded: status 20 (ONBOARDING_ACCEPTED)
         this.prisma.candidate.count({
           where: { ...taWhere, status: { code: 'ONBOARDING_ACCEPTED' } }
+        }),
+        // Offer Sent
+        this.prisma.candidate.count({
+          where: { ...taWhere, status: { code: 'OFFER_SENT' } }
+        }),
+        // Offer Accepted
+        this.prisma.candidate.count({
+          where: { ...taWhere, status: { code: 'OFFER_ACCEPTED' } }
         })
       ]);
       
@@ -461,8 +488,10 @@ export class RecruitmentService {
         taRole: ta.role,
         totalCandidates: total,
         processedCandidates: processed,
-        achievedCandidates: achieved,
-        onboardedCandidates: onboarded
+        passedCandidates: achieved,
+        onboardedCandidates: onboarded,
+        offerSentCandidates: offerSent,
+        offerAcceptedCandidates: offerAccepted
       };
     }));
 
@@ -515,15 +544,22 @@ export class RecruitmentService {
   }
 
   // Sources
-  async getSources() { return this.prisma.source.findMany({ where: { isActive: true } }); }
+  async getSources() { return this.prisma.source.findMany({ orderBy: { name: 'asc' } }); }
   async getSource(id: string) { return this.prisma.source.findUnique({ where: { id } }); }
   async createSource(data: any) { return this.prisma.source.create({ data: { ...data, isActive: true } }); }
   async updateSource(id: string, data: any) { return this.prisma.source.update({ where: { id }, data }); }
   async deleteSource(id: string) { return this.prisma.source.update({ where: { id }, data: { isActive: false } }); }
   async getSourceByCode(code: string) { return this.prisma.source.findUnique({ where: { code } }); }
 
+  // Candidate Statuses
+  async getStatuses() { return this.prisma.candidateStatus.findMany({ orderBy: { order: 'asc' } }); }
+  async getStatus(id: string) { return this.prisma.candidateStatus.findUnique({ where: { id } }); }
+  async createStatus(data: any) { return this.prisma.candidateStatus.create({ data: { ...data, isActive: true } }); }
+  async updateStatus(id: string, data: any) { return this.prisma.candidateStatus.update({ where: { id }, data }); }
+  async deleteStatus(id: string) { return this.prisma.candidateStatus.update({ where: { id }, data: { isActive: false } }); }
+
   // Public
-  async getPublicStores() { return this.prisma.store.findMany({ where: { isActive: true }, select: { id: true, name: true, code: true, provinceCode: true } }); }
+  async getPublicStores() { return this.prisma.store.findMany({ where: { isActive: true }, select: { id: true, name: true, code: true, provinceCode: true, province: { select: { code: true, name: true } } } }); }
   async getPublicPositions() { return this.prisma.position.findMany({ where: { isActive: true } }); }
 
   // Notifications

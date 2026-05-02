@@ -29,12 +29,12 @@ export class CampaignFulfillmentService {
       ['ONBOARDING_ACCEPTED'].includes(statusMap[c.statusId] || '')
     ).length;
 
-    // fulfilledQty = Trúng tuyển (OFFER_ACCEPTED and related statuses)
-    const fulfilledQty = offerAcceptedQty;
+    // fulfilledQty = Trúng tuyển (ONBOARDING_ACCEPTED)
+    const fulfilledQty = hiredQty;
 
     // Auto-update campaign status if fulfilled
     let status = campaign.status;
-    if (campaign.isUntilFilled && fulfilledQty >= campaign.targetQty && campaign.targetQty > 0) {
+    if (fulfilledQty >= campaign.targetQty && campaign.targetQty > 0) {
       status = 'COMPLETED';
     }
 

@@ -69,6 +69,7 @@ export class OrganizationService {
       district,
       phone,
       city,
+      area,
       ...rest
     } = data || {};
 
@@ -77,6 +78,8 @@ export class OrganizationService {
       amName: amName ?? am,
       omName: omName ?? om,
       odName: odName ?? od,
+      provinceCode: rest.provinceCode === '' ? null : rest.provinceCode,
+      wardCode: rest.wardCode === '' ? null : rest.wardCode,
     };
   }
 
@@ -193,13 +196,36 @@ export class OrganizationService {
   async createStore(data: any) {
     const existing = await this.prisma.store.findUnique({ where: { code: data.code }, select: { id: true } });
     if (existing) throw new ConflictException(`Store ${data.code} already exists`);
-    const store = await this.prisma.store.create({ data: this.mapStorePayload(data), select: this.storeSelect });
+    
+    const mappedData = this.mapStorePayload(data);
+    const { provinceCode, wardCode, ...restData } = mappedData;
+    
+    const createData: any = {
+      ...restData,
+      ...(provinceCode && { province: { connect: { code: provinceCode } } }),
+      ...(wardCode && { ward: { connect: { code: wardCode } } }),
+    };
+    
+    const store = await this.prisma.store.create({ data: createData, select: this.storeSelect });
     this.cache.delete(CACHE_KEYS.STORES_ACTIVE);
     return this.mapStoreResponse(store);
   }
 
   async updateStore(id: string, data: any) {
-    const store = await this.prisma.store.update({ where: { id }, data: this.mapStorePayload(data), select: this.storeSelect });
+    const mappedData = this.mapStorePayload(data);
+    
+    // Extract relation fields for connect syntax
+    const { provinceCode, wardCode, ...restData } = mappedData;
+    
+    const updateData: any = {
+      ...restData,
+      ...(provinceCode && { province: { connect: { code: provinceCode } } }),
+      ...(provinceCode === null && { province: { disconnect: true } }),
+      ...(wardCode && { ward: { connect: { code: wardCode } } }),
+      ...(wardCode === null && { ward: { disconnect: true } }),
+    };
+    
+    const store = await this.prisma.store.update({ where: { id }, data: updateData, select: this.storeSelect });
     this.cache.delete(CACHE_KEYS.STORES_ACTIVE);
     return this.mapStoreResponse(store);
   }
@@ -208,6 +234,87 @@ export class OrganizationService {
     const store = await this.prisma.store.update({ where: { id }, data: { isActive: false }, select: this.storeSelect });
     this.cache.delete(CACHE_KEYS.STORES_ACTIVE);
     return this.mapStoreResponse(store);
+  }
+
+  async importStore(data: any) {
+    const mappedData = this.mapStorePayload(data);
+    const { provinceCode, wardCode, ...restData } = mappedData;
+
+    const baseData: any = { ...restData };
+
+    if (provinceCode && String(provinceCode).trim() !== '') {
+      const provinceValue = String(provinceCode).trim();
+      let province: any = null;
+
+      const provinces = await this.prisma.$queryRaw`SELECT code, name, full_name FROM provinces`;
+      const provinceList = (provinces as any[]).map(r => this.convertBigInt(r));
+
+      province = provinceList.find(p =>
+        p.code === provinceValue ||
+        p.name.toLowerCase().trim() === provinceValue.toLowerCase().trim() ||
+        p.full_name.toLowerCase().trim() === provinceValue.toLowerCase().trim()
+      );
+
+      if (!province) {
+        province = provinceList.find(p =>
+          p.name.toLowerCase().trim().includes(provinceValue.toLowerCase().trim()) ||
+          provinceValue.toLowerCase().trim().includes(p.name.toLowerCase().trim())
+        );
+      }
+
+      if (!province) {
+        province = provinceList.find(p =>
+          p.full_name.toLowerCase().trim().includes(provinceValue.toLowerCase().trim()) ||
+          provinceValue.toLowerCase().trim().includes(p.full_name.toLowerCase().trim())
+        );
+      }
+
+      if (province) {
+        baseData.province = { connect: { code: String(province.code) } };
+      }
+    }
+
+    if (wardCode && String(wardCode).trim() !== '') {
+      const wardValue = String(wardCode).trim();
+      let ward: any = null;
+
+      const wards = await this.prisma.$queryRaw`SELECT code, name, full_name FROM wards`;
+      const wardList = (wards as any[]).map(r => this.convertBigInt(r));
+
+      ward = wardList.find(w =>
+        w.code === wardValue ||
+        w.name.toLowerCase().trim() === wardValue.toLowerCase().trim() ||
+        w.full_name.toLowerCase().trim() === wardValue.toLowerCase().trim()
+      );
+
+      if (!ward) {
+        ward = wardList.find(w =>
+          w.name.toLowerCase().trim().includes(wardValue.toLowerCase().trim()) ||
+          wardValue.toLowerCase().trim().includes(w.name.toLowerCase().trim())
+        );
+      }
+
+      if (!ward) {
+        ward = wardList.find(w =>
+          w.full_name.toLowerCase().trim().includes(wardValue.toLowerCase().trim()) ||
+          wardValue.toLowerCase().trim().includes(w.full_name.toLowerCase().trim())
+        );
+      }
+
+      if (ward) {
+        baseData.ward = { connect: { code: String(ward.code) } };
+      }
+    }
+
+    const existing = await this.prisma.store.findUnique({ where: { code: data.code }, select: { id: true } });
+    if (existing) {
+      const store = await this.prisma.store.update({ where: { id: existing.id }, data: baseData, select: this.storeSelect });
+      return this.mapStoreResponse(store);
+    } else {
+      const store = await this.prisma.store.create({ data: { code: data.code, name: data.name, ...baseData }, select: this.storeSelect });
+      this.cache.delete(CACHE_KEYS.STORES_ACTIVE);
+      return this.mapStoreResponse(store);
+    }
   }
 
 // Helper to convert BigInt values to numbers for JSON serialization

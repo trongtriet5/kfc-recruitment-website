@@ -11,15 +11,16 @@ import Modal from '@/components/common/Modal'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SearchableSelect } from '@/components/ui/select-searchable'
+import { DatePicker } from '@/components/ui/date-picker'
 
 interface Campaign {
   id: string
   name: string
   description: string | null
-  link: string | null
   startDate: string
   endDate: string | null
   isActive: boolean
+  status?: string
   form: { id: string; title: string; brand: string }
   store?: { id: string; name: string; code: string }
   _count: { candidates: number }
@@ -138,7 +139,7 @@ export default function CampaignsList() {
     setLoadingCandidates(true)
     try {
       const res = await api.get(`/recruitment/candidates?campaignId=${campaignId}&limit=100`)
-      setCampaignCandidates(res.data.candidates || [])
+      setCampaignCandidates(res.data.data || res.data || [])
     } catch (err) {
       console.error('Failed to load candidates:', err)
       setCampaignCandidates([])
@@ -210,7 +211,7 @@ export default function CampaignsList() {
 
   const handleDelete = (campaign: Campaign) => {
     setContextMenu(null)
-    if (campaign._count?.candidates > 0) {
+    if (campaign.candidateCount > 0) {
       toast.error('Không thể xóa chiến dịch đã có ứng viên. Vui lòng xóa hết ứng viên trước.')
       return
     }
@@ -470,22 +471,19 @@ export default function CampaignsList() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Ngày bắt đầu <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="date"
+                <DatePicker
                   value={formData.startDate}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  required
+                  onChange={(v) => setFormData({ ...formData, startDate: v })}
+                  placeholder="Chọn ngày bắt đầu"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Ngày kết thúc</label>
-                <input
-                  type="date"
+                <DatePicker
                   value={formData.endDate}
-                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  min={formData.startDate}
+                  onChange={(v) => setFormData({ ...formData, endDate: v })}
+                  placeholder="Chọn ngày kết thúc"
+                  minDate={formData.startDate || undefined}
                 />
               </div>
             </div>
@@ -542,12 +540,13 @@ export default function CampaignsList() {
                         <div className="flex items-center">
                           <h3 className="text-sm font-medium text-gray-900">{campaign.name}</h3>
                           <span
-                            className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${campaign.isActive
+                            className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${campaign.status === 'COMPLETED' ? 'bg-indigo-100 text-indigo-800' :
+                              campaign.isActive
                                 ? 'bg-green-100 text-green-800'
                                 : 'bg-gray-100 text-gray-800'
                               }`}
                           >
-                            {campaign.isActive ? 'Đang hoạt động' : 'Tạm dừng'}
+                            {campaign.status === 'COMPLETED' ? 'Hoàn thành' : (campaign.isActive ? 'Đang hoạt động' : 'Tạm dừng')}
                           </span>
                           {campaign.store && (
                             <span className="ml-2 text-xs text-gray-500">
@@ -562,8 +561,8 @@ export default function CampaignsList() {
                             {formatDate(campaign.startDate)}
                             {campaign.endDate && ` - ${formatDate(campaign.endDate)}`}
                           </span>
-                          <span>Ứng viên: {campaign._count?.candidates || 0}</span>
-
+                          <span>Ứng viên: {campaign.candidateCount || 0}</span>
+                          <span>Trúng tuyển: {campaign.hiredQty || 0} / {campaign.targetQty || 0}</span>
                         </div>
                       </div>
                       <div className="ml-4 flex items-center space-x-2">
@@ -580,13 +579,13 @@ export default function CampaignsList() {
                             <button
                               onClick={(e) => { e.stopPropagation(); handleToggleActive(campaign); }}
                               className={`text-sm px-3 py-1 border rounded-md flex items-center gap-1 ${campaign.isActive
-                                  ? 'text-yellow-600 hover:text-yellow-700 border-yellow-300 hover:bg-yellow-50'
-                                  : 'text-green-600 hover:text-green-700 border-green-300 hover:bg-green-50'
+                                ? 'text-yellow-600 hover:text-yellow-700 border-yellow-300 hover:bg-yellow-50'
+                                : 'text-green-600 hover:text-green-700 border-green-300 hover:bg-green-50'
                                 }`}
                             >
                               {campaign.isActive ? 'Tạm dừng' : 'Mở lại'}
                             </button>
-                            {campaign._count?.candidates === 0 && (
+                            {campaign.candidateCount === 0 && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleDelete(campaign); }}
                                 className="text-sm text-red-600 hover:text-red-700 px-3 py-1 border border-red-300 rounded-md hover:bg-red-50 flex items-center gap-1"
@@ -634,7 +633,7 @@ export default function CampaignsList() {
               <Icon name={contextMenu.campaign.isActive ? 'pause' : 'play'} size={16} />
               {contextMenu.campaign.isActive ? 'Tạm dừng' : 'Mở lại'}
             </button>
-            {contextMenu.campaign._count?.candidates === 0 && (
+            {contextMenu.campaign.candidateCount === 0 && (
               <button
                 onClick={() => handleDelete(contextMenu.campaign)}
                 className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 text-red-600 flex items-center gap-2"
@@ -703,21 +702,19 @@ export default function CampaignsList() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Ngày bắt đầu <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="date"
+                <DatePicker
                   value={formData.startDate}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  required
+                  onChange={(v) => setFormData({ ...formData, startDate: v })}
+                  placeholder="Chọn ngày bắt đầu"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Ngày kết thúc</label>
-                <input
-                  type="date"
+                <DatePicker
                   value={formData.endDate}
-                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  onChange={(v) => setFormData({ ...formData, endDate: v })}
+                  placeholder="Chọn ngày kết thúc"
+                  minDate={formData.startDate || undefined}
                 />
               </div>
             </div>
@@ -760,8 +757,8 @@ export default function CampaignsList() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <p className="text-xs text-gray-500">Trạng thái</p>
-                    <p className={`font-medium ${detailCampaign.isActive ? 'text-green-600' : 'text-gray-600'}`}>
-                      {detailCampaign.isActive ? 'Đang hoạt động' : 'Tạm dừng'}
+                    <p className={`font-medium ${detailCampaign.status === 'COMPLETED' ? 'text-indigo-600' : detailCampaign.isActive ? 'text-green-600' : 'text-gray-600'}`}>
+                      {detailCampaign.status === 'COMPLETED' ? 'Hoàn thành' : (detailCampaign.isActive ? 'Đang hoạt động' : 'Tạm dừng')}
                     </p>
                   </div>
                   <div>
@@ -822,7 +819,7 @@ export default function CampaignsList() {
                                 {candidate.status?.name || 'Chưa có'}
                               </span>
                             </td>
-                            <td className="px-4 py-2 text-sm">{new Date(candidate.createdAt).toLocaleDateString('vi-VN')}</td>
+                            <td className="px-4 py-2 text-sm">{formatDate(candidate.createdAt)}</td>
                           </tr>
                         ))}
                       </tbody>

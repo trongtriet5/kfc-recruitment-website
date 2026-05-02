@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from './audit.service';
+import { CampaignFulfillmentService } from './campaign-fulfillment.service';
 import {
   STATUS_TRANSITIONS,
   TERMINAL_STATUSES,
@@ -42,6 +43,7 @@ export class StatusTransitionService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private campaignFulfillmentService: CampaignFulfillmentService,
   ) {}
 
   /**
@@ -132,9 +134,25 @@ export class StatusTransitionService {
       metadata: { role: actorRole, requiresReason: rule.requiresReason },
     });
 
-    // 9. Update campaign/proposal fulfillment if terminal positive status
+// 9. Update campaign/proposal fulfillment if terminal positive status
     if (['ONBOARDING_ACCEPTED', 'OFFER_ACCEPTED'].includes(toStatusCode)) {
-      await this.updateFulfillment(candidate, toStatusCode);
+      // Re-fetch candidate to get latest proposalId/campaignId from DB
+      const freshCandidate = await this.prisma.candidate.findUnique({
+        where: { id: candidateId },
+        select: { id: true, campaignId: true, proposalId: true, recruitmentProposalId: true }
+      });
+      await this.updateFulfillment(freshCandidate || candidate, toStatusCode);
+    }
+
+    // 10. Check if candidate is moving FROM terminal positive status TO a non-terminal status
+    // This handles the revert case (e.g., moving from ONBOARDING_ACCEPTED back to waiting status)
+    const terminalPositiveStatuses = ['ONBOARDING_ACCEPTED', 'OFFER_ACCEPTED'];
+    const fromIsTerminal = terminalPositiveStatuses.includes(currentStatusCode || '');
+    const toIsTerminal = terminalPositiveStatuses.includes(toStatusCode);
+    
+if (fromIsTerminal && !toIsTerminal) {
+      // Candidate is reverting from hired status - recalculate fulfillment and revert proposal/campaign
+      await this.revertFulfillment(candidateId);
     }
 
     return { success: true };
@@ -188,65 +206,291 @@ export class StatusTransitionService {
   }
 
   private async updateFulfillment(candidate: any, statusCode: string): Promise<void> {
-    // Update campaign fulfillment
+    // ── 1. Update campaign fulfillment ──────────────────────────────────────
     if (candidate.campaignId) {
       const campaign = await this.prisma.campaign.findUnique({
         where: { id: candidate.campaignId },
       });
       if (campaign) {
         const updateData: any = {};
-        // OFFER_ACCEPTED and related = Trúng tuyển
         if (statusCode === 'OFFER_ACCEPTED') {
           updateData.offerAcceptedQty = { increment: 1 };
-          updateData.fulfilledQty = { increment: 1 }; // Trúng tuyển
         }
-        // ONBOARDING_ACCEPTED = Đồng ý nhận việc
         if (statusCode === 'ONBOARDING_ACCEPTED') {
           updateData.hiredQty = { increment: 1 };
-          // Don't increment fulfilledQty again since this is already counted in OFFER_ACCEPTED
+          updateData.fulfilledQty = { increment: 1 };
+          const newHiredQty = (campaign.hiredQty || 0) + 1;
+          if (newHiredQty >= (campaign.targetQty || 0) && (campaign.targetQty || 0) > 0) {
+            updateData.status = 'COMPLETED';
+          }
         }
-        await this.prisma.campaign.update({
-          where: { id: campaign.id },
-          data: updateData,
+        if (Object.keys(updateData).length > 0) {
+          await this.prisma.campaign.update({
+            where: { id: campaign.id },
+            data: updateData,
+          });
+        }
+      }
+    }
+
+    // ── 2. Update proposal fulfillment ──────────────────────────────────────
+    // Find linked proposal via proposalId, recruitmentProposalId, or campaign.proposalId
+    const linkedProposalId = candidate.proposalId || candidate.recruitmentProposalId;
+    let proposal: any = null;
+
+    console.log('[Fulfillment] candidate fields:', {
+      id: candidate.id,
+      campaignId: candidate.campaignId,
+      proposalId: candidate.proposalId,
+      recruitmentProposalId: candidate.recruitmentProposalId,
+      statusCode,
+    });
+
+    if (linkedProposalId) {
+      proposal = await this.prisma.recruitmentProposal.findUnique({
+        where: { id: linkedProposalId },
+      });
+      console.log('[Fulfillment] found proposal via linkedProposalId:', proposal?.id ?? 'NOT FOUND');
+    }
+
+    if (!proposal && candidate.campaignId) {
+      const camp = await this.prisma.campaign.findUnique({
+        where: { id: candidate.campaignId },
+        select: { proposalId: true },
+      });
+      console.log('[Fulfillment] campaign.proposalId:', camp?.proposalId);
+      if (camp?.proposalId) {
+        proposal = await this.prisma.recruitmentProposal.findUnique({
+          where: { id: camp.proposalId },
+        });
+        console.log('[Fulfillment] found proposal via campaign:', proposal?.id ?? 'NOT FOUND');
+      }
+    }
+
+    if (!proposal) {
+      console.log('[Fulfillment] No proposal found — skipping proposal update');
+      return;
+    }
+
+    // Count actual ONBOARDING_ACCEPTED candidates for this proposal
+    const onboardingStatus = await this.prisma.candidateStatus.findUnique({
+      where: { code: 'ONBOARDING_ACCEPTED' },
+      select: { id: true },
+    });
+
+    let actualHiredQty = 0;
+    if (onboardingStatus) {
+      const directCount = await this.prisma.candidate.count({
+        where: {
+          OR: [
+            { proposalId: proposal.id },
+            { recruitmentProposalId: proposal.id },
+          ],
+          statusId: onboardingStatus.id,
+        },
+      });
+      const linkedCampaigns = await this.prisma.campaign.findMany({
+        where: { proposalId: proposal.id },
+        select: { id: true },
+      });
+      const campaignCount = linkedCampaigns.length > 0
+        ? await this.prisma.candidate.count({
+            where: {
+              campaignId: { in: linkedCampaigns.map(c => c.id) },
+              statusId: onboardingStatus.id,
+            },
+          })
+        : 0;
+      actualHiredQty = directCount + campaignCount;
+    }
+
+    const completionRate = proposal.quantity > 0
+      ? Math.round((actualHiredQty / proposal.quantity) * 100)
+      : 0;
+
+    const fulfillmentData = {
+      hiredQty: actualHiredQty,
+      onboardedQty: actualHiredQty,
+      completionRate,
+      lastUpdatedAt: new Date(),
+    };
+
+    const existing = await this.prisma.proposalFulfillment.findUnique({
+      where: { proposalId: proposal.id },
+    });
+
+    if (existing) {
+      await this.prisma.proposalFulfillment.update({
+        where: { proposalId: proposal.id },
+        data: fulfillmentData,
+      });
+    } else {
+      const newFulfillment = await this.prisma.proposalFulfillment.create({
+        data: {
+          proposalId: proposal.id,
+          requestedQty: proposal.quantity,
+          ...fulfillmentData,
+        },
+      });
+      await this.prisma.recruitmentProposal.update({
+        where: { id: proposal.id },
+        data: { proposalFulfillmentId: newFulfillment.id },
+      });
+    }
+
+// Auto-complete proposal if hiredQty >= quantity
+    if (actualHiredQty >= proposal.quantity && proposal.quantity > 0 && proposal.status !== 'COMPLETED') {
+      await this.prisma.recruitmentProposal.update({
+        where: { id: proposal.id },
+        data: { status: 'COMPLETED' },
+      });
+      await this.audit.log({
+        candidateId: candidate.id,
+        actorId: 'SYSTEM',
+        action: 'STATUS_CHANGE',
+        fromValue: proposal.status,
+        toValue: 'COMPLETED',
+        notes: 'Tự động hoàn thành do đủ số lượng trúng tuyển',
+      });
+    }
+  }
+
+  /**
+   * Revert fulfillment when a hired candidate moves back to non-hired status
+   * This handles the case when candidate reverts from ONBOARDING_ACCEPTED/OFFER_ACCEPTED to another status
+   */
+  private async revertFulfillment(candidateId: string): Promise<void> {
+    console.log('[RevertFulfillment-transition] Starting revert for candidate:', candidateId);
+
+    // Get candidate with current data
+    const candidate = await this.prisma.candidate.findUnique({
+      where: { id: candidateId },
+      select: { id: true, campaignId: true, proposalId: true, recruitmentProposalId: true }
+    });
+
+    if (!candidate) {
+      console.log('[RevertFulfillment-transition] Candidate not found');
+      return;
+    }
+
+// ── 1. Revert campaign fulfillment ──────────────────────────────────────
+    if (candidate.campaignId) {
+      const campaign = await this.prisma.campaign.findUnique({
+        where: { id: candidate.campaignId },
+      });
+      if (campaign && campaign.status === 'COMPLETED') {
+        // Use the service to recalculate campaign fulfillment counts
+        await this.campaignFulfillmentService.updateCampaignFulfillment(candidate.campaignId);
+
+        // Re-fetch campaign to check if status should revert
+        const updatedCampaign = await this.prisma.campaign.findUnique({
+          where: { id: candidate.campaignId },
+        });
+
+        // If below target, revert campaign status to ACTIVE
+        if (updatedCampaign && (updatedCampaign.hiredQty || 0) < (updatedCampaign.targetQty || 0)) {
+          await this.prisma.campaign.update({
+            where: { id: campaign.id },
+            data: { status: 'ACTIVE' },
+          });
+          console.log('[RevertFulfillment-transition] Campaign reverted to ACTIVE:', campaign.id, 'hiredQty:', updatedCampaign.hiredQty);
+        }
+      }
+    }
+
+    // ── 2. Revert proposal fulfillment ──────────────────────────────────────
+    const linkedProposalId = candidate.proposalId || candidate.recruitmentProposalId;
+    let proposal: any = null;
+
+    if (linkedProposalId) {
+      proposal = await this.prisma.recruitmentProposal.findUnique({
+        where: { id: linkedProposalId },
+      });
+    }
+
+    if (!proposal && candidate.campaignId) {
+      const camp = await this.prisma.campaign.findUnique({
+        where: { id: candidate.campaignId },
+        select: { proposalId: true },
+      });
+      if (camp?.proposalId) {
+        proposal = await this.prisma.recruitmentProposal.findUnique({
+          where: { id: camp.proposalId },
         });
       }
     }
 
-    // Update proposal fulfillment
-    const candidateProposals = await this.prisma.recruitmentProposal.findMany({
-      where: { 
-        OR: [
-          { candidates: { some: { id: candidate.id } } },
-          { id: candidate.proposalId }
-        ]
-      },
+    if (!proposal) {
+      console.log('[RevertFulfillment-transition] No proposal found — skipping revert');
+      return;
+    }
+
+    // Only revert if proposal is COMPLETED
+    if (proposal.status !== 'COMPLETED') {
+      console.log('[RevertFulfillment-transition] Proposal not COMPLETED, skipping revert. Current status:', proposal.status);
+      return;
+    }
+
+    // Recalculate actual hired qty
+    const onboardingStatus = await this.prisma.candidateStatus.findUnique({
+      where: { code: 'ONBOARDING_ACCEPTED' },
+      select: { id: true },
     });
 
-    for (const proposal of candidateProposals) {
-      const fulfillment = await this.prisma.proposalFulfillment.findUnique({
-        where: { proposalId: proposal.id },
+    let actualHiredQty = 0;
+    if (onboardingStatus) {
+      const directCount = await this.prisma.candidate.count({
+        where: {
+          OR: [
+            { proposalId: proposal.id },
+            { recruitmentProposalId: proposal.id },
+          ],
+          statusId: onboardingStatus.id,
+        },
       });
+      const linkedCampaigns = await this.prisma.campaign.findMany({
+        where: { proposalId: proposal.id },
+        select: { id: true },
+      });
+      const campaignCount = linkedCampaigns.length > 0
+        ? await this.prisma.candidate.count({
+            where: {
+              campaignId: { in: linkedCampaigns.map(c => c.id) },
+              statusId: onboardingStatus.id,
+            },
+          })
+        : 0;
+      actualHiredQty = directCount + campaignCount;
+    }
 
-      if (fulfillment) {
-        const updateData: any = {};
-        if (statusCode === 'OFFER_ACCEPTED') {
-          updateData.offerAcceptedQty = { increment: 1 };
-        }
-        if (statusCode === 'ONBOARDING_ACCEPTED') {
-          updateData.hiredQty = { increment: 1 };
-          updateData.onboardedQty = { increment: 1 };
-        }
-        // Recalculate completion rate
-        const completionRate = proposal.quantity > 0
-          ? Math.round(((fulfillment.onboardedQty + (statusCode === 'ONBOARDING_ACCEPTED' ? 1 : 0)) / proposal.quantity) * 100)
-          : 0;
-        updateData.completionRate = completionRate;
+    // If below target, revert proposal status from COMPLETED to APPROVED
+    if (actualHiredQty < proposal.quantity || proposal.quantity === 0) {
+      await this.prisma.recruitmentProposal.update({
+        where: { id: proposal.id },
+        data: { status: 'APPROVED' },
+      });
+      console.log('[RevertFulfillment-transition] Proposal reverted to APPROVED:', proposal.id, 'actualHiredQty:', actualHiredQty);
+    }
 
-        await this.prisma.proposalFulfillment.update({
-          where: { id: fulfillment.id },
-          data: updateData,
-        });
-      }
+    // Update fulfillment data
+    const completionRate = proposal.quantity > 0
+      ? Math.round((actualHiredQty / proposal.quantity) * 100)
+      : 0;
+
+    const existing = await this.prisma.proposalFulfillment.findUnique({
+      where: { proposalId: proposal.id },
+    });
+
+if (existing) {
+      await this.prisma.proposalFulfillment.update({
+        where: { proposalId: proposal.id },
+        data: {
+          hiredQty: actualHiredQty,
+          onboardedQty: actualHiredQty,
+          completionRate,
+          lastUpdatedAt: new Date(),
+        },
+      });
     }
   }
 

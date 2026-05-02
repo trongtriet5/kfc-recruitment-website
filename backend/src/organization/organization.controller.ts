@@ -27,6 +27,9 @@ export class StoresController {
   @Delete(':id')
   deleteStore(@Param('id') id: string) { return this.service.deleteStore(id); }
 
+  @Post('import')
+  importStores(@Body() data: any) { return this.service.importStore(data); }
+
   // Administrative Regions
   @Get('regions')
   getRegions() { return this.service.getRegions(); }

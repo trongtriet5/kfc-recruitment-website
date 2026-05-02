@@ -71,8 +71,10 @@ interface DashboardData {
     taRole: string;
     totalCandidates: number;
     processedCandidates: number;
-    achievedCandidates: number;
+    passedCandidates: number;
     onboardedCandidates: number;
+    offerSentCandidates: number;
+    offerAcceptedCandidates: number;
   }>;
 }
 

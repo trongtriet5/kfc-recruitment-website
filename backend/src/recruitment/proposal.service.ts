@@ -8,6 +8,7 @@ export enum ProposalStatus {
   AM_REVIEWED = 'AM_REVIEWED',
   HR_ACCEPTED = 'HR_ACCEPTED',
   APPROVED = 'APPROVED',
+  COMPLETED = 'COMPLETED',
   REJECTED = 'REJECTED',
   CANCELLED = 'CANCELLED',
 }
@@ -45,7 +46,9 @@ export const PROPOSAL_WORKFLOW: Record<ProposalStatus, ProposalTransition[]> = {
   [ProposalStatus.APPROVED]: [
     { target: ProposalStatus.CANCELLED, roles: ['MANAGER', 'AM', 'HEAD_OF_DEPARTMENT', 'ADMIN'] },
     { target: ProposalStatus.SUBMITTED, roles: ['ADMIN'] },
+    { target: ProposalStatus.COMPLETED, roles: ['ADMIN', 'SYSTEM'] },
   ],
+  [ProposalStatus.COMPLETED]: [],
   [ProposalStatus.REJECTED]: [],
   [ProposalStatus.CANCELLED]: [],
 };
@@ -54,7 +57,8 @@ export const PROPOSAL_STATUS_FLOW = {
   SUBMITTED: ['AM_REVIEWED', 'APPROVED', 'REJECTED', 'CANCELLED'],
   AM_REVIEWED: ['HR_ACCEPTED', 'REJECTED', 'CANCELLED'],
   HR_ACCEPTED: ['APPROVED', 'REJECTED', 'CANCELLED'],
-  APPROVED: ['SUBMITTED', 'CANCELLED'],
+  APPROVED: ['SUBMITTED', 'CANCELLED', 'COMPLETED'],
+  COMPLETED: [],
   REJECTED: [],
   CANCELLED: [],
 };
@@ -65,6 +69,7 @@ export const PROPOSAL_STATUS_LABELS: Record<string, string> = {
   AM_REVIEWED: 'AM đã xem xét',
   HR_ACCEPTED: 'HR đã duyệt',
   APPROVED: 'Đã duyệt',
+  COMPLETED: 'Hoàn thành',
   REJECTED: 'Từ chối',
   CANCELLED: 'Đã hủy',
 };
@@ -649,6 +654,7 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
           orderBy: { createdAt: 'asc' },
           take: 1,
         },
+        fulfillment: true,
       },
       orderBy: [
         { urgency: 'asc' },
@@ -686,7 +692,6 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
 
     // Get counts - both direct proposalId and via campaign
     const proposalIds = proposals.map(p => p.id);
-    const campaignIds = proposals.filter(p => p.campaignId).map(p => p.campaignId);
     
     const directCounts = await this.prisma.candidate.groupBy({
       by: ['proposalId'],
@@ -696,7 +701,7 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
 
     const campaignProposals = await this.prisma.campaign.findMany({
       where: { proposalId: { in: proposalIds } },
-      select: { id: true }
+      select: { id: true, proposalId: true }
     });
     const localCampaignIds = campaignProposals.map(c => c.id);
     
@@ -711,9 +716,9 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
       if (c.proposalId) countMap[c.proposalId] = (countMap[c.proposalId] || 0) + c._count.id;
     });
     campaignCounts.forEach(c => {
-      const proposal = proposals.find(p => p.campaignId === c.campaignId);
-      if (proposal) {
-        countMap[proposal.id] = (countMap[proposal.id] || 0) + c._count.id;
+      const campaign = campaignProposals.find(cp => cp.id === c.campaignId);
+      if (campaign && campaign.proposalId) {
+        countMap[campaign.proposalId] = (countMap[campaign.proposalId] || 0) + c._count.id;
       }
     });
 

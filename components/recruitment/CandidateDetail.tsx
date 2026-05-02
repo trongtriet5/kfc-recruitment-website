@@ -80,6 +80,12 @@ export default function CandidateDetail({
   const [currentWards, setCurrentWards] = useState<any[]>([])
   const { dbStatuses, dynamicGroups } = useCandidateStatuses()
 
+  const getStatusName = (code: string | null) => {
+    if (!code) return code
+    const status = dbStatuses.find(s => s.code === code)
+    return status?.name || code
+  }
+
   useEffect(() => {
     // Get user info
     api
@@ -99,7 +105,7 @@ export default function CandidateDetail({
     // Get provinces for resolving city ID to name
     api.get('/locations/provinces')
       .then(res => {
-        const provincesData = res.data || []
+        const provincesData = (res.data || []).map((p: any) => ({ ...p, name: p.fullName || p.name }))
         setProvinces(provincesData)
 
         // If we already have candidate, try to load wards
@@ -113,7 +119,7 @@ export default function CandidateDetail({
               const province = provincesData.find((p: any) => p.id === cityId || p.name === cityId)
               if (province) {
                 api.get(`/locations/provinces/${province.id}/wards`)
-                  .then(wRes => setCurrentWards(wRes.data || []))
+                  .then(wRes => setCurrentWards((wRes.data || []).map((w: any) => ({ ...w, name: w.fullName || w.name }))))
                   .catch(console.error)
               }
             }
@@ -564,33 +570,35 @@ export default function CandidateDetail({
               {candidate.auditLogs.map((log: any) => (
                 <div key={log.id} className="flex gap-3 text-sm">
                   <div className="flex flex-col items-center">
-                    <div className={`w-3 h-3 rounded-full ${log.action === 'CANDIDATE_CREATED' ? 'bg-blue-500' : log.action === 'STATUS_CHANGE' && log.toValue ? 'bg-green-500' : log.action === 'PIC_ASSIGNED' ? 'bg-blue-500' : log.action === 'CAMPAIGN_TRANSFER' ? 'bg-purple-500' : 'bg-gray-500'}`}></div>
+                    <div className={`w-3 h-3 rounded-full ${log.action === 'CANDIDATE_CREATED' ? 'bg-blue-500' : log.action === 'STATUS_CHANGE' && log.toValue ? 'bg-green-500' : log.action === 'PIC_ASSIGNED' ? 'bg-blue-500' : (log.action === 'CAMPAIGN_TRANSFER' || log.action === 'CAMPAIGN_TRANSFERRED') ? 'bg-purple-500' : 'bg-gray-500'}`}></div>
                   </div>
                   <div className="flex-1 pb-3 border-b border-gray-100 last:border-0">
                     <div className="flex justify-between">
                       <span className="font-medium">
                         {log.action === 'CANDIDATE_CREATED' && 'Tạo ứng viên'}
                         {log.action === 'STATUS_CHANGE' && 'Thay đổi trạng thái'}
+                        {log.action === 'STATUS_CHANGED' && 'Thay đổi trạng thái'}
                         {log.action === 'PIC_ASSIGNED' && 'Gán người phụ trách'}
-                        {log.action === 'CAMPAIGN_TRANSFER' && 'Chuyển chiến dịch'}
+                        {log.action === 'CAMPAIGN_TRANSFER' && 'Thay đổi chiến dịch'}
+                        {log.action === 'CAMPAIGN_TRANSFERRED' && 'Thay đổi chiến dịch'}
                         {log.action === 'INTERVIEW_SCHEDULED' && 'Đặt lịch phỏng vấn'}
                         {log.action === 'OFFER_SENT' && 'Gửi offer'}
-                        {!['CANDIDATE_CREATED', 'STATUS_CHANGE', 'PIC_ASSIGNED', 'CAMPAIGN_TRANSFER', 'INTERVIEW_SCHEDULED', 'OFFER_SENT'].includes(log.action) && log.action}
+                        {!['CANDIDATE_CREATED', 'STATUS_CHANGE', 'STATUS_CHANGED', 'PIC_ASSIGNED', 'CAMPAIGN_TRANSFER', 'CAMPAIGN_TRANSFERRED', 'INTERVIEW_SCHEDULED', 'OFFER_SENT'].includes(log.action) && log.action}
                       </span>
                       <span className="text-gray-500 text-xs">{formatDateTime(log.createdAt)}</span>
                     </div>
                     <div className="text-gray-600 text-xs mt-1">
                       {log.actor?.fullName && <span>Người thực hiện: {log.actor.fullName}</span>}
-                      {log.action === 'STATUS_CHANGE' && log.fromValue && log.toValue && (
-                        <span className="ml-2">- {log.fromValue} → {log.toValue}</span>
+                       {(log.action === 'STATUS_CHANGE' || log.action === 'STATUS_CHANGED') && log.fromValue && log.toValue && (
+                        <div className="ml-2">- Đổi từ trạng thái {getStatusName(log.fromValue)} sang {getStatusName(log.toValue)}</div>
                       )}
-                      {log.action === 'PIC_ASSIGNED' && log.toValue && (
-                        <span className="ml-2">- Gán cho: {log.toValue}</span>
+                       {log.action === 'PIC_ASSIGNED' && log.toValue && (
+                        <div className="ml-2">- Gán cho: {log.toValue}</div>
                       )}
-                      {log.action === 'CAMPAIGN_TRANSFER' && log.campaign?.name && (
+                      {(log.action === 'CAMPAIGN_TRANSFER' || log.action === 'CAMPAIGN_TRANSFERRED') && log.campaign?.name && (
                         <span className="ml-2">- Chiến dịch: {log.campaign.name}</span>
                       )}
-                      {log.notes && <span className="ml-2">- Ghi chú: {log.notes}</span>}
+                      {log.notes && <div className="ml-2">- Ghi chú: {log.notes}</div>}
                     </div>
                   </div>
                 </div>

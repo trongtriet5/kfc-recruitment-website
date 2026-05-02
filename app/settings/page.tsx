@@ -1,5 +1,5 @@
-import UsersManagementPage from './users/page'
+import { redirect } from 'next/navigation'
 
 export default function Page() {
-  return <UsersManagementPage />
+  redirect('/settings/users')
 }

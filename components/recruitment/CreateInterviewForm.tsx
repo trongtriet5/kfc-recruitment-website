@@ -303,7 +303,8 @@ const [loading, setLoading] = useState(false)
               type="time"
               value={scheduledTime}
               onChange={(e) => setScheduledTime(e.target.value)}
-              className="w-full h-10"
+              onClick={(e: any) => e.target.showPicker && e.target.showPicker()}
+              className="w-full h-10 cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
               required
             />
           </div>

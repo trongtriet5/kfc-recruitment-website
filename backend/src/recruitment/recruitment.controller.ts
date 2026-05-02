@@ -280,6 +280,22 @@ export class RecruitmentController {
   @Get('sources/code/:code')
   getSourceByCode(@Param('code') code: string) { return this.service.getSourceByCode(code); }
 
+  // Candidate Statuses
+  @Get('statuses')
+  getStatuses() { return this.service.getStatuses(); }
+
+  @Get('statuses/:id')
+  getStatus(@Param('id') id: string) { return this.service.getStatus(id); }
+
+  @Post('statuses')
+  createStatus(@Body() data: any) { return this.service.createStatus(data); }
+
+  @Patch('statuses/:id')
+  updateStatus(@Param('id') id: string, @Body() data: any) { return this.service.updateStatus(id, data); }
+
+  @Delete('statuses/:id')
+  deleteStatus(@Param('id') id: string) { return this.service.deleteStatus(id); }
+
 
   @Get('positions')
   getPositions() { return this.service.getPublicPositions(); }

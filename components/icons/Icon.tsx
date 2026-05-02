@@ -32,6 +32,14 @@ export default function Icon({ name, className = '', size = 20 }: IconProps) {
     'mail': 'Mail',
     'phone': 'Phone',
     'briefcase': 'Briefcase',
+    'settings': 'Settings',
+    'link': 'Link',
+    'status': 'GitBranch',
+    'trash': 'Trash2',
+    'edit': 'Pencil',
+    'user': 'User',
+    'download': 'Download',
+    'upload': 'Upload',
   }
 
   const iconKey = nameMap[name] || name.split(/[-_]/).map((part, i) => 

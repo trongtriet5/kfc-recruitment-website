@@ -5,6 +5,7 @@ import api from '@/lib/api'
 import Icon from '@/components/icons/Icon'
 import toast from 'react-hot-toast'
 import Modal from '@/components/common/Modal'
+import { DatePicker } from '@/components/ui/date-picker'
 
 interface Candidate {
   id: string
@@ -152,12 +153,11 @@ export default function InterviewScheduleModal({ candidate, campaign, onClose, o
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Ngày phỏng vấn <span className="text-red-500">*</span>
           </label>
-          <input
-            type="date"
+          <DatePicker
             value={formData.date}
-            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-slate-500 focus:border-slate-500"
-            required
+            onChange={(v) => setFormData({ ...formData, date: v })}
+            placeholder="Chọn ngày phỏng vấn"
+            minDate={new Date().toISOString().split('T')[0]}
           />
         </div>
 

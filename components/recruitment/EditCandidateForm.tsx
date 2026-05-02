@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { toast } from 'sonner'
 import { SearchableSelect } from '@/components/ui/select-searchable'
+import { DatePicker } from '@/components/ui/date-picker'
 
 interface Candidate {
   id: string
@@ -320,11 +321,10 @@ export default function EditCandidateForm({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Ngày sinh
             </label>
-            <input
-              type="date"
+            <DatePicker
               value={formData.dateOfBirth}
-              onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              onChange={(v) => setFormData({ ...formData, dateOfBirth: v })}
+              placeholder="Chọn ngày sinh"
             />
           </div>
 
@@ -332,11 +332,10 @@ export default function EditCandidateForm({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Ngày có thể bắt đầu
             </label>
-            <input
-              type="date"
+            <DatePicker
               value={formData.availableStartDate}
-              onChange={(e) => setFormData({ ...formData, availableStartDate: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              onChange={(v) => setFormData({ ...formData, availableStartDate: v })}
+              placeholder="Chọn ngày bắt đầu"
             />
           </div>
 

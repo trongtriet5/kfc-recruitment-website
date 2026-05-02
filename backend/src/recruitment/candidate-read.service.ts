@@ -175,6 +175,16 @@ export class CandidateReadService {
       })
     ]);
 
+    // Hydrate preferredStoreNames
+    let preferredStoreNames: string[] = [];
+    if (candidate.preferredLocations && candidate.preferredLocations.length > 0) {
+      const pStores = await this.prisma.store.findMany({
+        where: { id: { in: candidate.preferredLocations } },
+        select: { name: true, code: true }
+      });
+      preferredStoreNames = pStores.map(s => s.code ? `${s.name} (${s.code})` : s.name);
+    }
+
     // Hydrate audit logs
     const actorIds = auditLogsRaw.map(log => log.actorId as string).filter(Boolean);
     const auditCampaignIds = auditLogsRaw.map(log => log.campaignId as string).filter(Boolean);
@@ -208,7 +218,8 @@ export class CandidateReadService {
       status,
       pic,
       interviews,
-      auditLogs
+      auditLogs,
+      preferredStoreNames
     };
 
     // Check access for non-admin

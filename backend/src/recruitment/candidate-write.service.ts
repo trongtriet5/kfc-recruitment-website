@@ -1,10 +1,11 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { CandidateGateway } from './candidate.gateway';
 import { PrismaService } from '../prisma/prisma.service';
+import { CampaignFulfillmentService } from './campaign-fulfillment.service';
 
 const ALLOWED_SMAM_RESULTS = [
   'SM_AM_INTERVIEW_PASSED',
-  'SM_AM_INTERVIEW_FAILED', 
+  'SM_AM_INTERVIEW_FAILED',
   'SM_AM_NO_SHOW',
   'OM_PV_INTERVIEW_PASSED',
   'OM_PV_INTERVIEW_FAILED',
@@ -16,7 +17,8 @@ export class CandidateWriteService {
   constructor(
     private prisma: PrismaService,
     @Inject(forwardRef(() => CandidateGateway)) private readonly candidateGateway: CandidateGateway,
-  ) {}
+    private campaignFulfillmentService: CampaignFulfillmentService,
+  ) { }
 
   async createCandidate(data: any, user?: any) {
     // Blacklist check
@@ -32,9 +34,9 @@ export class CandidateWriteService {
     const status = await this.prisma.candidateStatus.findUnique({
       where: { code: data.status || 'CV_FILTERING' }
     });
-    
+
     let sourceId = data.sourceId;
-    
+
     // Auto-assign source from Form if formId is present
     if (data.formId && !sourceId) {
       const form = await this.prisma.recruitmentForm.findUnique({
@@ -51,14 +53,26 @@ export class CandidateWriteService {
       });
       if (source) sourceId = source.id;
     }
-    
+
     // Calculate SLA due date
-    const slaDueDate = status?.slaHours 
+    const slaDueDate = status?.slaHours
       ? new Date(Date.now() + status.slaHours * 60 * 60 * 1000)
       : null;
-    
+
+    // Auto-assign storeId and proposalId from campaign if not present
+    if (data.campaignId) {
+      const campaign = await this.prisma.campaign.findUnique({
+        where: { id: data.campaignId },
+        select: { storeId: true, proposalId: true }
+      });
+      if (campaign) {
+        if (!data.storeId && campaign.storeId) data.storeId = campaign.storeId;
+        if (!data.proposalId && campaign.proposalId) data.proposalId = campaign.proposalId;
+      }
+    }
+
     const { status: statusName, sourceCode, fullName, ...rest } = data;
-    
+
     // Ensure DateTime fields are valid JS Date objects
     if (rest.dateOfBirth) rest.dateOfBirth = new Date(rest.dateOfBirth);
     if (rest.availableStartDate) rest.availableStartDate = new Date(rest.availableStartDate);
@@ -125,7 +139,7 @@ export class CandidateWriteService {
       // so we create one to emit and use createMany for the rest if possible, 
       // or just create them in a loop if the number of staff is small.
       // Given it's a few recruiters/admins, a loop or Promise.all is fine.
-      
+
       const createdNotifications = await Promise.all(
         notificationData.map(n => this.prisma.notification.create({ data: n }))
       );
@@ -140,7 +154,7 @@ export class CandidateWriteService {
   }
 
   async updateCandidate(id: string, data: any, user?: any) {
-    const candidate = await this.prisma.candidate.findUnique({ 
+    const candidate = await this.prisma.candidate.findUnique({
       where: { id },
       include: { status: true }
     });
@@ -166,11 +180,11 @@ export class CandidateWriteService {
 
     const { fullName, dateOfBirth, availableStartDate, status: statusName, ...rest } = data;
     const updateData: any = { ...rest };
-    
+
     if (fullName) updateData.fullName = fullName;
     if (dateOfBirth) updateData.dateOfBirth = new Date(dateOfBirth);
     if (availableStartDate) updateData.availableStartDate = new Date(availableStartDate);
-    
+
     if (statusName) {
       const status = await this.prisma.candidateStatus.findUnique({
         where: { code: statusName }
@@ -199,12 +213,148 @@ export class CandidateWriteService {
           toValue: data.status,
         }
       });
+
+// Store previous status before update
+      const previousStatusCode = candidate.status?.code;
+
+      // Update fulfillment when status changes to a terminal positive status
+      const terminalPositiveStatuses = ['ONBOARDING_ACCEPTED', 'OFFER_ACCEPTED'];
+      if (terminalPositiveStatuses.includes(data.status)) {
+        // Refresh updated candidate data
+        const updatedCandidate = await this.prisma.candidate.findUnique({
+          where: { id },
+          select: { id: true, campaignId: true, proposalId: true, recruitmentProposalId: true, statusId: true }
+        });
+
+        console.log('[Fulfillment-updateCandidate] candidate:', {
+          id: updatedCandidate?.id,
+          campaignId: updatedCandidate?.campaignId,
+          proposalId: updatedCandidate?.proposalId,
+          recruitmentProposalId: updatedCandidate?.recruitmentProposalId,
+          status: data.status,
+        });
+
+        // Update campaign fulfillment
+        if (updatedCandidate?.campaignId) {
+          await this.campaignFulfillmentService.updateCampaignFulfillment(updatedCandidate.campaignId);
+        }
+
+        // Update proposal fulfillment - check all possible proposal link paths
+        let linkedProposalId = updatedCandidate?.recruitmentProposalId
+          || updatedCandidate?.proposalId;
+        if (!linkedProposalId && updatedCandidate?.campaignId) {
+          const campaign = await this.prisma.campaign.findUnique({
+            where: { id: updatedCandidate.campaignId },
+            select: { proposalId: true }
+          });
+          linkedProposalId = campaign?.proposalId;
+        }
+
+        console.log('[Fulfillment-updateCandidate] linkedProposalId:', linkedProposalId);
+
+        if (linkedProposalId) {
+          const onboardingStatus = await this.prisma.candidateStatus.findUnique({
+            where: { code: 'ONBOARDING_ACCEPTED' },
+            select: { id: true }
+          });
+
+          let actualHiredQty = 0;
+          if (onboardingStatus) {
+            const directCount = await this.prisma.candidate.count({
+              where: {
+                OR: [
+                  { proposalId: linkedProposalId },
+                  { recruitmentProposalId: linkedProposalId },
+                ],
+                statusId: onboardingStatus.id,
+              }
+            });
+            const linkedCampaigns = await this.prisma.campaign.findMany({
+              where: { proposalId: linkedProposalId },
+              select: { id: true }
+            });
+            const campaignCount = linkedCampaigns.length > 0
+              ? await this.prisma.candidate.count({
+                  where: {
+                    campaignId: { in: linkedCampaigns.map(c => c.id) },
+                    statusId: onboardingStatus.id,
+                  }
+                })
+              : 0;
+            actualHiredQty = directCount + campaignCount;
+          }
+
+          const proposal = await this.prisma.recruitmentProposal.findUnique({
+            where: { id: linkedProposalId }
+          });
+          const completionRate = proposal?.quantity > 0
+            ? Math.round((actualHiredQty / proposal.quantity) * 100)
+            : 0;
+
+          const existing = await this.prisma.proposalFulfillment.findUnique({
+            where: { proposalId: linkedProposalId }
+          });
+
+          console.log('[Fulfillment-updateCandidate] counts & proposal:', {
+            actualHiredQty,
+            proposalQuantity: proposal?.quantity,
+            completionRate,
+            hasExistingFulfillment: !!existing,
+          });
+
+if (existing) {
+            await this.prisma.proposalFulfillment.update({
+              where: { proposalId: linkedProposalId },
+              data: {
+                hiredQty: actualHiredQty,
+                onboardedQty: actualHiredQty,
+                completionRate,
+                lastUpdatedAt: new Date()
+              }
+            });
+          } else {
+            const newFulfillment = await this.prisma.proposalFulfillment.create({
+              data: {
+                proposalId: linkedProposalId,
+                requestedQty: proposal?.quantity || 0,
+                hiredQty: actualHiredQty,
+                onboardedQty: actualHiredQty,
+                completionRate,
+                lastUpdatedAt: new Date()
+              }
+            });
+            await this.prisma.recruitmentProposal.update({
+              where: { id: linkedProposalId },
+              data: { proposalFulfillmentId: newFulfillment.id }
+            });
+          }
+
+          // Auto-complete proposal if hiredQty >= quantity
+          if (actualHiredQty >= (proposal?.quantity || 0) && (proposal?.quantity || 0) > 0 && proposal?.status !== 'COMPLETED') {
+            await this.prisma.recruitmentProposal.update({
+              where: { id: linkedProposalId },
+              data: { status: 'COMPLETED' }
+            });
+            console.log('[Fulfillment-updateCandidate] Proposal auto-completed:', linkedProposalId, 'hiredQty:', actualHiredQty);
+          }
+        }
+      }
+
+// Check if candidate is moving FROM terminal positive status TO a non-terminal status
+      // This handles the revert case (e.g., moving from ONBOARDING_ACCEPTED back to waiting status)
+      const fromIsTerminal = previousStatusCode && terminalPositiveStatuses.includes(previousStatusCode);
+      const toIsTerminal = terminalPositiveStatuses.includes(data.status);
+      
+      if (fromIsTerminal && !toIsTerminal) {
+        // Candidate is reverting from hired status - recalculate fulfillment and revert proposal/campaign
+        await this.revertFulfillment(id);
+      }
     }
 
     return updated;
   }
 
-  async deleteCandidate(id: string, user?: any) {
+async deleteCandidate(id: string, user?: any) {
     const candidate = await this.prisma.candidate.findUnique({ where: { id } });
     if (!candidate) throw new NotFoundException('Ứng viên không tồn tại');
 
@@ -222,6 +372,23 @@ export class CandidateWriteService {
       }
     }
 
+    // Delete related records first to avoid foreign key constraint errors
+    // Delete SLA logs
+    await this.prisma.candidateSLALog.deleteMany({
+      where: { candidateId: id }
+    });
+
+    // Delete audit logs
+    await this.prisma.candidateAuditLog.deleteMany({
+      where: { candidateId: id }
+    });
+
+    // Delete interviews (this will also delete interview feedback through cascade)
+    await this.prisma.interview.deleteMany({
+      where: { candidateId: id }
+    });
+
+    // Now delete the candidate
     return this.prisma.candidate.delete({ where: { id } });
   }
 
@@ -230,17 +397,17 @@ export class CandidateWriteService {
       where: { id: candidateId },
       select: { picId: true }
     });
-    
+
     await this.prisma.candidate.update({
       where: { id: candidateId },
       data: { picId }
     });
-    
-    const oldPic = oldCandidate?.picId 
+
+    const oldPic = oldCandidate?.picId
       ? await this.prisma.user.findUnique({ where: { id: oldCandidate.picId }, select: { fullName: true } })
       : null;
     const newPic = await this.prisma.user.findUnique({ where: { id: picId }, select: { fullName: true } });
-    
+
     await this.prisma.candidateAuditLog.create({
       data: {
         candidateId,
@@ -250,13 +417,17 @@ export class CandidateWriteService {
         notes: `Thay đổi người phụ trách từ ${oldPic?.fullName || 'Chưa phân công'} sang ${newPic?.fullName || picId}`,
       }
     });
-    
+
     return { success: true };
   }
 
   async transferCampaign(candidateId: string, campaignId: string, user?: any) {
     const candidate = await this.prisma.candidate.findUnique({ where: { id: candidateId } });
     if (!candidate) throw new NotFoundException('Ứng viên không tồn tại');
+
+    if (candidate.campaignId === campaignId) {
+      throw new BadRequestException('Ứng viên đã nằm trong chiến dịch này rồi');
+    }
 
     const campaign = await this.prisma.campaign.findUnique({ where: { id: campaignId } });
     if (!campaign) throw new NotFoundException('Chiến dịch không tồn tại');
@@ -272,9 +443,17 @@ export class CandidateWriteService {
       }
     }
 
+    const updateData: any = { campaignId };
+    if (campaign.storeId) {
+      updateData.storeId = campaign.storeId;
+    }
+    if (campaign.proposalId) {
+      updateData.proposalId = campaign.proposalId;
+    }
+
     const updated = await this.prisma.candidate.update({
       where: { id: candidateId },
-      data: { campaignId },
+      data: updateData,
     });
 
     await this.prisma.candidateAuditLog.create({
@@ -291,11 +470,11 @@ export class CandidateWriteService {
 
   private async checkBlacklist(phone?: string, email?: string) {
     if (!phone && !email) return null;
-    
+
     const where: any[] = [];
     if (phone) where.push({ phone });
     if (email) where.push({ email });
-    
+
     const blacklistEntry = await this.prisma.blacklist.findFirst({
       where: {
         OR: where,
@@ -309,7 +488,7 @@ export class CandidateWriteService {
         ]
       }
     });
-    
+
     return blacklistEntry;
   }
 
@@ -338,7 +517,7 @@ export class CandidateWriteService {
     return [];
   }
 
-  /**
+/**
    * Get campaign IDs from proposals created by the user
    * This allows proposal creators to update/delete candidates in campaigns from their proposals
    */
@@ -350,5 +529,144 @@ export class CandidateWriteService {
     return proposals
       .map(p => p.campaignId)
       .filter((id): id is string => id !== null);
+  }
+
+  /**
+   * Revert fulfillment when a hired candidate moves back to non-hired status
+   * This handles the case when candidate reverts from ONBOARDING_ACCEPTED/OFFER_ACCEPTED to another status
+   */
+  private async revertFulfillment(candidateId: string): Promise<void> {
+    console.log('[RevertFulfillment-write] Starting revert for candidate:', candidateId);
+
+    // Get candidate with current data
+    const candidate = await this.prisma.candidate.findUnique({
+      where: { id: candidateId },
+      select: { id: true, campaignId: true, proposalId: true, recruitmentProposalId: true }
+    });
+
+    if (!candidate) {
+      console.log('[RevertFulfillment-write] Candidate not found');
+      return;
+    }
+
+// ── 1. Revert campaign fulfillment ──────────────────────────────────────
+    if (candidate.campaignId) {
+      const campaign = await this.prisma.campaign.findUnique({
+        where: { id: candidate.campaignId },
+      });
+      if (campaign && campaign.status === 'COMPLETED') {
+        // Use the service to recalculate campaign fulfillment counts
+        await this.campaignFulfillmentService.updateCampaignFulfillment(candidate.campaignId);
+
+        // Re-fetch campaign to check if status should revert
+        const updatedCampaign = await this.prisma.campaign.findUnique({
+          where: { id: candidate.campaignId },
+        });
+
+        // If below target, revert campaign status to ACTIVE
+        if (updatedCampaign && (updatedCampaign.hiredQty || 0) < (updatedCampaign.targetQty || 0)) {
+          await this.prisma.campaign.update({
+            where: { id: campaign.id },
+            data: { status: 'ACTIVE' },
+          });
+          console.log('[RevertFulfillment-write] Campaign reverted to ACTIVE:', campaign.id, 'hiredQty:', updatedCampaign.hiredQty);
+        }
+      }
+    }
+
+    // ── 2. Revert proposal fulfillment ──────────────────────────────────────
+    const linkedProposalId = candidate.proposalId || candidate.recruitmentProposalId;
+    let proposal: any = null;
+
+    if (linkedProposalId) {
+      proposal = await this.prisma.recruitmentProposal.findUnique({
+        where: { id: linkedProposalId },
+      });
+    }
+
+    if (!proposal && candidate.campaignId) {
+      const camp = await this.prisma.campaign.findUnique({
+        where: { id: candidate.campaignId },
+        select: { proposalId: true },
+      });
+      if (camp?.proposalId) {
+        proposal = await this.prisma.recruitmentProposal.findUnique({
+          where: { id: camp.proposalId },
+        });
+      }
+    }
+
+    if (!proposal) {
+      console.log('[RevertFulfillment-write] No proposal found — skipping revert');
+      return;
+    }
+
+    // Only revert if proposal is COMPLETED
+    if (proposal.status !== 'COMPLETED') {
+      console.log('[RevertFulfillment-write] Proposal not COMPLETED, skipping revert. Current status:', proposal.status);
+      return;
+    }
+
+    // Recalculate actual hired qty
+    const onboardingStatus = await this.prisma.candidateStatus.findUnique({
+      where: { code: 'ONBOARDING_ACCEPTED' },
+      select: { id: true },
+    });
+
+    let actualHiredQty = 0;
+    if (onboardingStatus) {
+      const directCount = await this.prisma.candidate.count({
+        where: {
+          OR: [
+            { proposalId: proposal.id },
+            { recruitmentProposalId: proposal.id },
+          ],
+          statusId: onboardingStatus.id,
+        },
+      });
+      const linkedCampaigns = await this.prisma.campaign.findMany({
+        where: { proposalId: proposal.id },
+        select: { id: true },
+      });
+      const campaignCount = linkedCampaigns.length > 0
+        ? await this.prisma.candidate.count({
+            where: {
+              campaignId: { in: linkedCampaigns.map(c => c.id) },
+              statusId: onboardingStatus.id,
+            },
+          })
+        : 0;
+      actualHiredQty = directCount + campaignCount;
+    }
+
+    // If below target, revert proposal status from COMPLETED to APPROVED
+    if (actualHiredQty < proposal.quantity || proposal.quantity === 0) {
+      await this.prisma.recruitmentProposal.update({
+        where: { id: proposal.id },
+        data: { status: 'APPROVED' },
+      });
+      console.log('[RevertFulfillment-write] Proposal reverted to APPROVED:', proposal.id, 'actualHiredQty:', actualHiredQty);
+    }
+
+    // Update fulfillment data
+    const completionRate = proposal.quantity > 0
+      ? Math.round((actualHiredQty / proposal.quantity) * 100)
+      : 0;
+
+    const existing = await this.prisma.proposalFulfillment.findUnique({
+      where: { proposalId: proposal.id },
+    });
+
+    if (existing) {
+      await this.prisma.proposalFulfillment.update({
+        where: { proposalId: proposal.id },
+        data: {
+          hiredQty: actualHiredQty,
+          onboardedQty: actualHiredQty,
+          completionRate,
+          lastUpdatedAt: new Date(),
+        },
+      });
+    }
   }
 }

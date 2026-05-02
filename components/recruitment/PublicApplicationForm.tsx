@@ -153,7 +153,7 @@ export default function PublicApplicationForm() {
   const loadProvinces = async () => {
     try {
       const res = await api.get('/locations/provinces')
-      setProvinces(res.data)
+      setProvinces((res.data || []).map((p: any) => ({ ...p, name: p.fullName || p.name })))
     } catch (err) {
       console.error('Error loading provinces:', err)
     }
@@ -166,7 +166,7 @@ export default function PublicApplicationForm() {
   const loadCurrentWards = async (provinceId: string) => {
     try {
       const res = await api.get(`/locations/provinces/${provinceId}/wards`)
-      setCurrentWards(res.data)
+      setCurrentWards((res.data || []).map((w: any) => ({ ...w, name: w.fullName || w.name })))
     } catch (err) {
       console.error('Error loading wards:', err)
       setCurrentWards([])
@@ -182,14 +182,8 @@ export default function PublicApplicationForm() {
 
     const selectedProvince = provinces.find((p) => p.id === formData.currentCity)
     if (selectedProvince) {
-      const provinceName = normalizeCityName(selectedProvince.name)
       const filtered = stores.filter((s) => {
-        if (!s.city) return false
-        const storeCity = normalizeCityName(s.city)
-        return (
-          storeCity.includes(provinceName) ||
-          provinceName.includes(storeCity)
-        )
+        return s.provinceCode === selectedProvince.code
       })
       setAvailableStores(filtered)
     } else {
@@ -200,7 +194,7 @@ export default function PublicApplicationForm() {
   const loadPermanentWards = async (provinceId: string) => {
     try {
       const res = await api.get(`/locations/provinces/${provinceId}/wards`)
-      setPermanentWards(res.data)
+      setPermanentWards((res.data || []).map((w: any) => ({ ...w, name: w.fullName || w.name })))
     } catch (err) {
       console.error('Error loading wards:', err)
       setPermanentWards([])

@@ -6,8 +6,6 @@ import writeXlsxFile from 'write-excel-file'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import Icon from '@/components/icons/Icon'
-import Layout from '@/components/Layout'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -256,33 +254,30 @@ export default function UsersManagementPage() {
   const isAMRole = formData.role === 'MANAGER' || formData.role === 'AM'
 
   return (
-    <Layout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-100 flex justify-between items-center">
+    <div className="space-y-4">
+        {/* Toolbar */}
+        <div className="flex justify-between items-center">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <Icon name="settings" size={24} className="text-gray-500" />Quản lý tài khoản
-            </h2>
-            <p className="text-sm text-gray-500 mt-1">Quản lý và phân quyền tài khoản, gán cửa hàng cho SM/AM</p>
+            <h3 className="text-lg font-semibold text-gray-900">Quản lý tài khoản</h3>
+            <p className="text-sm text-gray-500">Quản lý và phân quyền tài khoản, gán cửa hàng cho SM/AM</p>
           </div>
           <div className="flex gap-2">
             <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-sm font-medium">
-              <Icon name="download" size={18} /> Export
+              <Icon name="download" size={18} /> Export Excel
             </button>
             <label className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer text-sm font-medium">
-              <Icon name="upload" size={18} /> {importing ? 'Đang import...' : 'Import'}
-              <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleImport} className="hidden" />
+              <Icon name="upload" size={18} /> {importing ? 'Đang import...' : 'Import Excel'}
+              <input ref={fileInputRef} type="file" accept=".xlsx, .xls" onChange={handleImport} className="hidden" />
             </label>
-            <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 bg-kfc-red text-white text-sm font-medium rounded-md hover:bg-red-700">
-              <Icon name="plus" size={18} />Tạo tài khoản
+            <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 bg-kfc-red text-white rounded-md hover:bg-red-700 text-sm font-medium">
+              <Icon name="plus" size={18} /> Tạo tài khoản
             </button>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="flex gap-4 items-center bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
-          <select value={filterRole} onChange={e => setFilterRole(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm">
+        <div className="flex gap-4 items-center">
+          <select value={filterRole} onChange={e => setFilterRole(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md sm:text-sm">
             <option value="">Tất cả vai trò</option>
             <option value="USER">User / SM</option>
             <option value="MANAGER">AM (Manager)</option>
@@ -290,7 +285,7 @@ export default function UsersManagementPage() {
             <option value="HEAD_OF_DEPARTMENT">Head of Dept</option>
             <option value="ADMIN">Admin</option>
           </select>
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm">
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md sm:text-sm">
             <option value="">Tất cả trạng thái</option>
             <option value="active">Hoạt động</option>
             <option value="inactive">Đã khóa</option>
@@ -299,48 +294,48 @@ export default function UsersManagementPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white shadow-sm rounded-lg border border-gray-100 overflow-hidden">
+        <div className="border border-gray-200 rounded-lg overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Tên tài khoản</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Vai trò</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Cửa hàng quản lý</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Tên tài khoản</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Email</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Vai trò</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase hidden md:table-cell">Cửa hàng quản lý</th>
                 <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Trạng thái</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500">Đang tải...</td></tr>
+                <tr><td colSpan={5} className="px-4 py-12 text-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-kfc-red mx-auto"></div></td></tr>
               ) : filteredUsers.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-400">Chưa có tài khoản nào</td></tr>
+                <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400"><Icon name="user" size={48} className="mb-2 opacity-20 mx-auto" /><p>Không tìm thấy tài khoản nào</p></td></tr>
               ) : (
                 filteredUsers.map(user => (
-                  <tr 
-                    key={user.id} 
-                    className="hover:bg-gray-50 cursor-pointer"
+                  <tr
+                    key={user.id}
+                    className="hover:bg-gray-50 cursor-pointer group"
                     onContextMenu={(e) => handleContextMenu(e, user)}
                     onClick={() => openEdit(user)}
                   >
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs flex-shrink-0">
                           {user.fullName?.charAt(0) || '?'}
                         </div>
                         <div>
-                          <div className="text-sm font-bold">{user.fullName}</div>
+                          <div className="text-sm font-bold text-gray-900">{user.fullName}</div>
                           <div className="text-xs text-gray-500">{user.phone || 'Chưa có SĐT'}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{user.email}</td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex px-2.5 py-1 rounded-md text-xs font-medium ${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-800'}`}>
+                    <td className="px-4 py-3 text-sm text-gray-600">{user.email}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-800'}`}>
                         {ROLE_LABELS[user.role] || user.role}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3 hidden md:table-cell">
                       {hasFullAccess(user.role) ? (
                         <span className="inline-flex items-center gap-1 text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded-md font-medium">
                           <Icon name="shield" size={12} />Toàn quyền
@@ -364,8 +359,8 @@ export default function UsersManagementPage() {
                         <span className="text-xs text-gray-400 italic">Chưa gán</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                         {user.isActive ? 'Hoạt động' : 'Đã khóa'}
                       </span>
                     </td>
@@ -381,7 +376,10 @@ export default function UsersManagementPage() {
           <Dialog open={showModal} onOpenChange={setShowModal}>
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>{editingUser ? 'Cập nhật tài khoản' : 'Tạo mới tài khoản'}</DialogTitle>
+                <DialogTitle className="flex items-center gap-3">
+                  <div className="bg-kfc-red/10 p-2 rounded-lg text-kfc-red"><Icon name={editingUser ? 'pencil' : 'plus'} size={20} /></div>
+                  {editingUser ? 'Chỉnh sửa tài khoản' : 'Tạo tài khoản mới'}
+                </DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -522,18 +520,17 @@ export default function UsersManagementPage() {
                 </div>
 
                 <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setShowModal(false)}>Hủy bỏ</Button>
-                  <Button type="submit" disabled={submitting} className="bg-kfc-red hover:bg-red-700">
-                    {submitting ? 'Đang xử lý...' : 'Lưu tài khoản'}
-                  </Button>
+                  <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50">Hủy bỏ</button>
+                  <button type="submit" disabled={submitting} className="px-4 py-2 bg-kfc-red text-white text-sm font-medium rounded-md hover:bg-red-700 disabled:opacity-50">
+                    {submitting ? 'Đang xử lý...' : (editingUser ? 'Cập nhật' : 'Tạo mới')}
+                  </button>
                 </DialogFooter>
               </form>
             </DialogContent>
           </Dialog>
         )}
-      </div>
 
-      {/* Context Menu */}
+        {/* Context Menu */}
       {contextMenu && (
         <div 
           className="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[160px]"
@@ -578,11 +575,11 @@ export default function UsersManagementPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button onClick={() => setImportSummary(null)} className="bg-kfc-red hover:bg-red-700">Đóng</Button>
+              <button onClick={() => setImportSummary(null)} className="px-4 py-2 bg-kfc-red text-white text-sm font-medium rounded-md hover:bg-red-700">Đóng</button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
-    </Layout>
+    </div>
   )
 }

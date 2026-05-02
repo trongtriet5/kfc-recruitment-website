@@ -8,6 +8,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog'
 import Modal from '@/components/common/Modal'
 import Icon from '@/components/icons/Icon'
 import { SearchableSelect } from '@/components/ui/select-searchable'
+import { DatePicker } from '@/components/ui/date-picker'
 
 interface Proposal {
   id: string
@@ -30,6 +31,7 @@ interface Proposal {
   endDate: string | null
   isUntilFilled: boolean
   _count: { candidates: number }
+  fulfillment?: { hiredQty: number; onboardedQty: number }
   workflowHistory?: { id: string; fromStatus: string; toStatus: string; action: string; actorRole: string; notes: string | null; createdAt: string; actor: { fullName: string } | null }[]
 }
 
@@ -294,11 +296,20 @@ export default function ProposalsList() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Ngày bắt đầu</label>
-                <input type="date" value={formData.startDate} onChange={e => setFormData({ ...formData, startDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+                <DatePicker
+                  value={formData.startDate}
+                  onChange={(v) => setFormData({ ...formData, startDate: v })}
+                  placeholder="Chọn ngày bắt đầu"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Ngày kết thúc</label>
-                <input type="date" value={formData.endDate} onChange={e => setFormData({ ...formData, endDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+                <DatePicker
+                  value={formData.endDate}
+                  onChange={(v) => setFormData({ ...formData, endDate: v })}
+                  placeholder="Chọn ngày kết thúc"
+                  minDate={formData.startDate || undefined}
+                />
               </div>
             </div>
           )}
@@ -333,13 +344,16 @@ export default function ProposalsList() {
                       {proposal.isUnplanned && <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">Đột xuất</span>}
                     </div>
                     <div className="mt-1">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${(typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'APPROVED'
-                        ? 'bg-green-100 text-green-800'
-                        : (typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'REJECTED'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-yellow-100 text-yellow-800'
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        (typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'COMPLETED'
+                          ? 'bg-indigo-100 text-indigo-800'
+                          : (typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'APPROVED'
+                            ? 'bg-green-100 text-green-800'
+                            : (typeof proposal.status === 'object' ? proposal.status?.code : proposal.status) === 'REJECTED'
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-yellow-100 text-yellow-800'
                         }`}>
-                        {typeof proposal.status === 'object' ? proposal.status?.name : proposal.status === 'APPROVED' ? 'Đã duyệt' : proposal.status === 'REJECTED' ? 'Từ chối' : proposal.status === 'SUBMITTED' ? 'Chờ duyệt' : proposal.status === 'AM_REVIEWED' ? 'AM đã xem xét' : 'Chờ duyệt'}
+                        {typeof proposal.status === 'object' ? proposal.status?.name : proposal.status === 'COMPLETED' ? 'Hoàn thành' : proposal.status === 'APPROVED' ? 'Đã duyệt' : proposal.status === 'REJECTED' ? 'Từ chối' : proposal.status === 'SUBMITTED' ? 'Chờ duyệt' : proposal.status === 'AM_REVIEWED' ? 'AM đã xem xét' : 'Chờ duyệt'}
                       </span>
                     </div>
                     <p className="mt-1 text-sm text-gray-500">{proposal.description}</p>
@@ -349,6 +363,7 @@ export default function ProposalsList() {
                       <span>Số lượng: {proposal.quantity}</span>
                       {proposal.recruitmentType && <span>Loại: {proposal.recruitmentType === 'KE_HOACH' ? 'Kế hoạch' : proposal.recruitmentType === 'THAY_THE' ? 'Thay thế' : 'Ngoài Kế hoạch'}</span>}
                       <span>Ứng viên: {proposal._count?.candidates || 0}</span>
+                      <span>Trúng tuyển: {proposal.fulfillment?.hiredQty || 0} / {proposal.quantity}</span>
                     </div>
                   </div>
                   <div className="ml-4 flex gap-2">
@@ -423,9 +438,11 @@ export default function ProposalsList() {
               <Icon name="megaphone" size={14} /> Tạo chiến dịch
             </button>
           )}
-          <button onClick={() => { setSelectedProposal(contextMenu.proposal); setContextMenu(null); setConfirmDelete(true) }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-red-600">
-            <Icon name="trash" size={14} /> Xóa
-          </button>
+          {(!contextMenu.proposal._count || contextMenu.proposal._count.candidates === 0) && (
+            <button onClick={() => { setSelectedProposal(contextMenu.proposal); setContextMenu(null); setConfirmDelete(true) }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-red-600">
+              <Icon name="trash" size={14} /> Xóa
+            </button>
+          )}
         </div>
       )}
 
@@ -548,13 +565,14 @@ export default function ProposalsList() {
           <div className="space-y-4">
             <div>
               <h3 className="text-lg font-semibold">{selectedProposal.title}</h3>
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-2 ${selectedProposal.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-2 ${selectedProposal.status === 'COMPLETED' ? 'bg-indigo-100 text-indigo-800' :
+                selectedProposal.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
                 selectedProposal.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
                   selectedProposal.status === 'SUBMITTED' ? 'bg-yellow-100 text-yellow-800' :
                     selectedProposal.status === 'AM_REVIEWED' ? 'bg-blue-100 text-blue-800' :
                       'bg-yellow-100 text-yellow-800'
                 }`}>
-                {selectedProposal.status === 'APPROVED' ? 'Đã duyệt' : selectedProposal.status === 'REJECTED' ? 'Từ chối' : selectedProposal.status === 'SUBMITTED' ? 'Chờ duyệt' : selectedProposal.status === 'AM_REVIEWED' ? 'AM đã xem xét' : 'Chờ duyệt'}
+                {selectedProposal.status === 'COMPLETED' ? 'Hoàn thành' : selectedProposal.status === 'APPROVED' ? 'Đã duyệt' : selectedProposal.status === 'REJECTED' ? 'Từ chối' : selectedProposal.status === 'SUBMITTED' ? 'Chờ duyệt' : selectedProposal.status === 'AM_REVIEWED' ? 'AM đã xem xét' : 'Chờ duyệt'}
               </span>
             </div>
             {/* Workflow Steps Indicator */}
@@ -610,7 +628,7 @@ export default function ProposalsList() {
                       <span className="ml-2 text-sm font-medium">Admin duyệt</span>
                     </div>
                   </div>
-                  {!['APPROVED', 'REJECTED', 'CANCELLED'].includes(status || '') && (
+                  {!['COMPLETED', 'APPROVED', 'REJECTED', 'CANCELLED'].includes(status || '') && (
                     <p className="mt-3 text-sm text-yellow-600 font-medium">
                       {status === 'SUBMITTED' && (isCreatedByAdmin ? '→ Đang chờ Admin duyệt' : '→ Đang chờ AM duyệt')}
                       {status === 'AM_REVIEWED' && '→ Đang chờ Admin duyệt'}
