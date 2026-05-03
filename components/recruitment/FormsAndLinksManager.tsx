@@ -67,6 +67,7 @@ export default function FormsAndLinksManager() {
   const [duplicatingForm, setDuplicatingForm] = useState<RecruitmentForm | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; form: RecruitmentForm } | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [user, setUser] = useState<{ id: string, role: string, permissions?: string[] } | null>(null)
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -118,7 +119,26 @@ export default function FormsAndLinksManager() {
   useEffect(() => {
     loadForms()
     loadSources()
+    loadUser()
   }, [])
+
+  const loadUser = async () => {
+    try {
+      const res = await api.get('/auth/me')
+      // Fetch full role details to get permissions
+      const roleRes = await api.get('/roles')
+      const userRole = roleRes.data.find((r: any) => r.code === res.data.role)
+      setUser({ ...res.data, permissions: userRole?.permissions || [] })
+    } catch (error) {
+      console.error('Failed to load user info', error)
+    }
+  }
+
+  const checkPermission = (permission: string) => {
+    if (!user) return false
+    if (user.role === 'ADMIN') return true
+    return user.permissions?.includes(permission) || false
+  }
 
   const loadForms = () => {
     api
@@ -307,28 +327,30 @@ export default function FormsAndLinksManager() {
       </div>
 
       <div className="flex justify-between items-center">
-        <button
-          onClick={() => {
-            setEditingForm(null)
-            setFormData({
-              title: '',
-              description: '',
-              sourceId: '',
-              formTitle: '',
-              formContent: '',
-              bannerUrl: '',
-              primaryColor: '#E31837',
-              secondaryColor: '#FFFFFF',
-              backgroundColor: '#FFFFFF',
-              textColor: '#111827',
-              isActive: true,
-            })
-            setShowCreateForm(true)
-          }}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium shadow-sm"
-        >
-          + Tạo form
-        </button>
+        {checkPermission('FORM_CREATE') && (
+          <button
+            onClick={() => {
+              setEditingForm(null)
+              setFormData({
+                title: '',
+                description: '',
+                sourceId: '',
+                formTitle: '',
+                formContent: '',
+                bannerUrl: '',
+                primaryColor: '#E31837',
+                secondaryColor: '#FFFFFF',
+                backgroundColor: '#FFFFFF',
+                textColor: '#111827',
+                isActive: true,
+              })
+              setShowCreateForm(true)
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium shadow-sm"
+          >
+            + Tạo form
+          </button>
+        )}
       </div>
 
       {/* Create/Edit Form Modal */}
@@ -621,36 +643,46 @@ export default function FormsAndLinksManager() {
 
       {contextMenu && (
         <div className="fixed bg-white shadow-lg rounded-md border py-1 z-50" style={{ top: contextMenu.y, left: contextMenu.x }}>
-          <button onClick={() => { handleDesign(contextMenu.form); setContextMenu(null) }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-700">
-            <Icon name="edit" size={14} /> Thiết kế
-          </button>
-          <button onClick={() => { handleDuplicate(contextMenu.form); setContextMenu(null) }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-700">
-            <Icon name="copy" size={14} /> Nhân bản
-          </button>
-          <button onClick={() => { handleEdit(contextMenu.form); setContextMenu(null) }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-700">
-            <Icon name="edit" size={14} /> Sửa
-          </button>
-          <button onClick={() => { previewForm(contextMenu.form); setContextMenu(null) }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-700">
-            <Icon name="eye" size={14} /> Xem
-          </button>
-          <button
-            onClick={() => {
-              if (contextMenu.form.isActive && (contextMenu.form._count?.candidates || 0) > 0) {
-                toast.error('Không thể xóa form đang hoạt động và có ứng viên. Vui lòng tạm dừng form trước.')
-                return
-              }
-              setConfirmDeleteForm(contextMenu.form)
-              setContextMenu(null)
-            }}
-            disabled={contextMenu.form.isActive && (contextMenu.form._count?.candidates || 0) > 0}
-            className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${
-              contextMenu.form.isActive && (contextMenu.form._count?.candidates || 0) > 0
-                ? 'text-gray-300 cursor-not-allowed'
-                : 'hover:bg-gray-100 text-gray-700'
-            }`}
-          >
-            <Icon name="trash" size={14} /> Xóa
-          </button>
+          {checkPermission('FORM_DESIGN') && (
+            <button onClick={() => { handleDesign(contextMenu.form); setContextMenu(null) }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-700">
+              <Icon name="edit" size={14} /> Thiết kế
+            </button>
+          )}
+          {checkPermission('FORM_DUPLICATE') && (
+            <button onClick={() => { handleDuplicate(contextMenu.form); setContextMenu(null) }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-700">
+              <Icon name="copy" size={14} /> Nhân bản
+            </button>
+          )}
+          {checkPermission('FORM_UPDATE') && (
+            <button onClick={() => { handleEdit(contextMenu.form); setContextMenu(null) }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-700">
+              <Icon name="edit" size={14} /> Sửa
+            </button>
+          )}
+          {checkPermission('FORM_READ') && (
+            <button onClick={() => { previewForm(contextMenu.form); setContextMenu(null) }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-700">
+              <Icon name="eye" size={14} /> Xem
+            </button>
+          )}
+          {checkPermission('FORM_DELETE') && (
+            <button
+              onClick={() => {
+                if (contextMenu.form.isActive && (contextMenu.form._count?.candidates || 0) > 0) {
+                  toast.error('Không thể xóa form đang hoạt động và có ứng viên. Vui lòng tạm dừng form trước.')
+                  return
+                }
+                setConfirmDeleteForm(contextMenu.form)
+                setContextMenu(null)
+              }}
+              disabled={contextMenu.form.isActive && (contextMenu.form._count?.candidates || 0) > 0}
+              className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${
+                contextMenu.form.isActive && (contextMenu.form._count?.candidates || 0) > 0
+                  ? 'text-gray-300 cursor-not-allowed'
+                  : 'hover:bg-gray-100 text-gray-700'
+              }`}
+            >
+              <Icon name="trash" size={14} /> Xóa
+            </button>
+          )}
         </div>
       )}
     </div>

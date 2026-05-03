@@ -690,21 +690,15 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
       };
     });
 
-    // Get counts - both direct proposalId and via campaign
+    // Get counts - count candidates via campaign only (avoid double counting)
     const proposalIds = proposals.map(p => p.id);
-    
-    const directCounts = await this.prisma.candidate.groupBy({
-      by: ['proposalId'],
-      _count: { id: true },
-      where: { proposalId: { in: proposalIds } }
-    });
 
     const campaignProposals = await this.prisma.campaign.findMany({
       where: { proposalId: { in: proposalIds } },
       select: { id: true, proposalId: true }
     });
     const localCampaignIds = campaignProposals.map(c => c.id);
-    
+
     const campaignCounts = localCampaignIds.length > 0 ? await this.prisma.candidate.groupBy({
       by: ['campaignId'],
       _count: { id: true },
@@ -712,9 +706,6 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
     }) : [];
 
     const countMap: Record<string, number> = {};
-    directCounts.forEach(c => {
-      if (c.proposalId) countMap[c.proposalId] = (countMap[c.proposalId] || 0) + c._count.id;
-    });
     campaignCounts.forEach(c => {
       const campaign = campaignProposals.find(cp => cp.id === c.campaignId);
       if (campaign && campaign.proposalId) {

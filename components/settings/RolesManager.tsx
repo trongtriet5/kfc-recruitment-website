@@ -144,7 +144,13 @@ export default function RolesManager() {
     'OFFER_UPDATE': 'Cập nhật offer',
     'OFFER_DELETE': 'Xóa offer',
     'OFFER_SEND': 'Gửi offer cho ứng viên',
-    'SETTINGS_MANAGE': 'Quản lý cài đặt & Form',
+    'FORM_READ': 'Xem danh sách Form',
+    'FORM_CREATE': 'Tạo mới Form',
+    'FORM_DESIGN': 'Thiết kế cấu trúc Form',
+    'FORM_UPDATE': 'Chỉnh sửa thông tin Form',
+    'FORM_DUPLICATE': 'Nhân bản Form',
+    'FORM_DELETE': 'Xóa bỏ Form',
+    'SETTINGS_MANAGE': 'Quản lý cài đặt chung',
     'USER_MANAGE': 'Quản lý người dùng & Vai trò',
   };
 
@@ -163,6 +169,11 @@ export default function RolesManager() {
     { 
       name: 'Form tuyển dụng', 
       icon: 'file-text',
+      perms: allPermissions.filter(p => p.startsWith('FORM')) 
+    },
+    { 
+      name: 'Hệ thống & Cấu hình', 
+      icon: 'settings',
       perms: allPermissions.filter(p => p.startsWith('SETTINGS') || p.startsWith('USER')) 
     },
     { 

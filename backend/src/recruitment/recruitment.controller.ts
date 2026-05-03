@@ -10,6 +10,8 @@ import { CampaignFulfillmentService } from './campaign-fulfillment.service';
 import { CandidateReadService } from './candidate-read.service';
 import { CurrentUser } from '../auth/decorators/user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
 
 @Controller('recruitment')
 @UseGuards(JwtAuthGuard)
@@ -26,19 +28,29 @@ export class RecruitmentController {
 
   // Forms
   @Get('forms')
+  @Permissions('FORM_READ')
+  @UseGuards(PermissionsGuard)
   getForms() { return this.service.getForms(); }
   
   
   @Get('forms/:id')
+  @Permissions('FORM_READ')
+  @UseGuards(PermissionsGuard)
   getForm(@Param('id') id: string) { return this.service.getForm(id); }
   
   @Post('forms')
+  @Permissions('FORM_CREATE', 'FORM_DUPLICATE')
+  @UseGuards(PermissionsGuard)
   createForm(@Body() data: any) { return this.service.createForm(data); }
   
   @Patch('forms/:id')
+  @Permissions('FORM_UPDATE', 'FORM_DESIGN')
+  @UseGuards(PermissionsGuard)
   updateForm(@Param('id') id: string, @Body() data: any) { return this.service.updateForm(id, data); }
   
   @Delete('forms/:id')
+  @Permissions('FORM_DELETE')
+  @UseGuards(PermissionsGuard)
   deleteForm(@Param('id') id: string) { return this.service.deleteForm(id); }
 
   // Campaigns
@@ -97,8 +109,17 @@ export class RecruitmentController {
   }
   
   @Patch('candidates/:id')
-  updateCandidate(@Param('id') id: string, @Body() data: any, @CurrentUser() user: any) { 
-    return this.service.updateCandidate(id, data, user); 
+  updateCandidate(@Param('id') id: string, @Body() data: any, @CurrentUser() user: any) {
+    return this.service.updateCandidate(id, data, user);
+  }
+
+  @Patch('candidates/:id/transfer-campaign')
+  transferCampaign(
+    @Param('id') id: string,
+    @Body() data: { campaignId: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.service.transferCampaign(id, data.campaignId, user);
   }
   
   @Delete('candidates/:id')

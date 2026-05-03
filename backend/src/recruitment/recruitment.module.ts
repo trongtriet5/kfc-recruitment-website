@@ -4,6 +4,7 @@ import { RecruitmentController } from './recruitment.controller';
 import { RecruitmentPublicController } from './recruitment-public.controller';
 import { TypesController } from './types.controller';
 import { PrismaModule } from '../prisma/prisma.module';
+import { AuthModule } from '../auth/auth.module';
 import { StatusTransitionService } from './status-transition.service';
 import { AuditService } from './audit.service';
 import { ProposalService } from './proposal.service';
@@ -14,7 +15,7 @@ import { CampaignService } from './campaign.service';
 import { CandidateGateway } from './candidate.gateway';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, AuthModule],
   controllers: [RecruitmentController, RecruitmentPublicController, TypesController],
   providers: [
     RecruitmentService,
