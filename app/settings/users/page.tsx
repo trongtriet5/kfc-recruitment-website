@@ -1,8 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, createContext, useContext } from 'react'
-import readXlsxFile from 'read-excel-file'
-import writeXlsxFile from 'write-excel-file'
+import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import Icon from '@/components/icons/Icon'
@@ -31,28 +29,31 @@ interface User {
   phone: string | null
   role: string
   isActive: boolean
+  roleId?: string | null
+  roleObj?: { id: string; name: string; code: string } | null
   managedStore?: { id: string; name: string; code: string } | null
   managedStores?: { id: string; name: string; code: string }[]
 }
 
+interface Role {
+  id: string
+  name: string
+  code: string
+  isActive: boolean
+}
+
 const ROLE_LABELS: Record<string, string> = {
-  USER: 'User (TA)',
-  SM: 'SM',
   AM: 'AM',
-  MANAGER: 'AM',
+  SM: 'SM',
   RECRUITER: 'Recruiter',
-  HEAD_OF_DEPARTMENT: 'Head of Dept',
   ADMIN: 'Admin',
 }
 
 const ROLE_COLORS: Record<string, string> = {
   ADMIN: 'bg-purple-100 text-purple-800',
-  MANAGER: 'bg-blue-100 text-blue-800',
   AM: 'bg-blue-100 text-blue-800',
-  USER: 'bg-gray-100 text-gray-800',
   SM: 'bg-gray-100 text-gray-800',
   RECRUITER: 'bg-green-100 text-green-800',
-  HEAD_OF_DEPARTMENT: 'bg-orange-100 text-orange-800',
 }
 
 export default function UsersManagementPage() {
@@ -62,9 +63,10 @@ export default function UsersManagementPage() {
   const [showModal, setShowModal] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [formData, setFormData] = useState({
-    fullName: '', email: '', phone: '', password: '', role: 'USER', isActive: true,
+    fullName: '', email: '', phone: '', password: '', roleId: '', isActive: true,
     storeId: '', storeIds: [] as string[],
   })
+  const [dbRoles, setDbRoles] = useState<Role[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importSummary, setImportSummary] = useState<{ success: number; failed: number } | null>(null)
@@ -88,7 +90,16 @@ export default function UsersManagementPage() {
     return () => document.removeEventListener('click', handleClick)
   }, [])
 
-  useEffect(() => { loadUsers(); loadStores() }, [])
+  useEffect(() => { loadUsers(); loadStores(); loadRoles() }, [])
+
+  const loadRoles = async () => {
+    try {
+      const res = await api.get('/roles')
+      setDbRoles(res.data.filter((r: Role) => r.isActive))
+    } catch (error) {
+      console.error('Cannot load roles', error)
+    }
+  }
 
   const loadUsers = async () => {
     setLoading(true)
@@ -122,7 +133,7 @@ export default function UsersManagementPage() {
 
   const openCreate = () => {
     setEditingUser(null)
-    setFormData({ fullName: '', email: '', phone: '', password: '', role: 'USER', isActive: true, storeId: '', storeIds: [] })
+    setFormData({ fullName: '', email: '', phone: '', password: '', roleId: dbRoles.find(r => r.code === 'SM')?.id || '', isActive: true, storeId: '', storeIds: [] })
     setShowModal(true)
   }
 
@@ -133,7 +144,7 @@ export default function UsersManagementPage() {
       email: user.email,
       phone: user.phone || '',
       password: '',
-      role: user.role,
+      roleId: user.roleId || '',
       isActive: user.isActive,
       storeId: user.managedStore?.id || '',
       storeIds: user.managedStores?.map(s => s.id) || [],
@@ -199,47 +210,36 @@ export default function UsersManagementPage() {
     }))
   }
 
-  const handleExport = () => {
-    void (async () => {
-      try {
-        const headers = ['Email', 'Họ và tên', 'Số điện thoại', 'Vai trò', 'Trạng thái', 'Cửa hàng']
-        const data = filteredUsers.map(u => [
-          u.email, u.fullName, u.phone || '',
-          ROLE_LABELS[u.role] || u.role,
-          u.isActive ? 'Hoạt động' : 'Đã khóa',
-          u.managedStore?.code || u.managedStores?.map(s => s.code).join(', ') || '',
-        ])
-        const rows = [headers, ...data].map(row => row.map(value => ({ value })))
-        await writeXlsxFile(rows, { fileName: `users_${new Date().toISOString().split('T')[0]}.xlsx` })
-        toast.success(`Đã export ${filteredUsers.length} tài khoản`)
-      } catch { toast.error('Không thể export') }
-    })()
+  const handleExport = async () => {
+    try {
+      const res = await api.get('/users/export', { responseType: 'blob' })
+      const url = window.URL.createObjectURL(new Blob([res.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `users_${new Date().toISOString().split('T')[0]}.xlsx`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+      toast.success('Đã export danh sách tài khoản')
+    } catch { toast.error('Không thể export') }
   }
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return
     setImporting(true)
     try {
-      const fileRows = await readXlsxFile(file)
-      const headers = fileRows[0].map(v => String(v).trim())
-      const roleMap: Record<string, string> = { 'user': 'USER', 'ta': 'USER', 'sm': 'USER', 'am': 'MANAGER', 'admin': 'ADMIN', 'recruiter': 'RECRUITER' }
-      const usersToImport = fileRows.slice(1).filter(row => row.some(v => v)).map(row => {
-        const obj: Record<string, string> = {}
-        headers.forEach((h, i) => { obj[h] = String(row[i] || '').trim() })
-        const roleKey = (obj['Vai trò'] || obj['role'] || '').toLowerCase()
-        return {
-          email: obj['Email'] || obj['email'],
-          fullName: obj['Họ và tên'] || obj['fullName'] || obj['name'],
-          phone: obj['Số điện thoại'] || obj['phone'] || '',
-          role: roleMap[roleKey] || roleMap[roleKey.split('(')[0].trim()] || 'USER',
-          isActive: !obj['Trạng thái'] || obj['Trạng thái'].toLowerCase() === 'hoạt động',
-        }
-      }).filter(u => u.email)
-      const res = await api.post('/users/import', { users: usersToImport })
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await api.post('/users/import-file', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
       setImportSummary(res.data)
       if (res.data.success > 0) toast.success(`Import thành công ${res.data.success} tài khoản`)
       loadUsers()
-    } catch { toast.error('Lỗi khi đọc file Excel') }
+    } catch (err: any) { 
+      toast.error(err.response?.data?.message || 'Lỗi khi import file Excel') 
+    }
     finally { setImporting(false); if (fileInputRef.current) fileInputRef.current.value = '' }
   }
 
@@ -250,8 +250,9 @@ export default function UsersManagementPage() {
     return true
   })
 
-  const isSMRole = formData.role === 'USER' || formData.role === 'SM'
-  const isAMRole = formData.role === 'MANAGER' || formData.role === 'AM'
+  const selectedRoleCode = dbRoles.find(r => r.id === formData.roleId)?.code || ''
+  const isSMRole = selectedRoleCode === 'SM'
+  const isAMRole = selectedRoleCode === 'AM'
 
   return (
     <div className="space-y-4">
@@ -279,11 +280,9 @@ export default function UsersManagementPage() {
         <div className="flex gap-4 items-center">
           <select value={filterRole} onChange={e => setFilterRole(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md sm:text-sm">
             <option value="">Tất cả vai trò</option>
-            <option value="USER">User / SM</option>
-            <option value="MANAGER">AM (Manager)</option>
-            <option value="RECRUITER">Recruiter</option>
-            <option value="HEAD_OF_DEPARTMENT">Head of Dept</option>
-            <option value="ADMIN">Admin</option>
+            {dbRoles.map(role => (
+              <option key={role.id} value={role.code}>{role.name}</option>
+            ))}
           </select>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md sm:text-sm">
             <option value="">Tất cả trạng thái</option>
@@ -332,7 +331,7 @@ export default function UsersManagementPage() {
                     <td className="px-4 py-3 text-sm text-gray-600">{user.email}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-800'}`}>
-                        {ROLE_LABELS[user.role] || user.role}
+                        {user.roleObj?.name || ROLE_LABELS[user.role] || user.role}
                       </span>
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
@@ -396,14 +395,20 @@ export default function UsersManagementPage() {
                 </div>
                 <div>
                   <Label>Vai trò</Label>
-                  <Select value={formData.role} onValueChange={v => setFormData({ ...formData, role: v, storeId: '', storeIds: [] })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Select 
+                    value={formData.roleId} 
+                    onValueChange={v => {
+                      const selectedRole = dbRoles.find(r => r.id === v);
+                      setFormData({ ...formData, roleId: v, storeId: '', storeIds: [] });
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Chọn vai trò" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="USER">User / SM (Store Manager)</SelectItem>
-                      <SelectItem value="MANAGER">AM (Area Manager)</SelectItem>
-                      <SelectItem value="RECRUITER">Recruiter (Tuyển dụng viên)</SelectItem>
-                      <SelectItem value="HEAD_OF_DEPARTMENT">Head of Department</SelectItem>
-                      <SelectItem value="ADMIN">Admin (Quản trị viên)</SelectItem>
+                      {dbRoles.map(role => (
+                        <SelectItem key={role.id} value={role.id}>
+                          {role.name} ({role.code})
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -448,7 +453,7 @@ export default function UsersManagementPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <p className="text-xs text-blue-700">
-                      Vai trò <strong>{ROLE_LABELS[formData.role] || formData.role}</strong> có toàn quyền trên tất cả cửa hàng, không cần gán cụ thể.
+                      Vai trò <strong>{dbRoles.find(r => r.id === formData.roleId)?.name || 'Chưa chọn'}</strong> có toàn quyền trên tất cả cửa hàng, không cần gán cụ thể.
                     </p>
                   </div>
                 )}

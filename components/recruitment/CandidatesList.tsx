@@ -66,6 +66,8 @@ export default function CandidatesList() {
   const [interviewCandidateId, setInterviewCandidateId] = useState<string | null>(null)
   const [deleteCandidateId, setDeleteCandidateId] = useState<string | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const statusUpdateFormRef = useRef<HTMLDivElement>(null)
 
   const [transferModal, setTransferModal] = useState<{
@@ -151,14 +153,15 @@ export default function CandidatesList() {
 
   const getAllowedStatuses = (): string[] => {
     if (!user) return []
-    if (user.role === 'ADMIN' || user.role === 'HEAD_OF_DEPARTMENT') {
+    if (['ADMIN', 'RECRUITER'].includes(user.role)) {
       return dbStatuses.map((s) => s.code)
     }
-    if (user.role === 'MANAGER') {
+    if (['MANAGER', 'AM', 'USER'].includes(user.role)) {
       return [
         'SM_AM_INTERVIEW_PASSED',
         'SM_AM_INTERVIEW_FAILED',
         'SM_AM_INTERVIEW_NO_SHOW',
+        'ONBOARDING_ACCEPTED'
       ]
     }
     return []
@@ -272,6 +275,45 @@ export default function CandidatesList() {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      const params: any = {}
+      if (statusFilter && statusFilter !== '__all__') params.statusId = statusFilter
+      if (campaignFilter && campaignFilter !== '__all__') params.campaignId = campaignFilter
+      if (storeFilter && storeFilter !== '__all__') params.storeId = storeFilter
+      if (taFilter && taFilter !== '__all__') params.taId = taFilter
+
+      const res = await api.get('/recruitment/candidates/export', { params, responseType: 'blob' })
+      const url = window.URL.createObjectURL(new Blob([res.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `candidates_${new Date().toISOString().split('T')[0]}.xlsx`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+      toast.success('Đã export danh sách ứng viên')
+    } catch { toast.error('Không thể export') }
+  }
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return
+    setImporting(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await api.post('/recruitment/candidates/import-file', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      if (res.data.success > 0) toast.success(`Import thành công ${res.data.success} ứng viên`)
+      if (res.data.failed > 0) toast.error(`Có ${res.data.failed} dòng lỗi`)
+      loadCandidates()
+    } catch (err: any) { 
+      toast.error(err.response?.data?.message || 'Lỗi khi import file Excel') 
+    }
+    finally { setImporting(false); if (fileInputRef.current) fileInputRef.current.value = '' }
+  }
+
   const getStatusLabel = (status: unknown) => {
     if (!status || typeof status !== 'string' && typeof status !== 'object') return 'Chưa có trạng thái'
 
@@ -363,6 +405,10 @@ export default function CandidatesList() {
   const allowedStatuses = getAllowedStatuses()
   const allStatuses = dbStatuses.map((s) => ({ value: s.code, label: s.name }))
 
+  const canCreate = user && ['ADMIN', 'RECRUITER'].includes(user.role)
+  const canExport = user && ['ADMIN', 'RECRUITER'].includes(user.role)
+  const canImport = user && ['ADMIN', 'RECRUITER'].includes(user.role)
+
   return (
     <div className="relative space-y-8">
       {/* Page Header */}
@@ -401,11 +447,11 @@ export default function CandidatesList() {
               console.error('Error updating status:', err)
             }
           }}
-          onDelete={(candidateId) => setDeleteCandidateId(candidateId)}
+          onDelete={user && ['ADMIN', 'RECRUITER'].includes(user.role) ? (candidateId) => setDeleteCandidateId(candidateId) : undefined}
           onScheduleInterview={(candidate) => setInterviewCandidateId(candidate.id)}
-          onEdit={(candidateId) => setEditCandidateId(candidateId)}
-          onAssignPIC={loadTAsForAssign}
-          onTransferCampaign={loadCampaignsForTransfer}
+          onEdit={user && ['ADMIN', 'RECRUITER', 'MANAGER', 'AM'].includes(user.role) ? (candidateId) => setEditCandidateId(candidateId) : undefined}
+          onAssignPIC={user && ['ADMIN', 'RECRUITER'].includes(user.role) ? loadTAsForAssign : undefined}
+          onTransferCampaign={user && ['ADMIN', 'RECRUITER'].includes(user.role) ? loadCampaignsForTransfer : undefined}
           onViewDetail={(id) => setViewCandidateId(id)}
           allowedStatuses={allowedStatuses}
           statusOptions={allStatuses}
@@ -413,13 +459,43 @@ export default function CandidatesList() {
       )}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium shadow-sm"
-          >
-            <Icon name="plus" size={16} />
-            Thêm ứng viên
-          </button>
+          {canCreate && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium shadow-sm"
+            >
+              <Icon name="plus" size={16} />
+              Thêm ứng viên
+            </button>
+          )}
+          {canExport && (
+            <button
+              onClick={handleExport}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium shadow-sm"
+            >
+              <Icon name="download" size={16} />
+              Export
+            </button>
+          )}
+          {canImport && (
+            <>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium shadow-sm"
+              >
+                <Icon name={importing ? 'refresh' : 'upload'} size={16} className={importing ? 'animate-spin' : ''} />
+                {importing ? 'Đang import...' : 'Import'}
+              </button>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleImport} 
+                className="hidden" 
+                accept=".xlsx, .xls"
+              />
+            </>
+          )}
           <div className="flex border border-gray-200 rounded-lg overflow-hidden shadow-sm">
             <button
               onClick={() => setViewMode('list')}

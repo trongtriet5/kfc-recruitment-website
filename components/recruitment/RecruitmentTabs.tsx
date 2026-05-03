@@ -33,7 +33,7 @@ export default function RecruitmentTabs() {
         const role = res.data.role
         let available: typeof tabs = []
         
-        if (role === 'ADMIN' || role === 'HEAD_OF_DEPARTMENT') {
+        if (role === 'ADMIN' || role === 'RECRUITER') {
           available = tabs
         } else if (role === 'MANAGER' || role === 'USER') {
           available = tabs.filter(t => ['candidates', 'proposals', 'interviews'].includes(t.id))

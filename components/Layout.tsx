@@ -7,6 +7,7 @@ import api from '@/lib/api'
 import Icon from '@/components/icons/Icon'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatDate, formatDateTime } from '@/lib/utils'
+import { toast } from 'sonner'
 import { socket } from '@/src/socket'
 
 interface User {
@@ -28,11 +29,12 @@ interface Notification {
 }
 
 const NOTIFICATION_COLORS: Record<string, string> = {
-  SLA_BREACH: 'text-red-600 bg-red-50',
-  STATUS_CHANGE: 'text-blue-600 bg-blue-50',
-  PROPOSAL_APPROVAL: 'text-green-600 bg-green-50',
-  INTERVIEW_REMINDER: 'text-amber-600 bg-amber-50',
-  OFFER_ACCEPTED: 'text-emerald-600 bg-emerald-50',
+  SLA_BREACH: 'text-gray-900 bg-gray-100',
+  STATUS_CHANGE: 'text-gray-900 bg-gray-100',
+  PROPOSAL_APPROVAL: 'text-gray-900 bg-gray-100',
+  INTERVIEW_REMINDER: 'text-gray-900 bg-gray-100',
+  OFFER_ACCEPTED: 'text-gray-900 bg-gray-100',
+  NEW_CANDIDATE: 'text-gray-900 bg-gray-100',
 }
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -108,11 +110,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
     const onNewNotification = (notification: Notification) => {
       // Check if notification is for this user (recipientId match)
-      // Note: user.id might be stored in the 'user' state
       if (notification.recipientId && notification.recipientId !== user.id) return;
 
       setNotifications(prev => [notification, ...prev].slice(0, 50))
       setUnreadCount(prev => prev + 1)
+
+      // Show minimal toast
+      toast(notification.title || "Thông báo mới", {
+        description: notification.message,
+        icon: <Icon name="bell" size={18} className="text-gray-900" />,
+        className: "bg-white border-gray-100 shadow-xl rounded-2xl p-4",
+      });
     }
 
     socket.on('notification_received', onNewNotification)
@@ -183,8 +191,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               key={item.href}
               href={item.href}
               className={`flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors ${pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href))
-                  ? 'bg-kfc-red text-white'
-                  : 'text-gray-700 hover:bg-gray-100'
+                ? 'bg-kfc-red text-white'
+                : 'text-gray-700 hover:bg-gray-100'
                 }`}
             >
               <span className="mr-3">
@@ -201,8 +209,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <button
               onClick={() => setShowNotifications(!showNotifications)}
               className={`w-full flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors ${showNotifications
-                  ? 'bg-kfc-red text-white'
-                  : 'text-gray-700 hover:bg-gray-100'
+                ? 'bg-kfc-red text-white'
+                : 'text-gray-700 hover:bg-gray-100'
                 }`}
             >
               <span className="mr-3">
@@ -260,20 +268,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     <div
                       key={n.id}
                       onClick={() => handleNotificationClick(n)}
-                      className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors rounded-lg mb-2 ${!n.isRead ? 'bg-blue-50 border-l-4 border-blue-500' : ''}`}
+                      className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors rounded-xl mb-2 border ${!n.isRead ? 'bg-gray-50 border-gray-900 shadow-sm' : 'bg-white border-gray-100'}`}
                     >
                       <div className="flex items-start gap-3">
                         <div className={`p-2 rounded-full ${NOTIFICATION_COLORS[n.type] || 'bg-gray-100 text-gray-600'} flex-shrink-0`}>
                           <Icon name="bell" size={16} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium ${!n.isRead ? 'text-blue-900' : 'text-gray-900'}`}>{n.title}</p>
+                          <p className={`text-sm font-bold ${!n.isRead ? 'text-gray-900' : 'text-gray-600'}`}>{n.title}</p>
                           <p className="text-sm text-gray-600 mt-1">{n.message}</p>
                           <p className="text-xs text-gray-400 mt-2">
                             {formatDateTime(n.createdAt)}
                           </p>
                         </div>
-                        {!n.isRead && <div className="w-2 h-2 bg-blue-500 rounded-full mt-2" />}
+                        {!n.isRead && <div className="w-2 h-2 bg-gray-900 rounded-full mt-2" />}
                       </div>
                     </div>
                   ))}
@@ -283,7 +291,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </DialogContent>
         </Dialog>
 
-        <div className="py-8 px-6 sm:px-10 lg:px-16 xl:px-24 2xl:px-32 w-full max-w-[1600px] mx-auto pt-20">
+        <div className="py-8 px-6 sm:px-10 lg:px-16 xl:px-24 2xl:px-32 w-full max-w-[1600px] mx-auto">
           {children}
         </div>
       </main>

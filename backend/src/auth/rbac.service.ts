@@ -18,15 +18,28 @@ export class RbacService {
   /**
    * Check if user has a specific permission
    */
-  hasPermission(userRole: string, action: PermissionAction): boolean {
+  async hasPermission(userId: string, userRole: string, action: PermissionAction): Promise<boolean> {
+    // 1. Try to check from DB Role permissions
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { roleObj: true }
+    });
+
+    if (user?.roleObj?.permissions) {
+      const permissions = user.roleObj.permissions as string[];
+      if (permissions.includes(action)) return true;
+    }
+
+    // 2. Fallback to hardcoded constraints using userRole string
     return hasPermission(userRole as Role, action);
   }
 
   /**
    * Assert permission or throw ForbiddenException
    */
-  assertPermission(userRole: string, action: PermissionAction): void {
-    if (!this.hasPermission(userRole, action)) {
+  async assertPermission(userId: string, userRole: string, action: PermissionAction): Promise<void> {
+    const permitted = await this.hasPermission(userId, userRole, action);
+    if (!permitted) {
       throw new ForbiddenException(`Bạn không có quyền thực hiện hành động: ${action}`);
     }
   }
@@ -76,12 +89,14 @@ export class RbacService {
       return allStores.map(s => s.id);
     }
 
-    if (userRole === 'USER' && user.managedStore) {
+    if (userRole === 'SM' && user.managedStore) {
       return [user.managedStore.id];
     }
 
-    if (userRole === 'MANAGER' && user.amStores?.length > 0) {
-      return user.amStores.map(s => s.id);
+    if (userRole === 'AM') {
+      if (user.amStores?.length > 0) {
+        return user.amStores.map(s => s.id);
+      }
     }
 
     return [];
@@ -128,7 +143,7 @@ export class RbacService {
       return allProposals.map(p => p.id);
     }
 
-    if (userRole === 'MANAGER' && myStoreIds.length > 0) {
+    if (userRole === 'AM' && myStoreIds.length > 0) {
       const proposals = await this.prisma.recruitmentProposal.findMany({
         where: { storeId: { in: myStoreIds } },
         select: { id: true }
@@ -136,7 +151,7 @@ export class RbacService {
       return proposals.map(p => p.id);
     }
 
-    if (userRole === 'USER' && myStoreIds.length > 0) {
+    if (userRole === 'SM' && myStoreIds.length > 0) {
       const myStore = await this.prisma.store.findFirst({
         where: { id: { in: myStoreIds } },
         select: { amId: true }
@@ -174,7 +189,7 @@ export class RbacService {
       return allUsers.map(u => u.id);
     }
 
-    if (userRole === 'MANAGER') {
+    if (userRole === 'AM') {
       const myStoreIds = await this.getAccessibleStoreIds(userId, userRole);
       const smIds = await this.prisma.store.findMany({
         where: { id: { in: myStoreIds }, smId: { not: null } },
@@ -183,7 +198,7 @@ export class RbacService {
       return smIds.map(s => s.smId!).filter(Boolean);
     }
 
-    if (userRole === 'USER') {
+    if (userRole === 'SM') {
       const myUser = await this.prisma.user.findUnique({
         where: { id: userId },
         include: { managedStore: true }
@@ -245,13 +260,13 @@ export class RbacService {
       ADMIN: {
         create: ['*'], submit: ['*'], review: ['*'], approve: ['*'], reject: ['*'], cancel: ['*'],
       },
-      HEAD_OF_DEPARTMENT: {
-        create: ['*'], submit: ['*'], review: ['*'], approve: ['*'], reject: ['*'], cancel: ['DRAFT', 'SUBMITTED'],
-      },
-      MANAGER: {
+      AM: {
         create: ['*'], submit: ['DRAFT'], review: ['SUBMITTED'], approve: ['SUBMITTED', 'AM_REVIEWED'], reject: ['SUBMITTED', 'AM_REVIEWED'], cancel: ['DRAFT', 'SUBMITTED'],
       },
-      USER: {
+      RECRUITER: {
+        create: ['*'], submit: ['*'], review: ['*'], approve: ['*'], reject: ['*'], cancel: ['*'],
+      },
+      SM: {
         create: ['*'], submit: ['DRAFT'], cancel: ['DRAFT', 'SUBMITTED'],
       },
     };
@@ -274,10 +289,9 @@ export class RbacService {
   canManageOffer(userRole: string, action: 'create' | 'send' | 'update' | 'delete'): boolean {
     const matrix: Record<string, string[]> = {
       ADMIN: ['create', 'send', 'update', 'delete'],
-      HEAD_OF_DEPARTMENT: ['create', 'send', 'update'],
       RECRUITER: ['create', 'send', 'update'],
-      MANAGER: ['read'],
-      USER: ['read'],
+      AM: ['read'],
+      SM: ['read'],
     };
 
     const allowed = matrix[userRole] || [];

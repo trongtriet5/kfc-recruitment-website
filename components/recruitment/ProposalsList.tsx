@@ -132,7 +132,7 @@ export default function ProposalsList() {
       .finally(() => setLoading(false))
   }
 
-  const canEditTitle = user && (user.role === 'ADMIN' || user.role === 'HEAD_OF_DEPARTMENT' || user.role === 'MANAGER')
+  const canEditTitle = user && (user.role === 'ADMIN' || user.role === 'RECRUITER' || user.role === 'MANAGER')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -178,7 +178,7 @@ export default function ProposalsList() {
     }
   }
 
-  const canApprove = user && ['ADMIN', 'HEAD_OF_DEPARTMENT'].includes(user.role)
+  const canApprove = user && ['ADMIN', 'RECRUITER'].includes(user.role)
 
   const handleApprove = async () => {
     if (!selectedProposal) return
@@ -230,7 +230,7 @@ export default function ProposalsList() {
     }
   }
 
-  const canCreateCampaign = user && ['ADMIN', 'HEAD_OF_DEPARTMENT', 'MANAGER'].includes(user.role)
+  const canCreateCampaign = user && ['ADMIN', 'RECRUITER', 'MANAGER'].includes(user.role)
 
   return (
     <div className="space-y-8">

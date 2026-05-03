@@ -378,7 +378,7 @@ export default function InterviewsCalendar() {
       {displayMode === 'calendar' && (
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
           {/* Calendar Header */}
-          <div className="grid grid-cols-[100px_repeat(7,1fr)] border-b bg-gray-50">
+          <div className="grid grid-cols-[100px_repeat(7,minmax(0,1fr))] border-b bg-gray-50">
             <div className="p-4 text-xs font-semibold text-gray-400 uppercase tracking-wider border-r flex items-center justify-end pr-4">
               Giờ
             </div>
@@ -391,10 +391,10 @@ export default function InterviewsCalendar() {
           </div>
 
           {/* Calendar Body */}
-          <div className="max-h-[800px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200">
+          <div className="max-h-[800px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 grid grid-cols-[100px_repeat(7,minmax(0,1fr))]">
             {TIME_SLOTS.map(hour => (
-              <div key={hour} className="grid grid-cols-[100px_repeat(7,1fr)] border-b last:border-b-0 min-h-[120px] group">
-                <div className="p-3 text-sm font-bold text-gray-500 bg-gray-50/50 border-r flex flex-col items-end justify-start gap-1 pr-4 group-hover:bg-gray-100 transition-colors">
+              <div key={hour} className="contents group">
+                <div className="p-3 text-sm font-bold text-gray-500 bg-gray-50/50 border-r border-b flex flex-col items-end justify-start gap-1 pr-4 group-hover:bg-gray-100 transition-colors">
                   <span className="text-gray-900">{hour.toString().padStart(2, '0')}:00</span>
                   <span className="text-[10px] text-gray-400 font-medium">{(hour + 1).toString().padStart(2, '0')}:00</span>
                 </div>
@@ -403,7 +403,7 @@ export default function InterviewsCalendar() {
                   return (
                     <div
                       key={`${day.toISOString()}-${hour}`}
-                      className={`p-2 border-r last:border-r-0 hover:bg-gray-50/50 transition-colors flex flex-col gap-2 ${isToday(day) ? 'bg-red-50/20' : ''}`}
+                      className={`p-2 border-r border-b last:border-r-0 hover:bg-gray-50/50 transition-colors flex flex-col gap-2 min-h-[120px] ${isToday(day) ? 'bg-red-50/20' : ''}`}
                     >
                       {slots.map(interview => (
                         <div

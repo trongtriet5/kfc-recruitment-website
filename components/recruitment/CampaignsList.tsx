@@ -322,7 +322,7 @@ export default function CampaignsList() {
     return <div className="text-center py-4">Đang tải...</div>
   }
 
-  const canManage = user && (user.role === 'ADMIN' || user.role === 'HEAD_OF_DEPARTMENT');
+  const canManage = user && (user.role === 'ADMIN' || user.role === 'RECRUITER');
 
   return (
     <>

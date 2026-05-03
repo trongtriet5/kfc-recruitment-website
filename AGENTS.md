@@ -64,7 +64,7 @@ cd backend && npm run db:seed      # Seed data
 - List endpoints use `findMany({ include: {...} })` with explicit relations
 - Single GET uses `findUnique({ include: {...} })` for full data with relations
 - Form fields need separate query: `prisma.formField.findMany({ where: { formId } })`
-- User roles: ADMIN, MANAGER, AM, USER (SM/TA), RECRUITER, HEAD_OF_DEPARTMENT
+- User roles: ADMIN, MANAGER, AM, USER (SM/TA), RECRUITER
 
 ## Frontend Key Files
 - Form management: `components/recruitment/FormsAndLinksManager.tsx`

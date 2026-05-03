@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import * as ExcelJS from 'exceljs';
 
 @Injectable()
 export class CandidateReadService {
@@ -33,7 +34,7 @@ export class CandidateReadService {
     if (user) {
       const storeIds = await this.getAccessibleStoreIds(user);
 
-      if (user.role === 'USER' || user.role === 'MANAGER') {
+      if (user.role === 'SM' || user.role === 'AM') {
         // SM or AM: Can see candidates:
         // 1. Assigned as PIC (interviewer)
         // 2. In their managed store(s)
@@ -77,6 +78,18 @@ export class CandidateReadService {
     ]);
 
     // Hydrate related data manually
+    const hydratedData = await this.hydrateCandidates(data);
+
+    return {
+      data: hydratedData,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  private async hydrateCandidates(data: any[]) {
     const campaignIds = [...new Set(data.map(c => c.campaignId).filter(Boolean))];
     const storeIds    = [...new Set(data.map(c => c.storeId).filter(Boolean))];
     const formIds     = [...new Set(data.map(c => c.formId).filter(Boolean))];
@@ -99,7 +112,7 @@ export class CandidateReadService {
     const statusMap   = Object.fromEntries(statuses.map(x=>[x.id,x]));
     const picMap      = Object.fromEntries(pics.map(x=>[x.id,x]));
 
-    const results = data.map(c => ({
+    return data.map(c => ({
       ...c,
       campaign: c.campaignId ? campaignMap[c.campaignId] || null : null,
       store: c.storeId ? storeMap[c.storeId] || null : null,
@@ -108,14 +121,77 @@ export class CandidateReadService {
       status: c.statusId ? statusMap[c.statusId] || null : null,
       pic: c.picId ? picMap[c.picId] || null : null
     }));
+  }
 
-    return {
-      data: results,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
+  async exportCandidates(filters?: any, user?: any) {
+    // Fetch candidates without pagination limit for export
+    const where: any = { deletedAt: null };
+    if (filters?.campaignId) where.campaignId = filters.campaignId;
+    if (filters?.statusId) where.statusId = filters.statusId;
+    if (filters?.storeId) where.storeId = filters.storeId;
+    
+    // Apply user scoping
+    if (user && user.role !== 'ADMIN') {
+      const storeIds = await this.getAccessibleStoreIds(user);
+      if (user.role === 'USER' || user.role === 'MANAGER' || user.role === 'AM') {
+        const campaignIds = await this.getCampaignIdsFromUserProposals(user.id);
+        where.OR = [
+          { picId: user.id },
+          { storeId: { in: storeIds } },
+          ...(campaignIds.length > 0 ? [{ campaignId: { in: campaignIds } }] : [])
+        ];
+      } else if (user.role === 'RECRUITER') {
+        if (storeIds.length > 0) where.storeId = { in: storeIds };
+      }
+    }
+
+    const data = await this.prisma.candidate.findMany({
+      where,
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const hydrated = await this.hydrateCandidates(data);
+    
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Ứng viên');
+
+    worksheet.columns = [
+      { header: 'Họ tên', key: 'fullName', width: 25 },
+      { header: 'Email', key: 'email', width: 30 },
+      { header: 'Số điện thoại', key: 'phone', width: 15 },
+      { header: 'Chiến dịch', key: 'campaign', width: 30 },
+      { header: 'Cửa hàng', key: 'store', width: 20 },
+      { header: 'Vị trí', key: 'position', width: 20 },
+      { header: 'Trạng thái', key: 'status', width: 20 },
+      { header: 'Người phụ trách', key: 'pic', width: 20 },
+      { header: 'Nguồn', key: 'source', width: 15 },
+      { header: 'Ngày ứng tuyển', key: 'createdAt', width: 20 },
+    ];
+
+    hydrated.forEach(c => {
+      worksheet.addRow({
+        fullName: c.fullName,
+        email: c.email,
+        phone: c.phone,
+        campaign: c.campaign?.name || 'N/A',
+        store: c.store ? `${c.store.code} - ${c.store.name}` : 'N/A',
+        position: c.position || 'N/A',
+        status: c.status?.name || 'Mới',
+        pic: c.pic?.fullName || 'Chưa gán',
+        source: c.source?.name || 'N/A',
+        createdAt: c.createdAt,
+      });
+    });
+
+    // Formatting
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
     };
+
+    return workbook;
   }
 
   async getCandidate(id: string, user?: any) {
@@ -230,7 +306,7 @@ export class CandidateReadService {
       // 1. They're the PIC
       // 2. Store is in their accessible stores
       // 3. Campaign is from a proposal they created
-      if (user.role === 'USER' || user.role === 'MANAGER') {
+      if (user.role === 'USER' || user.role === 'MANAGER' || user.role === 'AM') {
         const campaignIdsFromUserProposals = await this.getCampaignIdsFromUserProposals(user.id);
         const isFromUserProposal = candidate.campaignId && campaignIdsFromUserProposals.includes(candidate.campaignId);
 
@@ -279,7 +355,7 @@ export class CandidateReadService {
       return stores.map(s => s.id);
     }
 
-    if (user.role === 'USER') {
+    if (user.role === 'SM') {
       const u = await this.prisma.user.findUnique({
         where: { id: user.id },
         include: { managedStore: { select: { id: true } } }
@@ -287,7 +363,7 @@ export class CandidateReadService {
       return u?.managedStore ? [u.managedStore.id] : [];
     }
 
-    if (user.role === 'MANAGER') {
+    if (user.role === 'AM') {
       const u = await this.prisma.user.findUnique({
         where: { id: user.id },
         include: { amStores: { select: { id: true } } }

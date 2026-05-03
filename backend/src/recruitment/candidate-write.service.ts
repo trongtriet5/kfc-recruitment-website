@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException,
 import { CandidateGateway } from './candidate.gateway';
 import { PrismaService } from '../prisma/prisma.service';
 import { CampaignFulfillmentService } from './campaign-fulfillment.service';
+import readXlsxFile from 'read-excel-file/node';
 
 const ALLOWED_SMAM_RESULTS = [
   'SM_AM_INTERVIEW_PASSED',
@@ -144,10 +145,10 @@ export class CandidateWriteService {
         notificationData.map(n => this.prisma.notification.create({ data: n }))
       );
 
-      // Emit the first one to trigger the UI toast for everyone online
-      if (createdNotifications.length > 0) {
-        this.candidateGateway.emitNotification(createdNotifications[0]);
-      }
+      // Emit all created notifications so each recipient gets their specific real-time update
+      createdNotifications.forEach(notification => {
+        this.candidateGateway.emitNotification(notification);
+      });
     }
 
     return candidate;
@@ -354,7 +355,7 @@ if (existing) {
     return updated;
   }
 
-async deleteCandidate(id: string, user?: any) {
+  async deleteCandidate(id: string, user?: any) {
     const candidate = await this.prisma.candidate.findUnique({ where: { id } });
     if (!candidate) throw new NotFoundException('Ứng viên không tồn tại');
 
@@ -468,6 +469,93 @@ async deleteCandidate(id: string, user?: any) {
     return updated;
   }
 
+  async importCandidatesFromFile(file: Express.Multer.File, user?: any) {
+    try {
+      const rows = await readXlsxFile(file.buffer);
+      if (rows.length < 2) throw new Error('File không có dữ liệu');
+
+      const header = rows[0] as any[];
+      const dataRows = rows.slice(1);
+
+      const findIdx = (keywords: string[]) => 
+        header.findIndex(h => h && keywords.some(k => String(h).toLowerCase().includes(k.toLowerCase())));
+
+      const nameIdx = findIdx(['họ tên', 'fullName', 'name']);
+      const phoneIdx = findIdx(['điện thoại', 'phone', 'sđt']);
+      const emailIdx = findIdx(['email']);
+      const positionIdx = findIdx(['vị trí', 'position']);
+      const storeIdx = findIdx(['cửa hàng', 'store', 'mã ch']);
+      const campaignIdx = findIdx(['chiến dịch', 'campaign', 'mã cd']);
+      const genderIdx = findIdx(['giới tính', 'gender']);
+      const sourceIdx = findIdx(['nguồn', 'source']);
+
+      const results = { success: 0, failed: 0, errors: [] as string[] };
+
+      for (const row of dataRows) {
+        try {
+          const fullName = row[nameIdx] ? String(row[nameIdx]).trim() : null;
+          const phone = row[phoneIdx] ? String(row[phoneIdx]).trim() : null;
+          const email = row[emailIdx] ? String(row[emailIdx]).trim() : null;
+
+          if (!fullName || !phone) {
+            throw new Error('Thiếu họ tên hoặc số điện thoại');
+          }
+
+          // Find store if code provided
+          let storeId = null;
+          if (storeIdx !== -1 && row[storeIdx]) {
+            const storeCode = String(row[storeIdx]).trim().split(' - ')[0];
+            const store = await this.prisma.store.findFirst({
+              where: { OR: [{ id: storeCode }, { code: storeCode }] }
+            });
+            if (store) storeId = store.id;
+          }
+
+          // Find campaign if code/name provided
+          let campaignId = null;
+          if (campaignIdx !== -1 && row[campaignIdx]) {
+            const campaignVal = String(row[campaignIdx]).trim();
+            const campaign = await this.prisma.campaign.findFirst({
+              where: { OR: [{ id: campaignVal }, { name: campaignVal }] }
+            });
+            if (campaign) campaignId = campaign.id;
+          }
+
+          // Find source
+          let sourceId = null;
+          if (sourceIdx !== -1 && row[sourceIdx]) {
+            const sourceVal = String(row[sourceIdx]).trim();
+            const source = await this.prisma.source.findFirst({
+              where: { OR: [{ id: sourceVal }, { name: sourceVal }, { code: sourceVal }] }
+            });
+            if (source) sourceId = source.id;
+          }
+
+          await this.createCandidate({
+            fullName,
+            phone,
+            email,
+            position: positionIdx !== -1 && row[positionIdx] ? String(row[positionIdx]).trim() : null,
+            storeId,
+            campaignId,
+            sourceId,
+            gender: genderIdx !== -1 && row[genderIdx] ? String(row[genderIdx]).trim() : null,
+            status: 'CV_FILTERING'
+          }, user);
+
+          results.success++;
+        } catch (error: any) {
+          results.failed++;
+          results.errors.push(`Lỗi dòng ${dataRows.indexOf(row) + 2}: ${error.message}`);
+        }
+      }
+
+      return results;
+    } catch (error: any) {
+      throw new Error(`Lỗi xử lý file: ${error.message}`);
+    }
+  }
+
   private async checkBlacklist(phone?: string, email?: string) {
     if (!phone && !email) return null;
 
@@ -498,7 +586,7 @@ async deleteCandidate(id: string, user?: any) {
       return stores.map(s => s.id);
     }
 
-    if (user.role === 'USER') {
+    if (user.role === 'SM') {
       const u = await this.prisma.user.findUnique({
         where: { id: user.id },
         include: { managedStore: { select: { id: true } } }
@@ -506,7 +594,7 @@ async deleteCandidate(id: string, user?: any) {
       return u?.managedStore ? [u.managedStore.id] : [];
     }
 
-    if (user.role === 'MANAGER') {
+    if (user.role === 'AM') {
       const u = await this.prisma.user.findUnique({
         where: { id: user.id },
         include: { amStores: { select: { id: true } } }
@@ -517,7 +605,7 @@ async deleteCandidate(id: string, user?: any) {
     return [];
   }
 
-/**
+  /**
    * Get campaign IDs from proposals created by the user
    * This allows proposal creators to update/delete candidates in campaigns from their proposals
    */

@@ -131,7 +131,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
 
   const getAllowedStatuses = (): string[] => {
     if (!user) return []
-    if (user.role === 'ADMIN' || user.role === 'HEAD_OF_DEPARTMENT') {
+    if (user.role === 'ADMIN' || user.role === 'RECRUITER') {
       return dbStatuses.map((s) => s.code)
     }
     if (user.role === 'MANAGER') {

@@ -9,6 +9,7 @@ interface IconProps {
 
 export default function Icon({ name, className = '', size = 20 }: IconProps) {
   const nameMap: Record<string, string> = {
+    'x': 'X',
     'narrow-back': 'ChevronLeft',
     'chevron-left': 'ChevronLeft',
     'chevron-right': 'ChevronRight',

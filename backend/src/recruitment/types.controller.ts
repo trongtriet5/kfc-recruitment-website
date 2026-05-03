@@ -40,8 +40,8 @@ export class TypesController {
   @Get('by-category/:category')
   async getByCategory(@Param('category') category: string, @Query('role') role?: string) {
     if (category === 'CANDIDATE_STATUS') {
-      // If role is SM/AM (USER or MANAGER), return limited statuses
-      if (role === 'USER' || role === 'MANAGER') {
+      // If role is SM/AM, return limited statuses
+      if (role === 'SM' || role === 'AM') {
         return this.ALLOWED_SMAM_RESULTS;
       }
       

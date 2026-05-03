@@ -25,26 +25,32 @@ describe('RbacService', () => {
   });
 
   describe('hasPermission', () => {
-    it('should allow ADMIN to CANDIDATE_CREATE', () => {
-      expect(service.hasPermission('ADMIN', 'CANDIDATE_CREATE')).toBe(true);
+    it('should allow ADMIN to CANDIDATE_CREATE', async () => {
+      // Mock findUnique to return null to test fallback
+      (service as any).prisma.user = { findUnique: jest.fn().mockResolvedValue(null) };
+      expect(await service.hasPermission('1', 'ADMIN', 'CANDIDATE_CREATE' as any)).toBe(true);
     });
 
-    it('should not allow USER to CANDIDATE_CREATE', () => {
-      expect(service.hasPermission('USER', 'CANDIDATE_CREATE')).toBe(false);
+    it('should not allow USER to CANDIDATE_CREATE', async () => {
+      (service as any).prisma.user = { findUnique: jest.fn().mockResolvedValue(null) };
+      expect(await service.hasPermission('1', 'USER', 'CANDIDATE_CREATE' as any)).toBe(false);
     });
 
-    it('should allow USER to CANDIDATE_READ', () => {
-      expect(service.hasPermission('USER', 'CANDIDATE_READ')).toBe(true);
+    it('should allow USER to CANDIDATE_READ', async () => {
+      (service as any).prisma.user = { findUnique: jest.fn().mockResolvedValue(null) };
+      expect(await service.hasPermission('1', 'USER', 'CANDIDATE_READ' as any)).toBe(true);
     });
   });
 
   describe('assertPermission', () => {
-    it('should not throw if permission exists', () => {
-      expect(() => service.assertPermission('ADMIN', 'CANDIDATE_CREATE')).not.toThrow();
+    it('should not throw if permission exists', async () => {
+      jest.spyOn(service, 'hasPermission').mockResolvedValue(true);
+      await expect(service.assertPermission('1', 'ADMIN', 'CANDIDATE_CREATE' as any)).resolves.not.toThrow();
     });
 
-    it('should throw ForbiddenException if permission missing', () => {
-      expect(() => service.assertPermission('USER', 'CANDIDATE_CREATE')).toThrow(ForbiddenException);
+    it('should throw ForbiddenException if permission missing', async () => {
+      jest.spyOn(service, 'hasPermission').mockResolvedValue(false);
+      await expect(service.assertPermission('1', 'USER', 'CANDIDATE_CREATE' as any)).rejects.toThrow(ForbiddenException);
     });
   });
 });

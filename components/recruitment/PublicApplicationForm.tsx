@@ -699,7 +699,7 @@ export default function PublicApplicationForm() {
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                       validationErrors.fullName
                         ? 'border-red-500 focus:ring-red-500'
-                        : 'border-gray-300 focus:ring-yellow-500'
+                        : 'border-gray-300 focus:ring-black'
                     }`}
                     required
                   />
@@ -715,7 +715,7 @@ export default function PublicApplicationForm() {
                   <select
                     value={formData.gender}
                     onChange={(e) => setFormData({ ...formData, gender: e.target.value as 'MALE' | 'FEMALE' })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black"
                     required
                   >
                     <option value="MALE">Nam</option>
@@ -740,7 +740,7 @@ export default function PublicApplicationForm() {
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                       validationErrors.phone
                         ? 'border-red-500 focus:ring-red-500'
-                        : 'border-gray-300 focus:ring-yellow-500'
+                        : 'border-gray-300 focus:ring-black'
                     }`}
                     required
                   />
@@ -766,7 +766,7 @@ export default function PublicApplicationForm() {
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                       validationErrors.dateOfBirth
                         ? 'border-red-500 focus:ring-red-500'
-                        : 'border-gray-300 focus:ring-yellow-500'
+                        : 'border-gray-300 focus:ring-black'
                     }`}
                     required
                   />
@@ -791,7 +791,7 @@ export default function PublicApplicationForm() {
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                       validationErrors.email
                         ? 'border-red-500 focus:ring-red-500'
-                        : 'border-gray-300 focus:ring-yellow-500'
+                        : 'border-gray-300 focus:ring-black'
                     }`}
                   />
                   {validationErrors.email && (
@@ -817,7 +817,7 @@ export default function PublicApplicationForm() {
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                       validationErrors.cccd
                         ? 'border-red-500 focus:ring-red-500'
-                        : 'border-gray-300 focus:ring-yellow-500'
+                        : 'border-gray-300 focus:ring-black'
                     }`}
                     required
                   />
@@ -889,7 +889,7 @@ export default function PublicApplicationForm() {
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                       validationErrors.currentStreet
                         ? 'border-red-500 focus:ring-red-500'
-                        : 'border-gray-300 focus:ring-yellow-500'
+                        : 'border-gray-300 focus:ring-black'
                     }`}
                     required
                   />
@@ -988,7 +988,7 @@ export default function PublicApplicationForm() {
                       className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                         validationErrors.permanentStreet
                           ? 'border-red-500 focus:ring-red-500'
-                          : 'border-gray-300 focus:ring-yellow-500'
+                          : 'border-gray-300 focus:ring-black'
                       }`}
                       required
                     />
@@ -1045,7 +1045,7 @@ export default function PublicApplicationForm() {
                       className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                         validationErrors.appliedPositionOther
                           ? 'border-red-500 focus:ring-red-500'
-                          : 'border-gray-300 focus:ring-yellow-500'
+                          : 'border-gray-300 focus:ring-black'
                       }`}
                       required
                     />
@@ -1072,7 +1072,7 @@ export default function PublicApplicationForm() {
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                       validationErrors.availableStartDate
                         ? 'border-red-500 focus:ring-red-500'
-                        : 'border-gray-300 focus:ring-yellow-500'
+                        : 'border-gray-300 focus:ring-black'
                     }`}
                     required
                   />
@@ -1096,7 +1096,7 @@ export default function PublicApplicationForm() {
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                       validationErrors.canWorkTet
                         ? 'border-red-500 focus:ring-red-500'
-                        : 'border-gray-300 focus:ring-yellow-500'
+                        : 'border-gray-300 focus:ring-black'
                     }`}
                     required
                   >
@@ -1123,7 +1123,7 @@ export default function PublicApplicationForm() {
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                       validationErrors.referrer
                         ? 'border-red-500 focus:ring-red-500'
-                        : 'border-gray-300 focus:ring-yellow-500'
+                        : 'border-gray-300 focus:ring-black'
                     }`}
                     required
                   >
@@ -1155,7 +1155,7 @@ export default function PublicApplicationForm() {
                       className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                         validationErrors.referrerName
                           ? 'border-red-500 focus:ring-red-500'
-                          : 'border-gray-300 focus:ring-yellow-500'
+                          : 'border-gray-300 focus:ring-black'
                       }`}
                       required
                     />
@@ -1175,7 +1175,7 @@ export default function PublicApplicationForm() {
                       placeholder="Tìm kiếm cửa hàng..."
                       value={storeSearch}
                       onChange={(e) => setStoreSearch(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-black"
                     />
                   </div>
                   <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto border rounded-md p-3 ${
@@ -1202,7 +1202,7 @@ export default function PublicApplicationForm() {
                               })
                               validateField('preferredLocations', newLocations)
                             }}
-                            className="mt-1 h-4 w-4 text-slate-600 border-gray-300 rounded focus:ring-yellow-500"
+                            className="mt-1 h-4 w-4 text-slate-600 border-gray-300 rounded focus:ring-black"
                           />
                           <div className="flex flex-col">
                             <span className="text-sm font-medium text-gray-900">{store.name}</span>
@@ -1237,7 +1237,7 @@ export default function PublicApplicationForm() {
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                       validationErrors.workExperience
                         ? 'border-red-500 focus:ring-red-500'
-                        : 'border-gray-300 focus:ring-yellow-500'
+                        : 'border-gray-300 focus:ring-black'
                     }`}
                     placeholder="Mô tả kinh nghiệm làm việc của bạn..."
                   />

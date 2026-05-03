@@ -1,4 +1,6 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Res, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
 import { RecruitmentService } from './recruitment.service';
 import { CandidateWriteService } from './candidate-write.service';
 import { StatusTransitionService } from './status-transition.service';
@@ -63,12 +65,27 @@ export class RecruitmentController {
   deleteCampaign(@Param('id') id: string) { return this.service.deleteCampaign(id); }
 
   // Candidates
+  @Get('candidates/export')
+  async exportCandidates(@Res() res: Response, @Query() query: any, @CurrentUser() user: any) {
+    const workbook = await this.candidateReadService.exportCandidates(query, user);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=candidates.xlsx');
+    await workbook.xlsx.write(res);
+    res.end();
+  }
+
+  @Post('candidates/import-file')
+  @UseInterceptors(FileInterceptor('file'))
+  importCandidates(@UploadedFile() file: Express.Multer.File, @CurrentUser() user: any) {
+    return this.candidateWriteService.importCandidatesFromFile(file, user);
+  }
+
   @Get('candidates')
   getCandidates(@Query() query: any, @CurrentUser() user: any) { 
     return this.service.getCandidates(query, user); 
   }
   
-@Get('candidates/:id')
+  @Get('candidates/:id')
   async getCandidate(@Param('id') id: string, @CurrentUser() user: any) { 
     const candidateReadService = this.candidateReadService;
     return candidateReadService.getCandidate(id, user); 
@@ -86,11 +103,6 @@ export class RecruitmentController {
   
   @Delete('candidates/:id')
   deleteCandidate(@Param('id') id: string, @CurrentUser() user: any) { return this.service.deleteCandidate(id, user); }
-
-  @Patch('candidates/:id/transfer-campaign')
-  transferCampaign(@Param('id') id: string, @Body() data: { campaignId: string }, @CurrentUser() user: any) {
-    return this.service.transferCampaign(id, data.campaignId, user);
-  }
 
   @Get('users/tas')
   getTAs() {

@@ -185,7 +185,7 @@ export default function CandidateDetail({
 
   const getAllowedStatuses = (): string[] => {
     if (!user) return []
-    if (user.role === 'ADMIN' || user.role === 'HEAD_OF_DEPARTMENT') {
+    if (user.role === 'ADMIN' || user.role === 'RECRUITER') {
       return dbStatuses.map(s => s.code)
     }
     if (user.role === 'MANAGER') {
@@ -575,7 +575,7 @@ export default function CandidateDetail({
                   <div className="flex-1 pb-3 border-b border-gray-100 last:border-0">
                     <div className="flex justify-between">
                       <span className="font-medium">
-                        {log.action === 'CANDIDATE_CREATED' && 'Tạo ứng viên'}
+                        {log.action === 'CANDIDATE_CREATED' && 'Ứng viên ứng tuyển'}
                         {log.action === 'STATUS_CHANGE' && 'Thay đổi trạng thái'}
                         {log.action === 'STATUS_CHANGED' && 'Thay đổi trạng thái'}
                         {log.action === 'PIC_ASSIGNED' && 'Gán người phụ trách'}

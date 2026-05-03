@@ -40,9 +40,9 @@ describe('StatusTransitionService', () => {
       expect(transitions).not.toContain('CV_PASSED');
     });
 
-    it('should limit transitions for USER', () => {
-      const transitions = service.getAllowedTransitions('WAITING_INTERVIEW', 'USER');
-      expect(transitions).not.toContain('HR_INTERVIEW_PASSED'); // Not allowed for USER
+    it('should limit transitions for SM', () => {
+      const transitions = service.getAllowedTransitions('WAITING_INTERVIEW', 'SM');
+      expect(transitions).not.toContain('HR_INTERVIEW_PASSED'); // Not allowed for SM
     });
   });
 

@@ -53,14 +53,13 @@ export type PermissionAction =
   | 'SETTINGS_MANAGE'
   | 'USER_MANAGE';
 
-export type Role = 'ADMIN' | 'HEAD_OF_DEPARTMENT' | 'RECRUITER' | 'MANAGER' | 'USER';
+export type Role = 'ADMIN' | 'RECRUITER' | 'AM' | 'SM';
 
 export const ROLE_LABELS: Record<Role, string> = {
   ADMIN: 'Quản trị viên',
-  HEAD_OF_DEPARTMENT: 'Trưởng phòng',
   RECRUITER: 'Nhân viên tuyển dụng',
-  MANAGER: 'Quản lý khu vực (AM)',
-  USER: 'Quản lý cửa hàng (SM)',
+  AM: 'Quản lý khu vực (AM)',
+  SM: 'Quản lý cửa hàng (SM)',
 };
 
 export const PERMISSIONS: Record<Role, PermissionAction[]> = {
@@ -75,16 +74,6 @@ export const PERMISSIONS: Record<Role, PermissionAction[]> = {
     'REPORT_VIEW', 'REPORT_EXPORT',
     'SETTINGS_MANAGE', 'USER_MANAGE',
   ],
-  HEAD_OF_DEPARTMENT: [
-    'CANDIDATE_CREATE', 'CANDIDATE_READ', 'CANDIDATE_UPDATE',
-    'CANDIDATE_STATUS_CHANGE', 'CANDIDATE_ASSIGN_PIC', 'CANDIDATE_TRANSFER_CAMPAIGN',
-    'PROPOSAL_CREATE', 'PROPOSAL_READ', 'PROPOSAL_UPDATE',
-    'PROPOSAL_SUBMIT', 'PROPOSAL_REVIEW', 'PROPOSAL_APPROVE', 'PROPOSAL_REJECT',
-    'CAMPAIGN_CREATE', 'CAMPAIGN_READ', 'CAMPAIGN_UPDATE', 'CAMPAIGN_MANAGE',
-    'INTERVIEW_CREATE', 'INTERVIEW_READ', 'INTERVIEW_UPDATE',
-    'OFFER_CREATE', 'OFFER_READ', 'OFFER_UPDATE', 'OFFER_SEND',
-    'REPORT_VIEW', 'REPORT_EXPORT',
-  ],
   RECRUITER: [
     'CANDIDATE_CREATE', 'CANDIDATE_READ', 'CANDIDATE_UPDATE',
     'CANDIDATE_STATUS_CHANGE', 'CANDIDATE_ASSIGN_PIC', 'CANDIDATE_TRANSFER_CAMPAIGN',
@@ -92,9 +81,9 @@ export const PERMISSIONS: Record<Role, PermissionAction[]> = {
     'CAMPAIGN_CREATE', 'CAMPAIGN_READ', 'CAMPAIGN_UPDATE', 'CAMPAIGN_MANAGE',
     'INTERVIEW_CREATE', 'INTERVIEW_READ', 'INTERVIEW_UPDATE',
     'OFFER_CREATE', 'OFFER_READ', 'OFFER_UPDATE', 'OFFER_SEND',
-    'REPORT_VIEW',
+    'REPORT_VIEW', 'REPORT_EXPORT',
   ],
-  MANAGER: [
+  AM: [
     'CANDIDATE_READ', 'CANDIDATE_UPDATE',
     'CANDIDATE_STATUS_CHANGE',
     'PROPOSAL_CREATE', 'PROPOSAL_READ', 'PROPOSAL_UPDATE',
@@ -104,7 +93,7 @@ export const PERMISSIONS: Record<Role, PermissionAction[]> = {
     'OFFER_READ',
     'REPORT_VIEW',
   ],
-  USER: [
+  SM: [
     'CANDIDATE_READ',
     'CANDIDATE_STATUS_CHANGE',
     'PROPOSAL_CREATE', 'PROPOSAL_READ', 'PROPOSAL_UPDATE',
@@ -143,35 +132,35 @@ export interface TransitionCondition {
 
 export const STATUS_TRANSITIONS: TransitionRule[] = [
   // Application stage - HR/Recruiter only
-  { from: ['*'], to: 'CV_FILTERING', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
-  { from: ['CV_FILTERING'], to: 'WAITING_INTERVIEW', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
-  { from: ['CV_FILTERING'], to: 'BLACKLIST', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT'], requiresReason: true },
-  { from: ['CV_FILTERING'], to: 'CANNOT_CONTACT', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
-  { from: ['CV_FILTERING'], to: 'AREA_NOT_RECRUITING', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
+  { from: ['*'], to: 'CV_FILTERING', allowedRoles: ['ADMIN', 'RECRUITER'] },
+  { from: ['CV_FILTERING'], to: 'WAITING_INTERVIEW', allowedRoles: ['ADMIN', 'RECRUITER'] },
+  { from: ['CV_FILTERING'], to: 'BLACKLIST', allowedRoles: ['ADMIN', 'RECRUITER'], requiresReason: true },
+  { from: ['CV_FILTERING'], to: 'CANNOT_CONTACT', allowedRoles: ['ADMIN', 'RECRUITER'] },
+  { from: ['CV_FILTERING'], to: 'AREA_NOT_RECRUITING', allowedRoles: ['ADMIN', 'RECRUITER'] },
 
   // Interview stage - HR schedules, SM/AM/OM updates
-  { from: ['WAITING_INTERVIEW'], to: 'HR_INTERVIEW_PASSED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
-  { from: ['WAITING_INTERVIEW'], to: 'HR_INTERVIEW_FAILED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'], requiresReason: true },
+  { from: ['WAITING_INTERVIEW'], to: 'HR_INTERVIEW_PASSED', allowedRoles: ['ADMIN', 'RECRUITER'] },
+  { from: ['WAITING_INTERVIEW'], to: 'HR_INTERVIEW_FAILED', allowedRoles: ['ADMIN', 'RECRUITER'], requiresReason: true },
 
   // SM/AM Interview - Store managers can update
-  { from: ['HR_INTERVIEW_PASSED'], to: 'SM_AM_INTERVIEW_PASSED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'MANAGER', 'USER'] },
-  { from: ['HR_INTERVIEW_PASSED'], to: 'SM_AM_INTERVIEW_FAILED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'MANAGER', 'USER'], requiresReason: true },
-  { from: ['HR_INTERVIEW_PASSED'], to: 'SM_AM_NO_SHOW', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'MANAGER', 'USER'] },
+  { from: ['HR_INTERVIEW_PASSED'], to: 'SM_AM_INTERVIEW_PASSED', allowedRoles: ['ADMIN', 'RECRUITER', 'AM', 'SM'] },
+  { from: ['HR_INTERVIEW_PASSED'], to: 'SM_AM_INTERVIEW_FAILED', allowedRoles: ['ADMIN', 'RECRUITER', 'AM', 'SM'], requiresReason: true },
+  { from: ['HR_INTERVIEW_PASSED'], to: 'SM_AM_NO_SHOW', allowedRoles: ['ADMIN', 'RECRUITER', 'AM', 'SM'] },
 
   // OM Interview - AM/Admin only
-  { from: ['SM_AM_INTERVIEW_PASSED'], to: 'OM_PV_INTERVIEW_PASSED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'MANAGER'] },
-  { from: ['SM_AM_INTERVIEW_PASSED'], to: 'OM_PV_INTERVIEW_FAILED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'MANAGER'], requiresReason: true },
-  { from: ['SM_AM_INTERVIEW_PASSED'], to: 'OM_PV_NO_SHOW', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'MANAGER'] },
+  { from: ['SM_AM_INTERVIEW_PASSED'], to: 'OM_PV_INTERVIEW_PASSED', allowedRoles: ['ADMIN', 'RECRUITER', 'AM'] },
+  { from: ['SM_AM_INTERVIEW_PASSED'], to: 'OM_PV_INTERVIEW_FAILED', allowedRoles: ['ADMIN', 'RECRUITER', 'AM'], requiresReason: true },
+  { from: ['SM_AM_INTERVIEW_PASSED'], to: 'OM_PV_NO_SHOW', allowedRoles: ['ADMIN', 'RECRUITER', 'AM'] },
 
   // Offer stage - HR only
-  { from: ['OM_PV_INTERVIEW_PASSED'], to: 'OFFER_SENT', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
-  { from: ['OFFER_SENT'], to: 'OFFER_ACCEPTED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
-  { from: ['OFFER_SENT'], to: 'OFFER_REJECTED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'], requiresReason: true },
+  { from: ['OM_PV_INTERVIEW_PASSED', 'SM_AM_INTERVIEW_PASSED'], to: 'OFFER_SENT', allowedRoles: ['ADMIN', 'RECRUITER'] },
+  { from: ['OFFER_SENT'], to: 'OFFER_ACCEPTED', allowedRoles: ['ADMIN', 'RECRUITER'] },
+  { from: ['OFFER_SENT'], to: 'OFFER_REJECTED', allowedRoles: ['ADMIN', 'RECRUITER'], requiresReason: true },
 
   // Onboarding stage
-  { from: ['OFFER_ACCEPTED'], to: 'WAITING_ONBOARDING', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'] },
-  { from: ['WAITING_ONBOARDING'], to: 'ONBOARDING_ACCEPTED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER', 'MANAGER', 'USER'] },
-  { from: ['WAITING_ONBOARDING'], to: 'ONBOARDING_REJECTED', allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT', 'RECRUITER'], requiresReason: true },
+  { from: ['OFFER_ACCEPTED'], to: 'WAITING_ONBOARDING', allowedRoles: ['ADMIN', 'RECRUITER'] },
+  { from: ['WAITING_ONBOARDING'], to: 'ONBOARDING_ACCEPTED', allowedRoles: ['ADMIN', 'RECRUITER', 'AM', 'SM'] },
+  { from: ['WAITING_ONBOARDING'], to: 'ONBOARDING_REJECTED', allowedRoles: ['ADMIN', 'RECRUITER'], requiresReason: true },
 
   // Revert rules (ADMIN & RECRUITER)
   { from: ['*'], to: 'CV_FILTERING', allowedRoles: ['ADMIN', 'RECRUITER'] },
@@ -275,20 +264,20 @@ export interface ProposalAction {
 
 export const PROPOSAL_WORKFLOW: ProposalAction[] = [
   // Submit proposal - from Draft
-  { name: 'SUBMIT', fromStatus: ['DRAFT'], allowedRoles: ['USER', 'MANAGER', 'ADMIN'], nextStatus: 'SUBMITTED' },
+  { name: 'SUBMIT', fromStatus: ['DRAFT'], allowedRoles: ['SM', 'AM', 'ADMIN'], nextStatus: 'SUBMITTED' },
 
   // AM Review
-  { name: 'REVIEW', fromStatus: ['SUBMITTED'], allowedRoles: ['MANAGER', 'ADMIN'], nextStatus: 'AM_REVIEWED' },
-  { name: 'REJECT', fromStatus: ['SUBMITTED', 'AM_REVIEWED'], allowedRoles: ['MANAGER', 'ADMIN'], nextStatus: 'REJECTED', requiresNotes: true },
+  { name: 'REVIEW', fromStatus: ['SUBMITTED'], allowedRoles: ['AM', 'ADMIN'], nextStatus: 'AM_REVIEWED' },
+  { name: 'REJECT', fromStatus: ['SUBMITTED', 'AM_REVIEWED'], allowedRoles: ['AM', 'ADMIN'], nextStatus: 'REJECTED', requiresNotes: true },
 
   // HR Accept
-  { name: 'HR_ACCEPT', fromStatus: ['AM_REVIEWED', 'SUBMITTED'], allowedRoles: ['ADMIN', 'HEAD_OF_DEPARTMENT'], nextStatus: 'HR_ACCEPTED' },
+  { name: 'HR_ACCEPT', fromStatus: ['AM_REVIEWED', 'SUBMITTED'], allowedRoles: ['ADMIN', 'RECRUITER'], nextStatus: 'HR_ACCEPTED' },
 
   // Final Approval
-  { name: 'APPROVE', fromStatus: ['HR_ACCEPTED', 'AM_REVIEWED'], allowedRoles: ['MANAGER', 'ADMIN'], nextStatus: 'APPROVED' },
+  { name: 'APPROVE', fromStatus: ['HR_ACCEPTED', 'AM_REVIEWED'], allowedRoles: ['AM', 'ADMIN'], nextStatus: 'APPROVED' },
 
   // Cancel
-  { name: 'CANCEL', fromStatus: ['DRAFT', 'SUBMITTED'], allowedRoles: ['USER', 'MANAGER', 'ADMIN'], nextStatus: 'CANCELLED' },
+  { name: 'CANCEL', fromStatus: ['DRAFT', 'SUBMITTED'], allowedRoles: ['SM', 'AM', 'ADMIN'], nextStatus: 'CANCELLED' },
 ];
 
 /**
@@ -354,16 +343,13 @@ export const STORE_HIERARCHY: Record<Role, StoreHierarchyConfig> = {
   ADMIN: {
     storeRelation: 'all',  // Can access all stores
   },
-  HEAD_OF_DEPARTMENT: {
-    storeRelation: 'all',
-  },
   RECRUITER: {
     storeRelation: 'all',
   },
-  MANAGER: {
+  AM: {
     storeRelation: 'managedStores',  // AM's stores
   },
-  USER: {
+  SM: {
     storeRelation: 'managedStore',   // SM's single store
     canViewOtherAMStores: true,       // Can view all stores under their AM
   },
@@ -390,19 +376,15 @@ export const INTERVIEW_RESULTS: Record<Role, InterviewResultConfig> = {
     allowedResults: ['PASSED', 'FAILED', 'PENDING'],
     isAdmin: true,
   },
-  HEAD_OF_DEPARTMENT: {
-    allowedResults: ['PASSED', 'FAILED', 'PENDING'],
-    isAdmin: true,
-  },
   RECRUITER: {
     allowedResults: ['PASSED', 'FAILED', 'PENDING'],
     isAdmin: true,
   },
-  MANAGER: {
+  AM: {
     allowedResults: ['SM_AM_PASSED', 'SM_AM_FAILED', 'SM_AM_NO_SHOW', 'OM_PV_PASSED', 'OM_PV_FAILED', 'OM_PV_NO_SHOW'],
     isAdmin: false,
   },
-  USER: {
+  SM: {
     allowedResults: ['SM_AM_PASSED', 'SM_AM_FAILED', 'SM_AM_NO_SHOW', 'OM_PV_PASSED', 'OM_PV_FAILED', 'OM_PV_NO_SHOW'],
     isAdmin: false,
   },

@@ -7,6 +7,7 @@ import api from '@/lib/api'
 
 const tabs = [
   { id: 'users', label: 'Tài khoản', icon: 'user', href: '/settings/users' },
+  { id: 'roles', label: 'Vai trò & Phân quyền', icon: 'shield', href: '/settings/roles' },
   { id: 'sources', label: 'Nguồn tuyển dụng', icon: 'link', href: '/settings/sources' },
   { id: 'statuses', label: 'Trạng thái', icon: 'GitBranch', href: '/settings/statuses' },
 ]
@@ -30,7 +31,7 @@ export default function SettingsTabs() {
         const role = res.data.role
 
         let available = tabs
-        if (role !== 'ADMIN' && role !== 'HEAD_OF_DEPARTMENT' && role !== 'RECRUITER') {
+        if (role !== 'ADMIN' && role !== 'RECRUITER') {
           available = tabs.filter(t => t.id === 'users')
         }
 

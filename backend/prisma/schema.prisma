@@ -14,9 +14,11 @@ model User {
   fullName           String                @db.VarChar(255)
   phone              String?               @db.VarChar(50)
   role               String?               @default("USER") @db.VarChar(50)
+  roleId             String?               @db.VarChar(50)
   isActive           Boolean?              @default(true)
   createdAt          DateTime?             @default(now()) @db.Timestamp(6)
   updatedAt          DateTime?             @default(now()) @updatedAt @db.Timestamp(6)
+  roleObj            Role?                 @relation(fields: [roleId], references: [id])
   picCandidates      Candidate[]
   interviews         Interview[]
   workflowActions    ProposalWorkflow[]    @relation("WorkflowActor")
@@ -578,4 +580,20 @@ model PositionToRecruitmentForm {
   @@unique([A, B], map: "_PositionToRecruitmentForm_AB_unique")
   @@index([B], map: "_PositionToRecruitmentForm_B_index")
   @@map("_PositionToRecruitmentForm")
+}
+
+model Role {
+  id          String    @id @default(cuid()) @db.VarChar(50)
+  name        String    @db.VarChar(100)
+  code        String    @unique @db.VarChar(50)
+  description String?
+  permissions Json?     // Array of permission codes (strings)
+  isSystem    Boolean?  @default(false)
+  isActive    Boolean?  @default(true)
+  createdAt   DateTime  @default(now()) @db.Timestamp(6)
+  updatedAt   DateTime  @default(now()) @updatedAt @db.Timestamp(6)
+  users       User[]
+
+  @@index([code], map: "idx_roles_code")
+  @@map("roles")
 }
