@@ -322,7 +322,16 @@ export default function CampaignsList() {
     return <div className="text-center py-4">Đang tải...</div>
   }
 
-  const canManage = user && (user.role === 'ADMIN' || user.role === 'RECRUITER');
+  const permissions: string[] = user?.permissions || []
+  const canManage = user && (
+    ['ADMIN', 'RECRUITER'].includes(user.role) ||
+    permissions.includes('CAMPAIGN_MANAGE') ||
+    permissions.includes('CAMPAIGN_UPDATE')
+  )
+  const canCreate = user && (
+    ['ADMIN', 'RECRUITER'].includes(user.role) ||
+    permissions.includes('CAMPAIGN_CREATE')
+  )
 
   return (
     <>
@@ -334,12 +343,14 @@ export default function CampaignsList() {
         </div>
 
         <div className="flex justify-between items-center">
+        {canCreate && (
           <button
             onClick={() => setShowCreateForm(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium shadow-sm"
           >
             + Tạo chiến dịch
           </button>
+        )}
         </div>
 
         {/* Statistics Cards */}

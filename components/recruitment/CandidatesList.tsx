@@ -52,10 +52,32 @@ export default function CandidatesList() {
   const [tas, setTas] = useState<any[]>([])
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
   const [newStatus, setNewStatus] = useState('')
+  const [allowedTransitions, setAllowedTransitions] = useState<string[]>([])
+  const [loadingTransitions, setLoadingTransitions] = useState(false)
   const [contextMenu, setContextMenu] = useState<{
     candidate: Candidate
     position: { x: number; y: number }
   } | null>(null)
+
+  // Fetch allowed transitions when selected candidate changes
+  useEffect(() => {
+    if (!selectedCandidate) {
+      setAllowedTransitions([])
+      return
+    }
+
+    setLoadingTransitions(true)
+    api.get(`/recruitment/candidates/${selectedCandidate.id}/allowed-transitions`)
+      .then(res => {
+        setAllowedTransitions(res.data.allowedTransitions || [])
+      })
+      .catch(err => {
+        console.error('Error fetching allowed transitions:', err)
+        // Fallback to getAllowedStatuses if API fails
+        setAllowedTransitions(getAllowedStatuses())
+      })
+      .finally(() => setLoadingTransitions(false))
+  }, [selectedCandidate])
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list')
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
@@ -153,14 +175,18 @@ export default function CandidatesList() {
 
   const getAllowedStatuses = (): string[] => {
     if (!user) return []
-    if (['ADMIN', 'RECRUITER'].includes(user.role)) {
+    const permissions: string[] = (user as any).permissions || []
+    // Full access roles or users with CANDIDATE_STATUS_CHANGE permission see all statuses
+    if (['ADMIN', 'RECRUITER'].includes(user.role) || permissions.includes('CANDIDATE_STATUS_CHANGE')) {
       return dbStatuses.map((s) => s.code)
     }
-    if (['MANAGER', 'AM', 'USER'].includes(user.role)) {
+    // SM/AM roles always get interview-stage statuses as fallback
+    if (['SM', 'AM', 'MANAGER', 'USER'].includes(user.role)) {
       return [
         'SM_AM_INTERVIEW_PASSED',
         'SM_AM_INTERVIEW_FAILED',
-        'SM_AM_INTERVIEW_NO_SHOW',
+        'SM_AM_NO_SHOW',
+        'NO_INTERVIEW',
         'ONBOARDING_ACCEPTED'
       ]
     }
@@ -308,8 +334,8 @@ export default function CandidatesList() {
       if (res.data.success > 0) toast.success(`Import thành công ${res.data.success} ứng viên`)
       if (res.data.failed > 0) toast.error(`Có ${res.data.failed} dòng lỗi`)
       loadCandidates()
-    } catch (err: any) { 
-      toast.error(err.response?.data?.message || 'Lỗi khi import file Excel') 
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Lỗi khi import file Excel')
     }
     finally { setImporting(false); if (fileInputRef.current) fileInputRef.current.value = '' }
   }
@@ -405,9 +431,10 @@ export default function CandidatesList() {
   const allowedStatuses = getAllowedStatuses()
   const allStatuses = dbStatuses.map((s) => ({ value: s.code, label: s.name }))
 
-  const canCreate = user && ['ADMIN', 'RECRUITER'].includes(user.role)
-  const canExport = user && ['ADMIN', 'RECRUITER'].includes(user.role)
-  const canImport = user && ['ADMIN', 'RECRUITER'].includes(user.role)
+  const permissions: string[] = (user as any)?.permissions || []
+  const canCreate = user && (permissions.includes('CANDIDATE_CREATE') || ['ADMIN', 'RECRUITER'].includes(user.role))
+  const canExport = user && (permissions.includes('REPORT_EXPORT') || ['ADMIN', 'RECRUITER'].includes(user.role))
+  const canImport = user && (permissions.includes('CANDIDATE_CREATE') || ['ADMIN', 'RECRUITER'].includes(user.role))
 
   return (
     <div className="relative space-y-8">
@@ -455,6 +482,7 @@ export default function CandidatesList() {
           onViewDetail={(id) => setViewCandidateId(id)}
           allowedStatuses={allowedStatuses}
           statusOptions={allStatuses}
+          allowedTransitions={allowedTransitions}
         />
       )}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -487,11 +515,11 @@ export default function CandidatesList() {
                 <Icon name={importing ? 'refresh' : 'upload'} size={16} className={importing ? 'animate-spin' : ''} />
                 {importing ? 'Đang import...' : 'Import'}
               </button>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleImport} 
-                className="hidden" 
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImport}
+                className="hidden"
                 accept=".xlsx, .xls"
               />
             </>
@@ -603,9 +631,10 @@ export default function CandidatesList() {
                     <SelectItem value="__clear__">Chọn trạng thái mới</SelectItem>
                     {allowedStatuses.map((status) => {
                       const statusInfo = allStatuses.find((s) => s.value === status)
+                      const isAllowed = allowedTransitions.length === 0 || allowedTransitions.includes(status)
                       return (
-                        <SelectItem key={status} value={status}>
-                          {statusInfo?.label || status}
+                        <SelectItem key={status} value={status} disabled={!isAllowed}>
+                          {statusInfo?.label || status} {!isAllowed && '(Không cho phép)'}
                         </SelectItem>
                       )
                     })}

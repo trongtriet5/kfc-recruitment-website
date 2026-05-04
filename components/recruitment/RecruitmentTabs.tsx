@@ -5,16 +5,57 @@ import { usePathname, useRouter } from 'next/navigation'
 import Icon from '@/components/icons/Icon'
 import api from '@/lib/api'
 
-const tabs = [
-  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', href: '/recruitment/dashboard' },
-  { id: 'candidates', label: 'Ứng viên', icon: 'users', href: '/recruitment/candidates' },
-  { id: 'forms-links', label: 'Form tuyển dụng', icon: 'document', href: '/recruitment/forms' },
-  { id: 'proposals', label: 'Đề xuất', icon: 'clipboard', href: '/recruitment/proposals' },
-  { id: 'campaigns', label: 'Chiến dịch', icon: 'megaphone', href: '/recruitment/campaigns' },
-  { id: 'interviews', label: 'Phỏng vấn', icon: 'calendar', href: '/recruitment/interviews' },
+// Map each tab to the permission(s) required to see it.
+// Any one of the listed permissions is sufficient.
+const ALL_TABS = [
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    icon: 'dashboard',
+    href: '/recruitment/dashboard',
+    permissions: ['REPORT_VIEW', 'REPORT_EXPORT'],
+  },
+  {
+    id: 'candidates',
+    label: 'Ứng viên',
+    icon: 'users',
+    href: '/recruitment/candidates',
+    permissions: ['CANDIDATE_READ', 'CANDIDATE_CREATE'],
+  },
+  {
+    id: 'forms-links',
+    label: 'Form tuyển dụng',
+    icon: 'document',
+    href: '/recruitment/forms',
+    permissions: ['FORM_READ', 'FORM_CREATE', 'FORM_VIEW'],
+  },
+  {
+    id: 'proposals',
+    label: 'Đề xuất',
+    icon: 'clipboard',
+    href: '/recruitment/proposals',
+    permissions: ['PROPOSAL_READ', 'PROPOSAL_CREATE'],
+  },
+  {
+    id: 'campaigns',
+    label: 'Chiến dịch',
+    icon: 'megaphone',
+    href: '/recruitment/campaigns',
+    permissions: ['CAMPAIGN_READ', 'CAMPAIGN_CREATE'],
+  },
+  {
+    id: 'interviews',
+    label: 'Phỏng vấn',
+    icon: 'calendar',
+    href: '/recruitment/interviews',
+    permissions: ['INTERVIEW_READ', 'INTERVIEW_CREATE'],
+  },
 ]
 
-function getTabFromPath(pathname: string, availableTabs: typeof tabs): string {
+// Roles that bypass permission-based filtering (full access)
+const FULL_ACCESS_ROLES = ['ADMIN', 'RECRUITER']
+
+function getTabFromPath(pathname: string, availableTabs: typeof ALL_TABS): string {
   const currentTab = availableTabs.find(tab => pathname.startsWith(tab.href))
   return currentTab?.id || (availableTabs.length > 0 ? availableTabs[0].id : 'dashboard')
 }
@@ -23,25 +64,34 @@ export default function RecruitmentTabs() {
   const pathname = usePathname()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState('dashboard')
-  const [user, setUser] = useState<any>(null)
-  const [filteredTabs, setFilteredTabs] = useState<typeof tabs>([])
+  const [filteredTabs, setFilteredTabs] = useState<typeof ALL_TABS>([])
 
   useEffect(() => {
     api.get('/auth/me')
       .then((res) => {
-        setUser(res.data)
-        const role = res.data.role
-        let available: typeof tabs = []
-        
-        if (role === 'ADMIN' || role === 'RECRUITER') {
-          available = tabs
-        } else if (role === 'MANAGER' || role === 'USER') {
-          available = tabs.filter(t => ['candidates', 'proposals', 'interviews'].includes(t.id))
-        } else if (role === 'RECRUITER') {
-          available = tabs.filter(t => ['dashboard', 'candidates', 'proposals', 'campaigns', 'interviews'].includes(t.id))
+        const role: string = res.data.role || ''
+        const permissions: string[] = res.data.permissions || []
+
+        let available: typeof ALL_TABS
+
+        if (FULL_ACCESS_ROLES.includes(role)) {
+          // Full access roles see all tabs
+          available = ALL_TABS
+        } else {
+          // Filter tabs based on actual DB permissions
+          available = ALL_TABS.filter(tab =>
+            tab.permissions.some(p => permissions.includes(p))
+          )
         }
-        
+
         setFilteredTabs(available)
+
+        // If current path is not accessible, redirect to first available tab
+        const currentTabInAvailable = available.find(t => pathname.startsWith(t.href))
+        if (!currentTabInAvailable && available.length > 0) {
+          router.replace(available[0].href)
+        }
+
         setActiveTab(getTabFromPath(pathname, available))
       })
       .catch(console.error)
@@ -89,4 +139,3 @@ export default function RecruitmentTabs() {
     </div>
   )
 }
-

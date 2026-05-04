@@ -129,6 +129,8 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
       .finally(() => setLoading(false))
   }
 
+  const [allowedTransitions, setAllowedTransitions] = useState<string[]>([])
+
   const getAllowedStatuses = (): string[] => {
     if (!user) return []
     if (user.role === 'ADMIN' || user.role === 'RECRUITER') {
@@ -143,6 +145,22 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
     }
     return []
   }
+
+  // Fetch allowed transitions for dragged candidate
+  useEffect(() => {
+    if (!draggedCandidate) {
+      setAllowedTransitions([])
+      return
+    }
+
+    api.get(`/recruitment/candidates/${draggedCandidate.id}/allowed-transitions`)
+      .then(res => {
+        setAllowedTransitions(res.data.allowedTransitions || [])
+      })
+      .catch(err => {
+        console.error('Error fetching allowed transitions:', err)
+      })
+  }, [draggedCandidate])
 
   const handleDragStart = (e: React.DragEvent, candidate: Candidate) => {
     setDraggedCandidate(candidate)
@@ -180,9 +198,9 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
     // Get first status of target group
     const firstStatus = targetGroup.statuses[0]
 
-    // Check if user has permission
-    const allowedStatuses = getAllowedStatuses()
-    if (!allowedStatuses.includes(firstStatus.value)) {
+    // Check if user has permission (use allowedTransitions if available)
+    const isAllowed = allowedTransitions.length === 0 || allowedTransitions.includes(firstStatus.value)
+    if (!isAllowed) {
       toast.error('Bạn không có quyền chuyển trạng thái này')
       setDraggedCandidate(null)
       return
@@ -392,14 +410,19 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
             onAssignPIC={onAssignPIC}
             allowedStatuses={allowedStatuses}
             statusOptions={allStatuses}
+            allowedTransitions={allowedTransitions}
           />
         )}
         <div className="flex gap-4 min-w-max">
           {Object.entries(dynamicGroups).map(([groupKey, group]) => {
             const groupCandidates = getCandidatesByGroup(groupKey)
+            // Check if any status in this group is allowed for transition
+            const groupStatuses = group.statuses.map((s: any) => s.value)
+            const isGroupAllowed = allowedTransitions.length === 0 ||
+              groupStatuses.some((code: string) => allowedTransitions.includes(code))
             return (
               <div key={groupKey} className="flex-shrink-0 w-80">
-                <div className="bg-gray-50 rounded-lg p-4 mb-3 border border-gray-200">
+                <div className={`bg-gray-50 rounded-lg p-4 mb-3 border border-gray-200 ${!isGroupAllowed ? 'opacity-50' : ''}`}>
                   <h3 className="font-semibold text-gray-900 text-sm">{group.label}</h3>
                   <p className="text-xs text-gray-500 mt-1">
                     {groupCandidates.length} ứng viên
@@ -408,14 +431,15 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
                 <div
                   className={`
                   bg-white rounded-lg border min-h-[400px] p-3 transition-all shadow-sm
-                  ${dragOverGroup === groupKey
+                  ${dragOverGroup === groupKey && isGroupAllowed
                       ? 'border-gray-900 bg-gray-50'
                       : 'border-gray-200'
                     }
+                  ${!isGroupAllowed ? 'opacity-50 pointer-events-none' : ''}
                 `}
-                  onDragOver={(e) => handleDragOver(e, groupKey)}
+                  onDragOver={(e) => isGroupAllowed && handleDragOver(e, groupKey)}
                   onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, groupKey)}
+                  onDrop={(e) => isGroupAllowed && handleDrop(e, groupKey)}
                 >
                   <div className="space-y-2.5">
                     {groupCandidates.map((candidate) => (

@@ -219,11 +219,7 @@ async submitProposal(proposalId: string, userId: string, userRole: string) {
   if (proposal.status !== 'DRAFT') {
     throw new BadRequestException('Chỉ có thể gửi đề xuất ở trạng thái nháp');
   }
-
-  // Check if user is the creator or has access
-  if (userRole === 'SM' && proposal.requestedById !== userId) {
-    throw new ForbiddenException('Bạn không có quyền gửi đề xuất này');
-  }
+  // getProposalWithAccess already verified store access for SM/AM
 
   // AM skips AM review and goes directly to APPROVED waitlist
   // SM goes through normal flow: SUBMITTED → AM_REVIEWED (AM review needed)
@@ -423,10 +419,8 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
       throw new BadRequestException('Đề xuất đã bị hủy');
     }
 
-    // SM can only cancel their own draft/submitted proposals
-    if (userRole === 'SM' && proposal.requestedById !== userId) {
-      throw new ForbiddenException('Bạn không có quyền hủy đề xuất này');
-    }
+    // SM can cancel proposals for their managed store (including admin-created ones)
+    // Access is already verified by getProposalWithAccess
 
     const updated = await this.prisma.recruitmentProposal.update({
       where: { id: proposalId },
@@ -446,7 +440,8 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
   }
 
   /**
-   * Get proposal with access check
+   * Get proposal with access check.
+   * SM/AM can access proposals for their managed stores (regardless of who created the proposal).
    */
   private async getProposalWithAccess(proposalId: string, userId: string, userRole: string) {
     const proposal = await this.prisma.recruitmentProposal.findUnique({
@@ -461,23 +456,22 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
       }
     });
 
-    if (userRole === 'ADMIN') return proposal;
+    if (!proposal) throw new NotFoundException('Đề xuất không tồn tại');
+    if (userRole === 'ADMIN' || userRole === 'RECRUITER') return proposal;
 
-    // Check store access
     if (userRole === 'SM') {
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
-        include: { managedStore: true },
+        include: { managedStore: { select: { id: true } } },
       });
-      if (user?.managedStore?.id !== proposal.storeId) {
+      // SM can access proposals for their managed store
+      if (!user?.managedStore || user.managedStore.id !== proposal.storeId) {
         throw new ForbiddenException('Bạn không có quyền truy cập đề xuất này');
       }
-    }
-
-    if (userRole === 'AM') {
+    } else if (userRole === 'AM') {
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
-        include: { amStores: true },
+        include: { amStores: { select: { id: true } } },
       });
       const managedIds = user?.amStores?.map(s => s.id) || [];
       if (!managedIds.includes(proposal.storeId || '')) {
@@ -626,17 +620,32 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
     if (filters?.storeId) where.storeId = filters.storeId;
     if (filters?.urgency) where.urgency = filters.urgency;
 
-    // Role-based filtering
-    if (filters?.userRole && filters.userRole !== 'ADMIN') {
+    // Role-based filtering: SM/AM see proposals for their managed stores
+    if (filters?.userRole && filters.userRole !== 'ADMIN' && filters.userRole !== 'RECRUITER') {
       if (filters.userRole === 'SM') {
-        where.requestedById = filters.userId;
+        // SM sees all proposals for their managed store (regardless of who created)
+        const user = await this.prisma.user.findUnique({
+          where: { id: filters.userId },
+          include: { managedStore: { select: { id: true } } },
+        });
+        const storeId = user?.managedStore?.id;
+        if (storeId) {
+          where.storeId = storeId;
+        } else {
+          // SM has no store assigned - show nothing
+          where.id = '__no_access__';
+        }
       } else if (filters.userRole === 'AM') {
         const user = await this.prisma.user.findUnique({
           where: { id: filters.userId },
-          include: { amStores: true },
+          include: { amStores: { select: { id: true } } },
         });
         const storeIds = user?.amStores?.map(s => s.id) || [];
-        where.storeId = { in: storeIds };
+        if (storeIds.length > 0) {
+          where.storeId = { in: storeIds };
+        } else {
+          where.id = '__no_access__';
+        }
       }
     }
 
@@ -751,15 +760,20 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
 
     if (!proposal) throw new NotFoundException('Đề xuất không tồn tại');
 
-    // Access check
-    if (userRole && userRole !== 'ADMIN') {
-      if (userRole === 'SM' && proposal.requestedById !== userId) {
-        throw new ForbiddenException();
-      }
-      if (userRole === 'AM') {
+    // Access check: SM/AM can view proposals for their managed stores (regardless of creator)
+    if (userRole && userRole !== 'ADMIN' && userRole !== 'RECRUITER') {
+      if (userRole === 'SM') {
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
-          include: { amStores: true },
+          include: { managedStore: { select: { id: true } } },
+        });
+        if (!user?.managedStore || user.managedStore.id !== proposal.storeId) {
+          throw new ForbiddenException();
+        }
+      } else if (userRole === 'AM') {
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          include: { amStores: { select: { id: true } } },
         });
         const managedIds = user?.amStores?.map(s => s.id) || [];
         if (!managedIds.includes(proposal.storeId || '')) {

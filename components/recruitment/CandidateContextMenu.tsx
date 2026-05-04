@@ -41,6 +41,7 @@ interface CandidateContextMenuProps {
   onEdit?: (candidateId: string) => void
   allowedStatuses?: string[]
   statusOptions?: StatusOption[]
+  allowedTransitions?: string[]
 }
 
 export default function CandidateContextMenu({
@@ -57,6 +58,7 @@ export default function CandidateContextMenu({
   onEdit,
   allowedStatuses = [],
   statusOptions = [],
+  allowedTransitions = [],
 }: CandidateContextMenuProps) {
   const [showStatusSubmenu, setShowStatusSubmenu] = useState(false)
   const [dynamicStatuses, setDynamicStatuses] = useState<DynamicStatus[]>([])
@@ -453,25 +455,30 @@ export default function CandidateContextMenu({
                     </div>
                     {visibleStatuses.map((status) => {
                       const isSelected = currentStatusCode === status.code
+                      const isAllowed = allowedTransitions.length === 0 || allowedTransitions.includes(status.code)
                       return (
                         <button
                           key={status.id}
                           onClick={() => {
-                            if (onStatusSelect && candidate) {
+                            if (isAllowed && onStatusSelect && candidate) {
                               onStatusSelect(candidate, status.code)
                             }
-                            onClose()
+                            if (isAllowed) onClose()
                           }}
+                          disabled={!isAllowed}
                           className={`
                             w-full text-left px-4 py-2.5 text-sm flex items-center gap-3
-                            hover:bg-gray-50 transition-colors rounded mx-1
-                            ${isSelected ? 'bg-slate-50 text-slate-700 font-medium' : 'text-gray-700'}
+                            transition-colors rounded mx-1
+                            ${!isAllowed ? 'text-gray-400 cursor-not-allowed opacity-50' : ''}
+                            ${isAllowed && !isSelected ? 'hover:bg-gray-50 text-gray-700' : ''}
+                            ${isSelected ? 'bg-slate-50 text-slate-700 font-medium' : ''}
                           `}
                         >
                           <span className={`w-5 text-center ${isSelected ? 'text-slate-600' : 'text-gray-400'}`}>
                             {isSelected ? '✓' : '○'}
                           </span>
                           <span className="flex-1">{status.name}</span>
+                          {!isAllowed && <span className="text-xs text-gray-400">(Không cho phép)</span>}
                           {status.color && (
                             <span
                               className="w-3 h-3 rounded-full"
@@ -485,56 +492,61 @@ export default function CandidateContextMenu({
                 )
               })}
               
-              {/* Show ungrouped statuses if any */}
-              {filteredStatuses.filter((status) => {
-                const inAnyGroup = Object.values(statusGroups).some((group) =>
-                  group.some((s) => s.id === status.id)
-                )
-                return !inAnyGroup
-              }).length > 0 && (
-                <div className="mb-3">
-                  <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase bg-gray-50 rounded">
-                    Khác
-                  </div>
-                  {filteredStatuses
-                    .filter((status) => {
-                      const inAnyGroup = Object.values(statusGroups).some((group) =>
-                        group.some((s) => s.id === status.id)
-                      )
-                      return !inAnyGroup
-                    })
-                    .map((status) => {
-                      const isSelected = currentStatusCode === status.code
-                      return (
-                        <button
-                          key={status.id}
-                          onClick={() => {
-                            if (onStatusSelect && candidate) {
-                              onStatusSelect(candidate, status.code)
-                            }
-                            onClose()
-                          }}
-                          className={`
-                            w-full text-left px-4 py-2.5 text-sm flex items-center gap-3
-                            hover:bg-gray-50 transition-colors rounded mx-1
-                            ${isSelected ? 'bg-slate-50 text-slate-700 font-medium' : 'text-gray-700'}
-                          `}
-                        >
-                          <span className={`w-5 text-center ${isSelected ? 'text-slate-600' : 'text-gray-400'}`}>
-                            {isSelected ? '✓' : '○'}
-                          </span>
-                          <span className="flex-1">{status.name}</span>
-                          {status.color && (
-                            <span
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: status.color }}
-                            />
-                          )}
-                        </button>
-                      )
-                    })}
-                </div>
-              )}
+               {/* Show ungrouped statuses if any */}
+               {filteredStatuses.filter((status) => {
+                 const inAnyGroup = Object.values(statusGroups).some((group) =>
+                   group.some((s) => s.id === status.id)
+                 )
+                 return !inAnyGroup
+               }).length > 0 && (
+                 <div className="mb-3">
+                   <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase bg-gray-50 rounded">
+                     Khác
+                   </div>
+                   {filteredStatuses
+                     .filter((status) => {
+                       const inAnyGroup = Object.values(statusGroups).some((group) =>
+                         group.some((s) => s.id === status.id)
+                       )
+                       return !inAnyGroup
+                     })
+                     .map((status) => {
+                       const isSelected = currentStatusCode === status.code
+                       const isAllowed = allowedTransitions.length === 0 || allowedTransitions.includes(status.code)
+                       return (
+                         <button
+                           key={status.id}
+                           onClick={() => {
+                             if (isAllowed && onStatusSelect && candidate) {
+                               onStatusSelect(candidate, status.code)
+                             }
+                             if (isAllowed) onClose()
+                           }}
+                           disabled={!isAllowed}
+                           className={`
+                             w-full text-left px-4 py-2.5 text-sm flex items-center gap-3
+                             transition-colors rounded mx-1
+                             ${!isAllowed ? 'text-gray-400 cursor-not-allowed opacity-50' : ''}
+                             ${isAllowed && !isSelected ? 'hover:bg-gray-50 text-gray-700' : ''}
+                             ${isSelected ? 'bg-slate-50 text-slate-700 font-medium' : ''}
+                           `}
+                         >
+                           <span className={`w-5 text-center ${isSelected ? 'text-slate-600' : 'text-gray-400'}`}>
+                             {isSelected ? '✓' : '○'}
+                           </span>
+                           <span className="flex-1">{status.name}</span>
+                           {!isAllowed && <span className="text-xs text-gray-400">(Không cho phép)</span>}
+                           {status.color && (
+                             <span
+                               className="w-3 h-3 rounded-full"
+                               style={{ backgroundColor: status.color }}
+                             />
+                           )}
+                         </button>
+                       )
+                     })}
+                 </div>
+               )}
             </div>
           )}
         </div>

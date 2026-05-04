@@ -104,9 +104,12 @@ export class UsersService {
     });
 
     // Manual explicit store assignment takes priority
-    if (data.storeId && (roleCode === 'SM')) {
+    const isSM = roleCode === 'SM' || roleCode === 'USER';
+    const isAM = roleCode === 'AM' || roleCode === 'MANAGER';
+
+    if (data.storeId && isSM) {
       await this.assignSMToStore(user.id, data.storeId);
-    } else if (data.storeIds?.length && (roleCode === 'AM')) {
+    } else if (data.storeIds?.length && isAM) {
       await this.assignAMToStores(user.id, data.storeIds);
     } else {
       // Fallback: auto-match by name/email convention
@@ -153,12 +156,12 @@ export class UsersService {
 
   /** Legacy auto-match by name/email convention (used for imports) */
   private async assignUserToStoresByConvention(user: any) {
-    if (user.role === 'AM') {
+    if (user.role === 'AM' || user.role === 'MANAGER') {
       await this.prisma.store.updateMany({
         where: { amName: user.fullName },
         data: { amId: user.id }
       });
-    } else if (user.role === 'SM') {
+    } else if (user.role === 'SM' || user.role === 'USER') {
       const match = user.email.match(/^sm\.([a-z0-9.]+)@kfcvietnam\.com\.vn$/i);
       if (match) {
         const slug = match[1].toLowerCase();
@@ -224,15 +227,17 @@ export class UsersService {
     });
 
     const role = updateData.role || user.role;
+    const isSM = role === 'SM' || role === 'USER';
+    const isAM = role === 'AM' || role === 'MANAGER';
 
-    if (storeId !== undefined && (role === 'SM')) {
+    if (storeId !== undefined && isSM) {
       if (storeId) {
         await this.assignSMToStore(id, storeId);
       } else {
         // Unassign
         await this.prisma.store.updateMany({ where: { smId: id }, data: { smId: null } });
       }
-    } else if (storeIds !== undefined && (role === 'AM')) {
+    } else if (storeIds !== undefined && isAM) {
       await this.assignAMToStores(id, storeIds);
     }
 
@@ -307,20 +312,35 @@ export class UsersService {
   }
 
   private async assignToStoreByCode(userId: string, storeCode: string, role: string) {
-    const store = await this.prisma.store.findFirst({
-      where: { OR: [{ id: storeCode }, { code: storeCode }] }
-    });
+    const isSM = role === 'SM' || role === 'USER';
+    const isAM = role === 'AM' || role === 'MANAGER';
     
-    if (!store) return;
+    // Support multiple store codes separated by comma
+    const codes = storeCode.split(',').map(c => c.trim()).filter(c => c);
+    
+    if (codes.length === 0) return;
 
-    if (role === 'SM') {
-      await this.assignSMToStore(userId, store.id);
-    } else if (role === 'AM') {
-      // For AM, we add to their list (or just this one if it's a simple import)
-      await this.prisma.store.update({
-        where: { id: store.id },
-        data: { amId: userId }
+    if (isSM) {
+      // SM only takes the first store code if multiple provided
+      const store = await this.prisma.store.findFirst({
+        where: { OR: [{ id: codes[0] }, { code: codes[0] }] }
       });
+      if (store) {
+        await this.assignSMToStore(userId, store.id);
+      }
+    } else if (isAM) {
+      const stores = await this.prisma.store.findMany({
+        where: { 
+          OR: [
+            { id: { in: codes } },
+            { code: { in: codes } }
+          ]
+        },
+        select: { id: true }
+      });
+      if (stores.length > 0) {
+        await this.assignAMToStores(userId, stores.map(s => s.id));
+      }
     }
   }
 
@@ -328,8 +348,9 @@ export class UsersService {
     const users = await this.findAll();
     
     const workbook = new ExcelJS.Workbook();
+    
+    // Sheet 1: Data
     const worksheet = workbook.addWorksheet('Nhân viên');
-
     worksheet.columns = [
       { header: 'Email', key: 'email', width: 30 },
       { header: 'Họ tên', key: 'fullName', width: 25 },
@@ -338,6 +359,7 @@ export class UsersService {
       { header: 'Trạng thái', key: 'isActive', width: 15 },
       { header: 'Cửa hàng quản lý', key: 'managedStore', width: 30 },
       { header: 'Ngày tạo', key: 'createdAt', width: 20 },
+      { header: 'Mật khẩu', key: 'password', width: 15 }, // Added for template completeness
     ];
 
     users.forEach(user => {
@@ -347,17 +369,46 @@ export class UsersService {
         phone: user.phone,
         role: user.role,
         isActive: user.isActive ? 'Hoạt động' : 'Khóa',
-        managedStore: user.managedStore ? `${user.managedStore.code} - ${user.managedStore.name}` : (user.managedStores?.length ? user.managedStores.map(s => s.code).join(', ') : ''),
+        managedStore: user.managedStore ? user.managedStore.code : (user.managedStores?.length ? user.managedStores.map(s => s.code).join(', ') : ''),
         createdAt: user.createdAt,
+        password: '', // Keep empty for security on export
       });
     });
 
-    // Formatting
+    // Formatting Header
     worksheet.getRow(1).font = { bold: true };
     worksheet.getRow(1).fill = {
       type: 'pattern',
       pattern: 'solid',
       fgColor: { argb: 'FFE0E0E0' }
+    };
+
+    // Sheet 2: Define (Instructions)
+    const defineSheet = workbook.addWorksheet('Define');
+    defineSheet.columns = [
+      { header: 'Cột', key: 'column', width: 20 },
+      { header: 'Yêu cầu', key: 'requirement', width: 15 },
+      { header: 'Mô tả & Giá trị hợp lệ', key: 'description', width: 80 },
+    ];
+
+    const instructions = [
+      { column: 'Email', requirement: 'Bắt buộc', description: 'Địa chỉ email công việc (Dùng để đăng nhập). Ví dụ: sm.s001@kfcvietnam.com.vn' },
+      { column: 'Họ tên', requirement: 'Bắt buộc', description: 'Tên đầy đủ của nhân viên.' },
+      { column: 'Số điện thoại', requirement: 'Tùy chọn', description: 'Số điện thoại liên lạc.' },
+      { column: 'Vai trò', requirement: 'Bắt buộc', description: 'Quyền hạn trong hệ thống. Giá trị hợp lệ: ADMIN, RECRUITER, AM, SM.' },
+      { column: 'Trạng thái', requirement: 'Tùy chọn', description: 'Trạng thái tài khoản. Giá trị: Hoạt động (mặc định) hoặc Khóa.' },
+      { column: 'Cửa hàng quản lý', requirement: 'Tùy chọn', description: 'Mã cửa hàng (ví dụ: S001). Đối với AM có thể nhập nhiều mã cách nhau bằng dấu phẩy.' },
+      { column: 'Mật khẩu', requirement: 'Tùy chọn', description: 'Mật khẩu khởi tạo. Nếu bỏ trống sẽ mặc định là kfc@123.' },
+    ];
+
+    instructions.forEach(row => defineSheet.addRow(row));
+    
+    // Formatting Define Sheet
+    defineSheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    defineSheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFC00000' } // KFC Red-ish
     };
 
     return workbook;

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { SearchableSelect, SearchableSelectOption } from '@/components/ui/select-searchable'
 
 interface Store {
   id: string
@@ -74,6 +75,8 @@ export default function UsersManagementPage() {
   const [filterRole, setFilterRole] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; user: User } | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
+  const [amStoreSearch, setAmStoreSearch] = useState('')
 
   // Determine if user has full access (Admin, Recruiter)
   const hasFullAccess = (role: string) => ['ADMIN', 'RECRUITER'].includes(role)
@@ -121,8 +124,6 @@ export default function UsersManagementPage() {
     catch { console.error('Cannot load stores') }
   }
 
-  // Stores available for SM: unassigned OR currently assigned to this user
-  const availableForSM = stores.filter(s => !s.smId || s.smId === editingUser?.id)
   // Stores available for AM: any active store
   const storesByProvince = stores.reduce((acc, s) => {
     const province = s.city || 'Khác'
@@ -135,6 +136,7 @@ export default function UsersManagementPage() {
     setEditingUser(null)
     setFormData({ fullName: '', email: '', phone: '', password: '', roleId: dbRoles.find(r => r.code === 'SM')?.id || '', isActive: true, storeId: '', storeIds: [] })
     setShowModal(true)
+    setShowPassword(false)
   }
 
   const openEdit = (user: User) => {
@@ -150,6 +152,7 @@ export default function UsersManagementPage() {
       storeIds: user.managedStores?.map(s => s.id) || [],
     })
     setShowModal(true)
+    setShowPassword(false)
   }
 
   const handleDuplicate = (user: User) => {
@@ -181,10 +184,19 @@ export default function UsersManagementPage() {
     e.preventDefault()
     setSubmitting(true)
     try {
-      const payload: any = { ...formData }
+      const selectedRoleCode = dbRoles.find(r => r.id === formData.roleId)?.code || ''
+      const payload: any = { ...formData, role: selectedRoleCode }
+      
       // SM role → storeId, AM/MANAGER role → storeIds
-      if (payload.role === 'USER' || payload.role === 'SM') delete payload.storeIds
-      else delete payload.storeId
+      if (selectedRoleCode === 'USER' || selectedRoleCode === 'SM') {
+        delete payload.storeIds
+      } else if (selectedRoleCode === 'AM' || selectedRoleCode === 'MANAGER') {
+        delete payload.storeId
+      } else {
+        delete payload.storeId
+        delete payload.storeIds
+      }
+      
       if (!payload.password) delete payload.password
 
       if (editingUser) {
@@ -251,8 +263,36 @@ export default function UsersManagementPage() {
   })
 
   const selectedRoleCode = dbRoles.find(r => r.id === formData.roleId)?.code || ''
-  const isSMRole = selectedRoleCode === 'SM'
-  const isAMRole = selectedRoleCode === 'AM'
+  const isSMRole = selectedRoleCode === 'SM' || selectedRoleCode === 'USER'
+  const isAMRole = selectedRoleCode === 'AM' || selectedRoleCode === 'MANAGER'
+
+  // Prepare options for SM SearchableSelect - only available stores
+  const availableForSM = stores.filter(s => !s.smId || s.smId === editingUser?.id)
+  const availableStoresByProvince = availableForSM.reduce((acc, s) => {
+    const province = s.city || 'Khác'
+    if (!acc[province]) acc[province] = []
+    acc[province].push(s)
+    return acc
+  }, {} as Record<string, Store[]>)
+
+  const smStoreOptions: SearchableSelectOption[] = Object.entries(availableStoresByProvince)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .flatMap(([province, provinceStores]) => [
+      ...provinceStores.sort((a, b) => a.code.localeCompare(b.code)).map(s => ({
+        id: s.id,
+        name: `${s.code} – ${s.name}`,
+        group: province
+      }))
+    ])
+
+  // Filtered stores for AM based on search
+  const filteredStoresForAM = Object.entries(storesByProvince).map(([province, provinceStores]) => {
+    const filtered = provinceStores.filter(s => 
+      s.name.toLowerCase().includes(amStoreSearch.toLowerCase()) || 
+      s.code.toLowerCase().includes(amStoreSearch.toLowerCase())
+    )
+    return { province, stores: filtered }
+  }).filter(group => group.stores.length > 0)
 
   return (
     <div className="space-y-4">
@@ -373,7 +413,7 @@ export default function UsersManagementPage() {
         {/* Create/Edit Modal */}
         {showModal && (
           <Dialog open={showModal} onOpenChange={setShowModal}>
-            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-3">
                   <div className="bg-kfc-red/10 p-2 rounded-lg text-kfc-red"><Icon name={editingUser ? 'pencil' : 'plus'} size={20} /></div>
@@ -413,33 +453,19 @@ export default function UsersManagementPage() {
                   </Select>
                 </div>
 
-                {/* SM: single store picker — grouped by province */}
+                {/* SM: single store picker — searchable grouped by province */}
                 {isSMRole && (
                   <div>
-                    <Label className="flex items-center gap-1">
+                    <Label className="flex items-center gap-1 mb-1.5">
                       <Icon name="store" size={14} />
                       Cửa hàng quản lý
                     </Label>
-                    <Select value={formData.storeId || '__none__'} onValueChange={v => setFormData({ ...formData, storeId: v === '__none__' ? '' : v })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Chọn cửa hàng..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">— Không gán —</SelectItem>
-                        {Object.entries(storesByProvince).sort(([a], [b]) => a.localeCompare(b)).map(([province, provinceStores]) => (
-                          <SelectGroup key={province}>
-                            <SelectLabel className="font-bold text-gray-900 bg-gray-50 px-2 py-1.5 text-xs uppercase tracking-wide">
-                              {province}
-                            </SelectLabel>
-                            {[...provinceStores].sort((a, b) => a.code.localeCompare(b.code)).map(s => (
-                              <SelectItem key={s.id} value={s.id} className="pl-4">
-                                {s.code} – {s.name}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={smStoreOptions}
+                      value={formData.storeId}
+                      onChange={v => setFormData({ ...formData, storeId: v })}
+                      placeholder="Chọn cửa hàng..."
+                    />
                     <p className="text-xs text-gray-400 mt-1">
                       Chỉ hiển thị cửa hàng chưa có SM. Mỗi SM quản lý 1 cửa hàng.
                     </p>
@@ -460,15 +486,28 @@ export default function UsersManagementPage() {
 
                 {/* AM: multi-checkbox grouped by city */}
                 {isAMRole && (
-                  <div>
-                    <Label className="flex items-center gap-1 mb-2">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1">
                       <Icon name="store" size={14} />
                       Cửa hàng quản lý ({formData.storeIds.length} đã chọn)
                     </Label>
+                    
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Icon name="search" size={14} className="text-gray-400" />
+                      </div>
+                      <Input
+                        className="pl-9 py-1.5 h-9 text-sm"
+                        placeholder="Tìm theo mã hoặc tên cửa hàng..."
+                        value={amStoreSearch}
+                        onChange={e => setAmStoreSearch(e.target.value)}
+                      />
+                    </div>
+
                     <div className="border border-gray-200 rounded-lg max-h-64 overflow-y-auto divide-y divide-gray-100">
-                      {Object.entries(storesByProvince).sort(([a], [b]) => a.localeCompare(b)).map(([province, provinceStores]) => (
+                      {filteredStoresForAM.sort((a, b) => a.province.localeCompare(b.province)).map(({ province, stores: provinceStores }) => (
                         <div key={province}>
-                          <div className="px-3 py-1.5 bg-gray-50 flex items-center justify-between">
+                          <div className="px-3 py-1.5 bg-gray-50 flex items-center justify-between sticky top-0 z-10">
                             <span className="text-xs font-semibold text-gray-700 uppercase">{province}</span>
                             <button
                               type="button"
@@ -508,6 +547,11 @@ export default function UsersManagementPage() {
                           ))}
                         </div>
                       ))}
+                      {filteredStoresForAM.length === 0 && (
+                        <div className="px-4 py-8 text-center text-sm text-gray-400 italic">
+                          Không tìm thấy cửa hàng nào
+                        </div>
+                      )}
                     </div>
                     <p className="text-xs text-gray-400 mt-1">AM có thể quản lý nhiều cửa hàng trong cùng khu vực.</p>
                   </div>
@@ -515,13 +559,23 @@ export default function UsersManagementPage() {
 
                 <div>
                   <Label>Mật khẩu {editingUser ? '(Bỏ trống nếu không đổi)' : <span className="text-red-500">*</span>}</Label>
-                  <Input
-                    type="text"
-                    required={!editingUser}
-                    value={formData.password}
-                    onChange={e => setFormData({ ...formData, password: e.target.value })}
-                    placeholder={editingUser ? '••••••••' : 'Ví dụ: kfc@123'}
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      required={!editingUser}
+                      value={formData.password}
+                      onChange={e => setFormData({ ...formData, password: e.target.value })}
+                      placeholder={editingUser ? '••••••••' : 'Ví dụ: kfc@123'}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                    >
+                      <Icon name={showPassword ? 'eye-off' : 'eye'} size={18} />
+                    </button>
+                  </div>
                 </div>
 
                 <DialogFooter>

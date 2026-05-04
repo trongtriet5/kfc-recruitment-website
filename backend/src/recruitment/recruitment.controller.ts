@@ -157,10 +157,10 @@ export class RecruitmentController {
   @Get('candidates/:id/allowed-transitions')
   async getAllowedTransitions(@Param('id') id: string, @CurrentUser() user: any) {
     const candidate = await this.service.getCandidate(id, user);
-    const currentStatus = candidate.statusId ? 'CV_FILTERING' : null;
+    const currentStatus = candidate.status?.code || null;
     return {
       currentStatus,
-      allowedTransitions: this.statusTransition.getAllowedTransitions(currentStatus || null, user.role),
+      allowedTransitions: this.statusTransition.getAllowedTransitions(currentStatus, user.role),
     };
   }
 

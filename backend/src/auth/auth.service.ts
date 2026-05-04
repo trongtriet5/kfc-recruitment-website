@@ -75,6 +75,7 @@ export class AuthService {
   async getProfile(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
+      include: { roleObj: true },
     });
 
     if (!user) {
@@ -82,9 +83,11 @@ export class AuthService {
     }
 
     const { password: _, ...result } = user;
+    const permissions: string[] = (user.roleObj?.permissions as string[]) || [];
     return {
       ...result,
       fullName: user.fullName,
+      permissions,
     };
   }
 }

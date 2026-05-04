@@ -148,6 +148,7 @@ export const STATUS_TRANSITIONS: TransitionRule[] = [
   // Interview stage - HR schedules, SM/AM/OM updates
   { from: ['WAITING_INTERVIEW'], to: 'HR_INTERVIEW_PASSED', allowedRoles: ['ADMIN', 'RECRUITER'] },
   { from: ['WAITING_INTERVIEW'], to: 'HR_INTERVIEW_FAILED', allowedRoles: ['ADMIN', 'RECRUITER'], requiresReason: true },
+  { from: ['WAITING_INTERVIEW'], to: 'NO_INTERVIEW', allowedRoles: ['ADMIN', 'RECRUITER', 'AM', 'SM'] },
 
   // SM/AM Interview - Store managers can update
   { from: ['HR_INTERVIEW_PASSED'], to: 'SM_AM_INTERVIEW_PASSED', allowedRoles: ['ADMIN', 'RECRUITER', 'AM', 'SM'] },
@@ -183,6 +184,7 @@ export const STATUS_GROUPS: Record<string, string> = {
   WAITING_INTERVIEW: 'interview',
   HR_INTERVIEW_PASSED: 'interview',
   HR_INTERVIEW_FAILED: 'interview',
+  NO_INTERVIEW: 'interview',
   SM_AM_INTERVIEW_PASSED: 'interview',
   SM_AM_INTERVIEW_FAILED: 'interview',
   SM_AM_NO_SHOW: 'interview',
