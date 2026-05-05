@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, UseInterceptors, UploadedFile, Res } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, UseInterceptors, UploadedFile, Res, Query } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -15,8 +15,8 @@ export class UsersController {
   }
 
   @Get('select')
-  getForSelect() {
-    return this.usersService.getForSelect();
+  getForSelect(@Query('role') role?: string) {
+    return this.usersService.getForSelect(role);
   }
 
   @Get('stores-for-assign')

@@ -20,7 +20,7 @@ export class RbacService {
    */
   async hasPermission(userId: string, userRole: string, action: PermissionAction): Promise<boolean> {
     // 1. Try to check from DB Role permissions
-    const user = await this.prisma.user.findUnique({
+    const user = await this.prisma.user?.findUnique?.({
       where: { id: userId },
       include: { roleObj: true }
     });
@@ -236,11 +236,23 @@ export class RbacService {
 
   // Check if interview result is allowed for user role
   isAllowedInterviewResult(result: string, userRole: string): boolean {
+    if (userRole === 'ADMIN') return true;
+    if (userRole === 'RECRUITER') return false;
     return canSetInterviewResult(userRole as Role, result);
   }
 
   // Get allowed interview results for frontend
   getAllowedInterviewResults(userRole: string): { code: string; name: string }[] {
+    if (userRole === 'ADMIN') {
+      return [
+        { code: 'SM_AM_PASSED', name: 'SM/AM PV Đạt' },
+        { code: 'SM_AM_FAILED', name: 'SM/AM PV Loại' },
+        { code: 'SM_AM_NO_SHOW', name: 'Không đến phỏng vấn' },
+        { code: 'OM_PV_PASSED', name: 'OM PV Đạt' },
+        { code: 'OM_PV_FAILED', name: 'OM PV Loại' },
+        { code: 'OM_PV_NO_SHOW', name: 'Không đến phỏng vấn' },
+      ];
+    }
     return getConstrainedInterviewResults(userRole as Role);
   }
 
@@ -286,7 +298,7 @@ export class RbacService {
   /**
    * Check if user can manage offer
    */
-  canManageOffer(userRole: string, action: 'create' | 'send' | 'update' | 'delete'): boolean {
+  canManageOffer(userRole: string, action: 'create' | 'read' | 'send' | 'update' | 'delete'): boolean {
     const matrix: Record<string, string[]> = {
       ADMIN: ['create', 'send', 'update', 'delete'],
       RECRUITER: ['create', 'send', 'update'],
@@ -295,7 +307,7 @@ export class RbacService {
     };
 
     const allowed = matrix[userRole] || [];
-    return allowed.includes(action) || allowed.includes('read');
+    return allowed.includes(action);
   }
 }
 

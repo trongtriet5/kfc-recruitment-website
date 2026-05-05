@@ -40,6 +40,23 @@
 - `backend/.env`: Backend config (DATABASE_URL, JWT_SECRET, PORT, FRONTEND_URL)
 - Frontend needs `NEXT_PUBLIC_API_URL=http://localhost:3001`
 
+## Authentication & Route Protection
+### Frontend Middleware
+- `middleware.ts` at root provides server-side route protection
+- Token stored in HTTP-only cookie (`token`) for middleware access
+- Token also in localStorage for client-side API calls
+
+### Public vs Private Paths
+- **Public**: `/login`, `/apply`
+- **Private**: `/recruitment/*`, `/stores/*`, `/settings/*`
+- Public API: `/api/recruitment/forms/link/*`, `/api/recruitment/campaigns/link/*`, `/api/recruitment/apply`
+
+### Auth Flow
+1. Login sets token in both localStorage and cookie via `/api/auth/token`
+2. Middleware checks cookie for route protection
+3. API interceptor uses localStorage token for backend calls
+4. Logout clears both via `/api/auth/token` DELETE
+
 ## Ports
 - Frontend: `3000`
 - Backend: **3001**

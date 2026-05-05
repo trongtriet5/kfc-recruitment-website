@@ -38,9 +38,13 @@ export class UsersService {
     }));
   }
 
-  async getForSelect() {
+  async getForSelect(role?: string) {
+    const where: any = { isActive: true, role: { not: 'ADMIN' } };
+    if (role) {
+      where.role = role;
+    }
     return this.prisma.user.findMany({
-      where: { isActive: true, role: { not: 'ADMIN' } },
+      where,
       select: { id: true, fullName: true, email: true },
       orderBy: { fullName: 'asc' }
     });

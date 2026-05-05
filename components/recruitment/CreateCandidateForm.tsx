@@ -10,6 +10,7 @@ interface Store {
   id: string
   name: string
   code: string
+  city?: string
 }
 
 interface CreateCandidateFormProps {

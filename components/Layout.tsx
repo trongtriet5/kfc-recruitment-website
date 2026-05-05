@@ -1,31 +1,32 @@
-'use client'
+'use client';
 
-import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
-import api from '@/lib/api'
-import Icon from '@/components/icons/Icon'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { formatDate, formatDateTime } from '@/lib/utils'
-import { toast } from 'sonner'
-import { socket } from '@/src/socket'
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+
+import api from '@/lib/api';
+import Icon from '@/components/icons/Icon';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { formatDate, formatDateTime } from '@/lib/utils';
+import { toast } from 'sonner';
+import { socket } from '@/src/socket';
 
 interface User {
-  id: string
-  email: string
-  fullName: string
-  role: string
+  id: string;
+  email: string;
+  fullName: string;
+  role: string;
 }
 
 interface Notification {
-  id: string
-  type: string
-  title: string
-  message: string
-  createdAt: string
-  isRead: boolean
-  actionUrl?: string
-  recipientId?: string
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  createdAt: string;
+  isRead: boolean;
+  actionUrl?: string;
+  recipientId?: string;
 }
 
 const NOTIFICATION_COLORS: Record<string, string> = {
@@ -35,112 +36,115 @@ const NOTIFICATION_COLORS: Record<string, string> = {
   INTERVIEW_REMINDER: 'text-gray-900 bg-gray-100',
   OFFER_ACCEPTED: 'text-gray-900 bg-gray-100',
   NEW_CANDIDATE: 'text-gray-900 bg-gray-100',
-}
+};
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
-  const router = useRouter()
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [logoError, setLogoError] = useState(false)
-  const [notifications, setNotifications] = useState<Notification[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [showNotifications, setShowNotifications] = useState(false)
+  const pathname = usePathname();
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [logoError, setLogoError] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const loadNotifications = () => {
-    if (!user) return
-    api.get('/recruitment/notifications')
+    if (!user) return;
+    api
+      .get('/recruitment/notifications')
       .then(res => {
-        setNotifications(res.data.notifications || [])
-        setUnreadCount(res.data.unreadCount || 0)
+        setNotifications(res.data.notifications || []);
+        setUnreadCount(res.data.unreadCount || 0);
       })
-      .catch(console.error)
-  }
+      .catch(console.error);
+  };
 
   const markAsRead = async (id: string) => {
-    await api.patch(`/recruitment/notifications/${id}/read`)
-    loadNotifications()
-  }
+    await api.patch(`/recruitment/notifications/${id}/read`);
+    loadNotifications();
+  };
 
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.isRead) {
-      markAsRead(notification.id)
+      markAsRead(notification.id);
     }
     if (notification.actionUrl) {
-      router.push(notification.actionUrl)
+      router.push(notification.actionUrl);
     }
-    setShowNotifications(false)
-  }
+    setShowNotifications(false);
+  };
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
+    const token = localStorage.getItem('token');
 
     if (!token) {
-      router.push('/login')
-      setLoading(false)
-      return
+      router.push('/login');
+      setLoading(false);
+      return;
     }
 
     api
       .get('/auth/me')
-      .then((res) => {
-        setUser(res.data)
+      .then(res => {
+        setUser(res.data);
       })
       .catch(() => {
-        localStorage.removeItem('token')
-        router.push('/login')
+        localStorage.removeItem('token');
+        router.push('/login');
       })
-      .finally(() => setLoading(false))
-  }, [router])
+      .finally(() => setLoading(false));
+  }, [router]);
 
   useEffect(() => {
-    if (user) loadNotifications()
-  }, [user])
+    if (user) loadNotifications();
+  }, [user]);
 
   useEffect(() => {
-    if (!user) return
+    if (!user) return;
     const interval = setInterval(() => {
-      loadNotifications()
-    }, 30000)
-    return () => clearInterval(interval)
-  }, [user])
+      loadNotifications();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   useEffect(() => {
-    if (!user) return
+    if (!user) return;
 
     const onNewNotification = (notification: Notification) => {
       // Check if notification is for this user (recipientId match)
       if (notification.recipientId && notification.recipientId !== user.id) return;
 
-      setNotifications(prev => [notification, ...prev].slice(0, 50))
-      setUnreadCount(prev => prev + 1)
+      setNotifications(prev => [notification, ...prev].slice(0, 50));
+      setUnreadCount(prev => prev + 1);
 
       // Show minimal toast
-      toast(notification.title || "Thông báo mới", {
+      toast(notification.title || 'Thông báo mới', {
         description: notification.message,
         icon: <Icon name="bell" size={18} className="text-gray-900" />,
-        className: "bg-white border-gray-100 shadow-xl rounded-2xl p-4",
+        className: 'bg-white border-gray-100 shadow-xl rounded-2xl p-4',
       });
-    }
+    };
 
-    socket.on('notification_received', onNewNotification)
+    socket.on('notification_received', onNewNotification);
 
     return () => {
-      socket.off('notification_received', onNewNotification)
-    }
-  }, [user])
+      socket.off('notification_received', onNewNotification);
+    };
+  }, [user]);
 
   const handleLogout = async () => {
-    localStorage.removeItem('token')
-    router.push('/login')
-  }
+    localStorage.removeItem('token');
+    // Remove token cookie via API route
+    await fetch('/api/auth/token', { method: 'DELETE' });
+    router.push('/login');
+  };
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-lg">Đang tải...</div>
       </div>
-    )
+    );
   }
 
   const menuItems = [
@@ -151,19 +155,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     },
     ...(user?.role === 'ADMIN'
       ? [
-        {
-          name: 'Cửa hàng',
-          href: '/stores',
-          icon: 'store',
-        },
-        {
-          name: 'Cấu hình',
-          href: '/settings/users',
-          icon: 'settings',
-        },
-      ]
+          {
+            name: 'Cửa hàng',
+            href: '/stores',
+            icon: 'store',
+          },
+          {
+            name: 'Cấu hình',
+            href: '/settings/users',
+            icon: 'settings',
+          },
+        ]
       : []),
-  ]
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -186,14 +190,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="p-4 space-y-1 flex-1 overflow-y-auto">
-          {menuItems.map((item) => (
+          {menuItems.map(item => (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors ${pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href))
-                ? 'bg-kfc-red text-white'
-                : 'text-gray-700 hover:bg-gray-100'
-                }`}
+              className={`flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href))
+                  ? 'bg-kfc-red text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
             >
               <span className="mr-3">
                 <Icon name={item.icon} size={20} />
@@ -208,10 +213,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="p-4 border-t">
             <button
               onClick={() => setShowNotifications(!showNotifications)}
-              className={`w-full flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors ${showNotifications
-                ? 'bg-kfc-red text-white'
-                : 'text-gray-700 hover:bg-gray-100'
-                }`}
+              className={`w-full flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                showNotifications ? 'bg-kfc-red text-white' : 'text-gray-700 hover:bg-gray-100'
+              }`}
             >
               <span className="mr-3">
                 <Icon name="bell" size={20} />
@@ -233,12 +237,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 {user.fullName?.charAt(0).toUpperCase() || 'U'}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-700 truncate">
-                  {user.fullName}
-                </p>
-                <p className="text-xs text-gray-500 truncate">
-                  {user.role}
-                </p>
+                <p className="text-sm font-medium text-gray-700 truncate">{user.fullName}</p>
+                <p className="text-xs text-gray-500 truncate">{user.role}</p>
               </div>
             </div>
             <button
@@ -271,11 +271,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors rounded-xl mb-2 border ${!n.isRead ? 'bg-gray-50 border-gray-900 shadow-sm' : 'bg-white border-gray-100'}`}
                     >
                       <div className="flex items-start gap-3">
-                        <div className={`p-2 rounded-full ${NOTIFICATION_COLORS[n.type] || 'bg-gray-100 text-gray-600'} flex-shrink-0`}>
+                        <div
+                          className={`p-2 rounded-full ${NOTIFICATION_COLORS[n.type] || 'bg-gray-100 text-gray-600'} flex-shrink-0`}
+                        >
                           <Icon name="bell" size={16} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-bold ${!n.isRead ? 'text-gray-900' : 'text-gray-600'}`}>{n.title}</p>
+                          <p
+                            className={`text-sm font-bold ${!n.isRead ? 'text-gray-900' : 'text-gray-600'}`}
+                          >
+                            {n.title}
+                          </p>
                           <p className="text-sm text-gray-600 mt-1">{n.message}</p>
                           <p className="text-xs text-gray-400 mt-2">
                             {formatDateTime(n.createdAt)}
@@ -296,5 +302,5 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </main>
     </div>
-  )
+  );
 }

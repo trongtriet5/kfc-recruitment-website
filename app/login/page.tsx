@@ -1,43 +1,50 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import api from '@/lib/api'
-import { toast } from 'sonner'
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import api from '@/lib/api';
+import { toast } from 'sonner';
 
 export default function LoginPage() {
-  const router = useRouter()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [logoError, setLogoError] = useState(false)
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [logoError, setLogoError] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+    e.preventDefault();
+    setError('');
+    setLoading(true);
 
     try {
       const response = await api.post('/auth/login', {
         email,
         password,
-      })
+      });
 
       if (response.data.access_token) {
-        // Save token to localStorage
-        localStorage.setItem('token', response.data.access_token)
-        router.push('/recruitment/dashboard')
-        router.refresh()
+        // Save token to localStorage (for API calls)
+        localStorage.setItem('token', response.data.access_token);
+        // Set token cookie via API route (for middleware)
+        await fetch('/api/auth/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: response.data.access_token }),
+        });
+        router.push('/recruitment/dashboard');
+        router.refresh();
       }
     } catch (err: any) {
-      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Đăng nhập thất bại'
-      setError(errorMessage)
-      toast.error(errorMessage)
+      const errorMessage =
+        err.response?.data?.message || err.response?.data?.error || 'Đăng nhập thất bại';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -54,9 +61,7 @@ export default function LoginPage() {
               />
             </div>
           )}
-          <h2 className="text-center text-3xl font-bold text-gray-900">
-            Đăng nhập vào hệ thống
-          </h2>
+          <h2 className="text-center text-3xl font-bold text-gray-900">Đăng nhập vào hệ thống</h2>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && (
@@ -78,7 +83,7 @@ export default function LoginPage() {
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-kfc-red focus:border-kfc-red focus:z-10 sm:text-sm"
                 placeholder="Email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={e => setEmail(e.target.value)}
               />
             </div>
             <div>
@@ -94,7 +99,7 @@ export default function LoginPage() {
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-kfc-red focus:border-kfc-red focus:z-10 sm:text-sm"
                 placeholder="Mật khẩu"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={e => setPassword(e.target.value)}
               />
             </div>
           </div>
@@ -111,6 +116,5 @@ export default function LoginPage() {
         </form>
       </div>
     </div>
-  )
+  );
 }
-

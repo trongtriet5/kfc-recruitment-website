@@ -24,6 +24,7 @@ interface Store {
   id: string
   name: string
   code: string
+  city?: string
 }
 
 export default function EditCandidateForm({ 

@@ -47,13 +47,22 @@ export default function InterviewsCalendar() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('week')
   const [displayMode, setDisplayMode] = useState<'list' | 'calendar'>('calendar')
-  
+
   const [resultFilter, setResultFilter] = useState<string>('__all__')
   const [results] = useState([
     { id: 'PASSED', name: 'Đạt' },
     { id: 'FAILED', name: 'Không đạt' },
     { id: 'PENDING', name: 'Chờ kết quả' }
   ])
+  const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null)
+
+  const openInterviewDetail = (interview: Interview) => {
+    setSelectedInterview(interview)
+  }
+
+  const closeInterviewDetail = () => {
+    setSelectedInterview(null)
+  }
 
   useEffect(() => {
     // No dynamic types or results to load
@@ -98,7 +107,7 @@ export default function InterviewsCalendar() {
 
   const getResultLabel = (interview: Interview) => {
     const status = typeof interview.candidate.status === 'object' ? interview.candidate.status?.code : interview.candidate.status;
-    
+
     if (["SM_AM_INTERVIEW_PASSED", "OM_PV_INTERVIEW_PASSED", "OFFER_SENT", "OFFER_ACCEPTED", "OFFER_REJECTED", "WAITING_ONBOARDING", "ONBOARDING_ACCEPTED"].includes(status || "")) {
       return "Đạt";
     }
@@ -106,9 +115,12 @@ export default function InterviewsCalendar() {
       return "Không đạt";
     }
     if (status === "WAITING_INTERVIEW") {
-      return "Chờ kết quả";
+      return "Chờ PV";
     }
-    
+    if (status === "NO_INTERVIEW") {
+      return "Không đến phỏng vấn";
+    }
+
     // Fallback to existing result label if status doesn't match
     const result = interview.result;
     if (!result) return 'Chưa có kết quả'
@@ -123,7 +135,7 @@ export default function InterviewsCalendar() {
 
   const getResultColor = (interview: Interview) => {
     const status = typeof interview.candidate.status === 'object' ? interview.candidate.status?.code : interview.candidate.status;
-    
+
     if (["SM_AM_INTERVIEW_PASSED", "OM_PV_INTERVIEW_PASSED", "OFFER_SENT", "OFFER_ACCEPTED", "OFFER_REJECTED", "WAITING_ONBOARDING", "ONBOARDING_ACCEPTED"].includes(status || "")) {
       return 'bg-green-100 text-green-800';
     }
@@ -133,23 +145,26 @@ export default function InterviewsCalendar() {
     if (status === "WAITING_INTERVIEW") {
       return 'bg-blue-100 text-blue-800';
     }
-    
+    if (status === "NO_INTERVIEW") {
+      return 'bg-gray-200 text-gray-800';
+    }
+
     return 'bg-slate-200 text-slate-800';
   }
 
   const groupInterviewsByDate = () => {
     const grouped: Record<string, Interview[]> = {}
-    
+
     const filtered = interviews.filter(interview => {
       if (!resultFilter || resultFilter === '__all__') return true;
-      
+
       const status = typeof interview.candidate.status === 'object' ? interview.candidate.status?.code : interview.candidate.status;
-      
+
       if (resultFilter === 'PASSED') {
         return ["SM_AM_INTERVIEW_PASSED", "OM_PV_INTERVIEW_PASSED", "OFFER_SENT", "OFFER_ACCEPTED", "OFFER_REJECTED", "WAITING_ONBOARDING", "ONBOARDING_ACCEPTED"].includes(status || "");
       }
       if (resultFilter === 'FAILED') {
-        return ["SM_AM_INTERVIEW_FAILED", "OM_PV_INTERVIEW_FAILED"].includes(status || "");
+        return ["SM_AM_INTERVIEW_FAILED", "OM_PV_INTERVIEW_FAILED", "NO_INTERVIEW"].includes(status || "");
       }
       if (resultFilter === 'PENDING') {
         return status === "WAITING_INTERVIEW";
@@ -171,7 +186,7 @@ export default function InterviewsCalendar() {
     return interviews.filter(interview => {
       const interviewDate = parseISO(interview.scheduledAt)
       const interviewHour = interviewDate.getHours()
-      
+
       // Filter by result category first (same as groupInterviewsByDate logic)
       const status = typeof interview.candidate.status === 'object' ? interview.candidate.status?.code : interview.candidate.status;
       let matchesFilter = true;
@@ -184,7 +199,7 @@ export default function InterviewsCalendar() {
           matchesFilter = status === "WAITING_INTERVIEW";
         }
       }
-      
+
       return matchesFilter && isSameDay(interviewDate, date) && interviewHour === hour
     })
   }
@@ -192,7 +207,7 @@ export default function InterviewsCalendar() {
   const getWeekDays = () => {
     const start = new Date(selectedDate)
     const days: Date[] = []
-    
+
     if (viewMode === 'day') {
       days.push(start)
     } else if (viewMode === 'week') {
@@ -330,9 +345,9 @@ export default function InterviewsCalendar() {
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Thời gian</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Ứng viên</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Người PV</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Người phỏng vấn</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Địa điểm</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Kết quả</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Trạng thái ứng viên</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -378,7 +393,7 @@ export default function InterviewsCalendar() {
       {displayMode === 'calendar' && (
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
           {/* Calendar Header */}
-          <div className="grid grid-cols-[100px_repeat(7,minmax(0,1fr))] border-b bg-gray-50">
+          <div className="grid grid-cols-[140px_repeat(7,minmax(180px,1fr))] border-b bg-gray-50">
             <div className="p-4 text-xs font-semibold text-gray-400 uppercase tracking-wider border-r flex items-center justify-end pr-4">
               Giờ
             </div>
@@ -391,7 +406,7 @@ export default function InterviewsCalendar() {
           </div>
 
           {/* Calendar Body */}
-          <div className="max-h-[800px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 grid grid-cols-[100px_repeat(7,minmax(0,1fr))]">
+          <div className="max-h-[800px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 grid grid-cols-[140px_repeat(7,minmax(180px,1fr))]">
             {TIME_SLOTS.map(hour => (
               <div key={hour} className="contents group">
                 <div className="p-3 text-sm font-bold text-gray-500 bg-gray-50/50 border-r border-b flex flex-col items-end justify-start gap-1 pr-4 group-hover:bg-gray-100 transition-colors">
@@ -408,6 +423,7 @@ export default function InterviewsCalendar() {
                       {slots.map(interview => (
                         <div
                           key={interview.id}
+                          onClick={() => openInterviewDetail(interview)}
                           className={`group/card p-3 rounded-xl text-xs cursor-pointer border-2 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${getResultColor(interview)}`}
                         >
                           <div className="font-bold text-sm truncate mb-1">{interview.candidate.fullName}</div>
@@ -420,7 +436,16 @@ export default function InterviewsCalendar() {
                             {typeof interview.interviewer === 'object' && 'fullName' in interview.interviewer ? interview.interviewer.fullName : 'N/A'}
                           </div>
                           <div className="mt-2 pt-2 border-t border-current border-opacity-10 flex justify-between items-center">
-                            <span className="font-bold uppercase tracking-tighter text-[10px]">{getResultLabel(interview)}</span>
+                            <span className="font-bold uppercase tracking-tighter text-[10px]">
+                              {(() => {
+                                const status = typeof interview.candidate.status === 'object' ? interview.candidate.status?.code : interview.candidate.status;
+                                if (["SM_AM_INTERVIEW_PASSED", "OM_PV_INTERVIEW_PASSED", "OFFER_SENT", "OFFER_ACCEPTED", "OFFER_REJECTED", "WAITING_ONBOARDING", "ONBOARDING_ACCEPTED"].includes(status || "")) return "Đạt";
+                                if (["SM_AM_INTERVIEW_FAILED", "OM_PV_INTERVIEW_FAILED"].includes(status || "")) return "Không đạt";
+                                if (status === "WAITING_INTERVIEW") return "Chờ PV";
+                                if (status === "NO_INTERVIEW") return "Không đến PV";
+                                return typeof interview.candidate.status === 'object' ? interview.candidate.status?.name : (status || "Chờ PV");
+                              })()}
+                            </span>
                             <Icon name="chevron-right" size={12} className="opacity-0 group-hover/card:opacity-100 transition-opacity" />
                           </div>
                         </div>
@@ -430,6 +455,79 @@ export default function InterviewsCalendar() {
                 })}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Interview Detail Modal */}
+      {selectedInterview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={closeInterviewDetail}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Chi tiết phỏng vấn</h2>
+              <button onClick={closeInterviewDetail} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <Icon name="x" size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Candidate Info */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Thông tin ứng viên</h3>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Icon name="user" size={16} className="text-gray-400" />
+                    <span className="font-bold text-gray-900">{selectedInterview.candidate.fullName}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Icon name="mail" size={16} className="text-gray-400" />
+                    <span className="text-gray-600">{selectedInterview.candidate.email || 'Chưa có'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Icon name="phone" size={16} className="text-gray-400" />
+                    <span className="text-gray-600">{selectedInterview.candidate.phone}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Icon name="status" size={16} className="text-gray-400" />
+                    <span className="text-gray-600">{typeof selectedInterview.candidate.status === 'object' ? selectedInterview.candidate.status?.name : selectedInterview.candidate.status || 'Chưa có'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Interview Info */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Thông tin phỏng vấn</h3>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Icon name="calendar" size={16} className="text-gray-400" />
+                    <span className="text-gray-900 font-medium">{format(parseISO(selectedInterview.scheduledAt), 'dd/MM/yyyy HH:mm')}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Icon name="tag" size={16} className="text-gray-400" />
+                    <span className="text-gray-600">{getTypeLabel(selectedInterview.type)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Icon name="map-pin" size={16} className="text-gray-400" />
+                    <span className="text-gray-600">{selectedInterview.location || 'Chưa có'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Icon name="user" size={16} className="text-gray-400" />
+                    <span className="text-gray-600">{typeof selectedInterview.interviewer === 'object' && 'fullName' in selectedInterview.interviewer ? selectedInterview.interviewer.fullName : 'N/A'}</span>
+                  </div>
+                  {selectedInterview.notes && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <p className="text-sm text-gray-600 italic">{selectedInterview.notes}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <Button onClick={closeInterviewDetail} variant="outline">
+                Đóng
+              </Button>
+            </div>
           </div>
         </div>
       )}

@@ -54,6 +54,14 @@ interface CandidateDetail {
   referrerName: string | null
   workExperience: string | null
   dateOfBirth: string | null
+  currentCity?: string
+  currentStreet?: string
+  currentWard?: string
+  proposals?: Array<{
+    id: string
+    title: string
+    status: string | { id: string; name: string; code: string }
+  }>
 }
 
 interface User {
@@ -405,7 +413,11 @@ export default function CandidateDetail({
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Nguồn</label>
-              <p className="mt-1 text-sm text-gray-900">{candidate.source?.name || candidate.source?.code || candidate.source || 'Chưa có'}</p>
+              <p className="mt-1 text-sm text-gray-900">
+                {typeof candidate.source === 'string' 
+                  ? candidate.source 
+                  : candidate.source?.name || candidate.source?.code || 'Chưa có'}
+              </p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">

@@ -409,4 +409,42 @@ export class CandidateReadService {
       .map(p => p.campaignId)
       .filter((id): id is string => id !== null);
   }
+
+  async getInterviews(user?: any) {
+    if (!user || user.role === 'ADMIN') {
+      return this.prisma.interview.findMany({
+        include: { candidate: { include: { status: true } }, interviewer: true }
+      });
+    }
+
+    const storeIds = await this.getAccessibleStoreIds(user);
+
+    if (user.role === 'SM' || user.role === 'AM') {
+      const campaignIdsFromUserProposals = await this.getCampaignIdsFromUserProposals(user.id);
+      const campaignIdsForManagedStores  = await this.getCampaignIdsForStores(storeIds);
+      const allCampaignIds = [...new Set([...campaignIdsFromUserProposals, ...campaignIdsForManagedStores])];
+
+      return this.prisma.interview.findMany({
+        where: {
+          OR: [
+            { candidate: { picId: user.id } },
+            { candidate: { storeId: { in: storeIds } } },
+            ...(allCampaignIds.length > 0 ? [{ candidate: { campaignId: { in: allCampaignIds } } }] : []),
+          ]
+        },
+        include: { candidate: { include: { status: true } }, interviewer: true }
+      });
+    }
+
+    if (user.role === 'RECRUITER') {
+      if (storeIds.length > 0) {
+        return this.prisma.interview.findMany({
+          where: { candidate: { storeId: { in: storeIds } } },
+          include: { candidate: { include: { status: true } }, interviewer: true }
+        });
+      }
+    }
+
+    return [];
+  }
 }

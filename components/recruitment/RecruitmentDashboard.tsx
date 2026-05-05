@@ -52,6 +52,14 @@ interface DashboardData {
     storeCode: string;
     count: number;
   }>;
+  candidatesByProposal: Array<{
+    proposalId: string;
+    proposalTitle: string;
+    quantity: number;
+    candidateCount: number;
+    passedCount: number;
+    acceptedCount: number;
+  }>;
   funnelData: Array<{
     type: 'group' | 'status';
     groupKey?: string;
@@ -109,6 +117,7 @@ export default function RecruitmentDashboard() {
     to: undefined,
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [proposalViewMode, setProposalViewMode] = useState<'chart' | 'table'>('chart');
 
   // Filter options
   const [campaigns, setCampaigns] = useState<any[]>([]);
@@ -121,7 +130,7 @@ export default function RecruitmentDashboard() {
       api.get('/recruitment/campaigns').catch(() => ({ data: [] })),
       api.get('/stores').catch(() => ({ data: [] })),
       api.get('/types/by-category/CANDIDATE_STATUS').catch(() => ({ data: [] })),
-      api.get('/users/select').catch(() => ({ data: [] })),
+      api.get('/users/select?role=RECRUITER').catch(() => ({ data: [] })),
     ]);
     setCampaigns(campaignsRes.data || []);
     setStores(storesRes.data || []);
@@ -227,8 +236,77 @@ export default function RecruitmentDashboard() {
   const monthlyData = data?.monthlyData || [];
   const candidatesByCampaign = data?.candidatesByCampaign || [];
   const candidatesByStore = data?.candidatesByStore || [];
+  const candidatesByProposal = data?.candidatesByProposal || [];
   const funnelData = data?.funnelData || [];
   const taPerformance = data?.taPerformance || [];
+
+  // Proposal chart - Clustered column chart
+  const proposalChartOptions = {
+    chart: {
+      type: 'bar' as const,
+      height: 400,
+      toolbar: { show: false },
+      fontFamily: 'Lexend, sans-serif',
+    },
+    plotOptions: {
+      bar: {
+        columnWidth: '60%',
+        borderRadius: 4,
+      },
+    },
+    dataLabels: {
+      enabled: true,
+      formatter: (val: number) => val.toString(),
+      style: {
+        fontSize: '12px',
+        fontFamily: 'Lexend, sans-serif',
+      },
+    },
+    xaxis: {
+      categories: candidatesByProposal?.map((p: any) => p.proposalTitle) || [],
+      labels: {
+        style: {
+          fontFamily: 'Lexend, sans-serif',
+        },
+        rotate: -45,
+      },
+    },
+    yaxis: {
+      title: {
+        text: 'Số lượng',
+        style: {
+          fontFamily: 'Lexend, sans-serif',
+        },
+      },
+    },
+    colors: ['#3B82F6', '#10B981', '#F59E0B'],
+    tooltip: {
+      shared: true,
+      intersect: false,
+      style: {
+        fontFamily: 'Lexend, sans-serif',
+      },
+    },
+    legend: {
+      position: 'top' as const,
+      fontFamily: 'Lexend, sans-serif',
+    },
+  };
+
+  const proposalChartSeries = [
+    {
+      name: 'Số lượng đề xuất',
+      data: candidatesByProposal?.map((p: any) => p.quantity) || [],
+    },
+    {
+      name: 'Ứng viên đạt',
+      data: candidatesByProposal?.map((p: any) => p.passedCount) || [],
+    },
+    {
+      name: 'Ứng viên đồng ý nhận việc',
+      data: candidatesByProposal?.map((p: any) => p.acceptedCount) || [],
+    },
+  ];
 
   // KPI: Đã xử lý = status khác CV_FILTERING (status đầu tiên)
   const processedCount = candidatesByStatus
@@ -385,91 +463,7 @@ export default function RecruitmentDashboard() {
     },
   };
 
-  const campaignChartSeries = [
-    {
-      name: 'Ứng viên',
-      data: candidatesByCampaign
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 10)
-        .map(c => c.count),
-    },
-  ];
-
-  const storeChartOptions = {
-    chart: {
-      type: 'bar' as const,
-      height: 400,
-      toolbar: { show: false },
-      fontFamily: 'Lexend, sans-serif',
-    },
-    plotOptions: {
-      bar: {
-        horizontal: true,
-        borderRadius: 4,
-        dataLabels: {
-          position: 'top' as const,
-        },
-      },
-    },
-    dataLabels: {
-      enabled: true,
-      formatter: (val: number) => val.toString(),
-      offsetX: -10,
-      style: {
-        fontSize: '12px',
-        colors: ['#fff'],
-        fontFamily: 'Lexend, sans-serif',
-      },
-    },
-    xaxis: {
-      categories: candidatesByStore
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 10)
-        .map(s => s.storeCode),
-      labels: {
-        style: {
-          fontFamily: 'Lexend, sans-serif',
-        },
-      },
-    },
-    yaxis: {
-      title: {
-        text: 'Số lượng ứng viên',
-        style: {
-          fontFamily: 'Lexend, sans-serif',
-        },
-      },
-      labels: {
-        style: {
-          fontFamily: 'Lexend, sans-serif',
-        },
-      },
-    },
-    colors: ['#10B981'],
-    tooltip: {
-      y: {
-        formatter: (val: number, opts?: any) => {
-          const store = candidatesByStore.find(
-            s => s.storeCode === opts?.w?.globals?.categoryLabel?.[opts?.dataPointIndex]
-          );
-          return `${val} ứng viên - ${store?.storeName || ''}`;
-        },
-      },
-      style: {
-        fontFamily: 'Lexend, sans-serif',
-      },
-    },
-  };
-
-  const storeChartSeries = [
-    {
-      name: 'Ứng viên',
-      data: candidatesByStore
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 10)
-        .map(s => s.count),
-    },
-  ];
+  // Proposal chart - Clustered column chart
   return (
     <div className="[&>*+*]:mt-0 space-y-0 relative">
       {loading && (
@@ -484,18 +478,6 @@ export default function RecruitmentDashboard() {
       {/* Filter Toolbar */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
         <div className="flex flex-wrap items-center gap-3">
-          {/* Chiến dịch */}
-          <div className="w-[220px]">
-            <SearchableSelect
-              options={[
-                { id: 'ALL', name: 'Tất cả chiến dịch' },
-                ...campaigns.map(c => ({ id: c.id, name: c.name })),
-              ]}
-              value={campaignId}
-              onChange={setCampaignId}
-              placeholder="Chiến dịch"
-            />
-          </div>
 
           {/* Cửa hàng */}
           <div className="w-[220px]">
@@ -1092,13 +1074,12 @@ export default function RecruitmentDashboard() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
                           <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              parseFloat(onboardedRate) >= 50
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${parseFloat(onboardedRate) >= 50
                                 ? 'bg-green-100 text-green-800'
                                 : parseFloat(onboardedRate) >= 20
                                   ? 'bg-yellow-100 text-yellow-800'
                                   : 'bg-red-100 text-red-800'
-                            }`}
+                              }`}
                           >
                             {onboardedRate}%
                           </span>
@@ -1163,40 +1144,63 @@ export default function RecruitmentDashboard() {
         </div>
       </div>
 
-      {/* Charts Row 3: Campaign Distribution */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Campaign Distribution */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Ứng viên theo chiến dịch (Top 10)
+      {/* Chart: Candidates by Proposal */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">
+            Số lượng ứng viên theo đề xuất
           </h3>
-          {typeof window !== 'undefined' && (
-            <Chart
-              options={campaignChartOptions}
-              series={campaignChartSeries}
-              type="bar"
-              height={350}
-            />
-          )}
-        </div>
-
-        {/* Charts Row 4: Store Distribution */}
-        <div className="grid grid-cols-1 gap-6">
-          {/* Store Distribution */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Ứng viên theo cửa hàng (Top 10)
-            </h3>
-            {typeof window !== 'undefined' && (
-              <Chart
-                options={storeChartOptions}
-                series={storeChartSeries}
-                type="bar"
-                height={400}
-              />
-            )}
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+            <Button
+              variant={proposalViewMode === 'chart' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setProposalViewMode('chart')}
+            >
+              Chart
+            </Button>
+            <Button
+              variant={proposalViewMode === 'table' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setProposalViewMode('table')}
+            >
+              Table
+            </Button>
           </div>
         </div>
+
+        {proposalViewMode === 'chart' ? (
+          typeof window !== 'undefined' && (
+            <Chart
+              options={proposalChartOptions}
+              series={proposalChartSeries}
+              type="bar"
+              height={400}
+            />
+          )
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tên đề xuất</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Số lượng đề xuất</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Ứng viên đạt</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Ứng viên nhận việc</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {candidatesByProposal?.map((p: any) => (
+                  <tr key={p.proposalId} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{p.proposalTitle}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{p.quantity}</td>
+                    <td className="px-4 py-3 text-sm text-green-600 font-medium">{p.passedCount}</td>
+                    <td className="px-4 py-3 text-sm text-blue-600 font-medium">{p.acceptedCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

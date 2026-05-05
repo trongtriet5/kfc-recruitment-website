@@ -162,7 +162,7 @@ export default function UsersManagementPage() {
       email: '',
       phone: user.phone || '',
       password: '',
-      role: user.role,
+      roleId: user.roleId || '',
       isActive: true,
       storeId: user.managedStore?.id || '',
       storeIds: user.managedStores?.map(s => s.id) || [],

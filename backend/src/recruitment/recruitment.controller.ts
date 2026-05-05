@@ -177,7 +177,7 @@ export class RecruitmentController {
 
   // Interviews
   @Get('interviews')
-  getInterviews() { return this.service.getInterviews(); }
+  getInterviews(@CurrentUser() user: any) { return this.candidateReadService.getInterviews(user); }
   
   @Post('interviews')
   createInterview(@Body() data: any) { return this.service.createInterview(data); }

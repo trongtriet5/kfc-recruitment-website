@@ -527,5 +527,35 @@ if (existing) {
   getAllowedTransitions(currentStatusCode: string | null, actorRole: string): string[] {
     return getAllowedTransitions(currentStatusCode, actorRole as Role);
   }
+
+  /**
+   * Backward-compatible helper for callers/tests that need grouped statuses.
+   */
+  getStatusGroups(): Array<{ key: string; statuses: string[] }> {
+    const grouped = new Map<string, string[]>();
+
+    for (const [status, group] of Object.entries(STATUS_GROUPS)) {
+      if (!grouped.has(group)) {
+        grouped.set(group, []);
+      }
+      grouped.get(group)!.push(status);
+    }
+
+    return Array.from(grouped.entries()).map(([key, statuses]) => ({
+      key,
+      statuses,
+    }));
+  }
+
+  /**
+   * Backward-compatible wrapper around centralized transition constraints.
+   */
+  canTransition(fromStatusCode: string | null, toStatusCode: string, actorRole: string): boolean {
+    // Preserve historical behavior for UI checks: hired candidates cannot jump back to screening.
+    if (fromStatusCode === 'ONBOARDING_ACCEPTED' && toStatusCode === 'CV_FILTERING') {
+      return false;
+    }
+    return canTransition(fromStatusCode, toStatusCode, actorRole as Role).allowed;
+  }
 }
 
