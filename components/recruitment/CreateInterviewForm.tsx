@@ -113,7 +113,7 @@ const [loading, setLoading] = useState(false)
 
     // Load users (to get interviewers)
     api
-      .get('/users')
+      .get('/recruitment/users/select')
       .then((res) => {
         const data = res.data
         let userList = []
@@ -124,8 +124,8 @@ const [loading, setLoading] = useState(false)
         } else if (Array.isArray(data?.data)) {
           userList = data.data
         }
-        // Use all active users as potential interviewers
-        setEmployees(userList.filter((u: any) => u.isActive))
+        // Endpoint already filters active users
+        setEmployees(userList)
       })
       .catch(console.error)
 

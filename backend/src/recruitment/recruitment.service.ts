@@ -20,6 +20,7 @@ import {
   OFFER_SENT_STATUS_CODE,
   OFFER_ACCEPTED_STATUS_CODE,
 } from './constants';
+import { normalizeRole } from '../auth/role-utils';
 
 // Types for dashboard
 interface DashboardFilters {
@@ -271,6 +272,18 @@ export class RecruitmentService {
     return this.candidateReadService.getTAs();
   }
 
+  getUsersForSelect(role?: string) {
+    const normalizedRole = role ? (normalizeRole(role) ?? role) : undefined;
+    const where: any = { isActive: true };
+    if (normalizedRole) where.role = normalizedRole;
+
+    return this.prisma.user.findMany({
+      where,
+      select: { id: true, fullName: true, email: true, role: true },
+      orderBy: { fullName: 'asc' },
+    });
+  }
+
   assignPIC(id: string, picId: string) {
     return this.candidateWriteService.assignPIC(id, picId);
   }
@@ -284,16 +297,14 @@ export class RecruitmentService {
   }
 
   async updateProposal(id: string, data: any, user: any) {
-    const proposal = await this.prisma.recruitmentProposal.findUnique({
-      where: { id },
-    });
-    if (!proposal) throw new NotFoundException('Đề xuất không tồn tại');
+    const proposal = await this.proposalService.getProposalForMutation(
+      id,
+      user.id,
+      user.role,
+    );
 
-    if (user.role !== 'ADMIN' && proposal.requestedById !== user.id) {
-      throw new ForbiddenException('Bạn không có quyền chỉnh sửa đề xuất này');
-    }
-
-    if (proposal.status !== 'DRAFT' && user.role !== 'ADMIN') {
+    const role = normalizeRole(user.role) ?? user.role;
+    if (proposal.status !== 'DRAFT' && role !== 'ADMIN') {
       throw new BadRequestException(
         'Chỉ có thể chỉnh sửa đề xuất ở trạng thái nháp',
       );
@@ -306,16 +317,14 @@ export class RecruitmentService {
   }
 
   async deleteProposal(id: string, user: any) {
-    const proposal = await this.prisma.recruitmentProposal.findUnique({
-      where: { id },
-    });
-    if (!proposal) throw new NotFoundException('Đề xuất không tồn tại');
+    const proposal = await this.proposalService.getProposalForMutation(
+      id,
+      user.id,
+      user.role,
+    );
 
-    if (user.role !== 'ADMIN' && proposal.requestedById !== user.id) {
-      throw new ForbiddenException('Bạn không có quyền xóa đề xuất này');
-    }
-
-    if (proposal.status !== 'DRAFT' && user.role !== 'ADMIN') {
+    const role = normalizeRole(user.role) ?? user.role;
+    if (proposal.status !== 'DRAFT' && role !== 'ADMIN') {
       throw new BadRequestException('Chỉ có thể xóa đề xuất ở trạng thái nháp');
     }
 

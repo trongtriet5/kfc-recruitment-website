@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { normalizeRole } from '../auth/role-utils';
 
 @Injectable()
 export class CampaignService {
@@ -114,12 +115,14 @@ return {
   }
 
   private async getAccessibleStoreIds(user: any): Promise<string[]> {
-    if (!user || user.role === 'ADMIN') {
+    const role = normalizeRole(user?.role);
+
+    if (!user || role === 'ADMIN') {
       const stores = await this.prisma.store.findMany({ select: { id: true } });
       return stores.map(s => s.id);
     }
 
-    if (user.role === 'USER') {
+    if (role === 'SM') {
       const u = await this.prisma.user.findUnique({
         where: { id: user.id },
         include: { managedStore: { select: { id: true } } }
@@ -127,7 +130,7 @@ return {
       return u?.managedStore ? [u.managedStore.id] : [];
     }
 
-    if (user.role === 'MANAGER') {
+    if (role === 'AM') {
       const u = await this.prisma.user.findUnique({
         where: { id: user.id },
         include: { amStores: { select: { id: true } } }

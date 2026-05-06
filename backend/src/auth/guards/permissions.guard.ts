@@ -2,6 +2,7 @@ import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { RbacService } from '../rbac.service';
 import { PermissionAction } from '../../recruitment/constraints';
+import { normalizeRole } from '../role-utils';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -18,12 +19,15 @@ export class PermissionsGuard implements CanActivate {
     const user = request.user;
     if (!user) return false;
 
+    const role = normalizeRole(user.role);
+    if (!role) return false;
+
     // Admin has all permissions
-    if (user.role === 'ADMIN') return true;
+    if (role === 'ADMIN') return true;
 
     // Check if user has ANY of the required permissions
     for (const permission of permissions) {
-      const hasPerm = await this.rbacService.hasPermission(user.id, user.role, permission);
+      const hasPerm = await this.rbacService.hasPermission(user.id, role, permission);
       if (hasPerm) return true;
     }
 

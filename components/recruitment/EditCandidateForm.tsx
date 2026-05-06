@@ -127,7 +127,7 @@ export default function EditCandidateForm({
       }
 
       try {
-        const usersRes = await api.get('/users/select')
+        const usersRes = await api.get('/recruitment/users/select')
         // Ensure users is an array and filter to only valid user objects
         let usersData = Array.isArray(usersRes.data) ? usersRes.data : []
         // Filter to only include objects with both id and fullName

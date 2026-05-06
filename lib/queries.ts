@@ -103,6 +103,24 @@ export function useUsers() {
   })
 }
 
+export type RecruitmentUserSelect = {
+  id: string
+  fullName: string
+  email: string | null
+  role: string
+}
+
+// Recruitment-friendly select list (does not require USER_MANAGE)
+export function useUsersForRecruitmentSelect(role?: string) {
+  return useQuery<RecruitmentUserSelect[]>({
+    queryKey: ['recruitment', 'users', 'select', role] as const,
+    queryFn: () =>
+      api
+        .get('/recruitment/users/select', { params: role ? { role } : undefined })
+        .then(res => res.data),
+  })
+}
+
 export function useTAs() {
   return useQuery<User[]>({
     queryKey: queryKeys.tas,

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as ExcelJS from 'exceljs';
+import { normalizeRole } from '../auth/role-utils';
 
 @Injectable()
 export class CandidateReadService {
@@ -32,9 +33,10 @@ export class CandidateReadService {
 
     // Apply store scoping for SM/AM and PIC filtering
     if (user) {
+      const role = normalizeRole(user.role);
       const storeIds = await this.getAccessibleStoreIds(user);
 
-      if (user.role === 'SM' || user.role === 'AM') {
+      if (role === 'SM' || role === 'AM') {
         // SM or AM: Can see candidates:
         // 1. Assigned as PIC (interviewer)
         // 2. In their managed store(s)
@@ -49,7 +51,7 @@ export class CandidateReadService {
           { storeId: { in: storeIds } },
           ...(allCampaignIds.length > 0 ? [{ campaignId: { in: allCampaignIds } }] : []),
         ];
-      } else if (user.role === 'RECRUITER') {
+      } else if (role === 'RECRUITER') {
         // Recruiter can see all active candidates in their assigned scope
         // (Currently scope is all stores for RECRUITER based on STORE_HIERARCHY)
         if (storeIds.length > 0) {
@@ -132,9 +134,10 @@ export class CandidateReadService {
     if (filters?.storeId) where.storeId = filters.storeId;
     
     // Apply user scoping
-    if (user && user.role !== 'ADMIN') {
+    const userRole = normalizeRole(user?.role);
+    if (user && userRole !== 'ADMIN') {
       const storeIds = await this.getAccessibleStoreIds(user);
-      if (user.role === 'SM' || user.role === 'AM' || user.role === 'USER' || user.role === 'MANAGER') {
+      if (userRole === 'SM' || userRole === 'AM') {
         const campaignIdsFromUserProposals = await this.getCampaignIdsFromUserProposals(user.id);
         const campaignIdsForManagedStores  = await this.getCampaignIdsForStores(storeIds);
         const allCampaignIds = [...new Set([...campaignIdsFromUserProposals, ...campaignIdsForManagedStores])];
@@ -143,7 +146,7 @@ export class CandidateReadService {
           { storeId: { in: storeIds } },
           ...(allCampaignIds.length > 0 ? [{ campaignId: { in: allCampaignIds } }] : [])
         ];
-      } else if (user.role === 'RECRUITER') {
+      } else if (userRole === 'RECRUITER') {
         if (storeIds.length > 0) where.storeId = { in: storeIds };
       }
     }
@@ -302,10 +305,11 @@ export class CandidateReadService {
     };
 
     // Check access for non-admin
-    if (user && user.role !== 'ADMIN') {
+    const role = normalizeRole(user?.role);
+    if (user && role !== 'ADMIN') {
       const storeIds = await this.getAccessibleStoreIds(user);
 
-      if (user.role === 'SM' || user.role === 'AM' || user.role === 'USER' || user.role === 'MANAGER') {
+      if (role === 'SM' || role === 'AM') {
         const campaignIdsFromUserProposals = await this.getCampaignIdsFromUserProposals(user.id);
         const campaignIdsForManagedStores  = await this.getCampaignIdsForStores(storeIds);
         const allCampaignIds = [...new Set([...campaignIdsFromUserProposals, ...campaignIdsForManagedStores])];
@@ -316,7 +320,7 @@ export class CandidateReadService {
           (candidate.storeId && storeIds.includes(candidate.storeId)) ||
           isFromAccessibleCampaign;
         if (!canAccess) return null;
-      } else if (user.role !== 'ADMIN') {
+      } else {
         // Other roles (RECRUITER, etc.): check store access
         if (candidate.storeId && !storeIds.includes(candidate.storeId)) {
           return null;
@@ -352,12 +356,13 @@ export class CandidateReadService {
   }
 
   async getAccessibleStoreIds(user: any): Promise<string[]> {
-    if (user.role === 'ADMIN') {
+    const role = normalizeRole(user?.role);
+    if (role === 'ADMIN') {
       const stores = await this.prisma.store.findMany({ select: { id: true } });
       return stores.map(s => s.id);
     }
 
-    if (user.role === 'SM') {
+    if (role === 'SM') {
       const u = await this.prisma.user.findUnique({
         where: { id: user.id },
         include: { managedStore: { select: { id: true } } }
@@ -365,7 +370,7 @@ export class CandidateReadService {
       return u?.managedStore ? [u.managedStore.id] : [];
     }
 
-    if (user.role === 'AM') {
+    if (role === 'AM') {
       const u = await this.prisma.user.findUnique({
         where: { id: user.id },
         include: { amStores: { select: { id: true } } }
@@ -373,7 +378,7 @@ export class CandidateReadService {
       return u?.amStores?.map(s => s.id) || [];
     }
 
-    if (user.role === 'RECRUITER') {
+    if (role === 'RECRUITER') {
       const stores = await this.prisma.store.findMany({ select: { id: true } });
       return stores.map(s => s.id);
     }
@@ -411,7 +416,8 @@ export class CandidateReadService {
   }
 
   async getInterviews(user?: any) {
-    if (!user || user.role === 'ADMIN') {
+    const role = normalizeRole(user?.role);
+    if (!user || role === 'ADMIN') {
       return this.prisma.interview.findMany({
         include: { candidate: { include: { status: true } }, interviewer: true }
       });
@@ -419,7 +425,7 @@ export class CandidateReadService {
 
     const storeIds = await this.getAccessibleStoreIds(user);
 
-    if (user.role === 'SM' || user.role === 'AM') {
+    if (role === 'SM' || role === 'AM') {
       const campaignIdsFromUserProposals = await this.getCampaignIdsFromUserProposals(user.id);
       const campaignIdsForManagedStores  = await this.getCampaignIdsForStores(storeIds);
       const allCampaignIds = [...new Set([...campaignIdsFromUserProposals, ...campaignIdsForManagedStores])];
@@ -436,7 +442,7 @@ export class CandidateReadService {
       });
     }
 
-    if (user.role === 'RECRUITER') {
+    if (role === 'RECRUITER') {
       if (storeIds.length > 0) {
         return this.prisma.interview.findMany({
           where: { candidate: { storeId: { in: storeIds } } },

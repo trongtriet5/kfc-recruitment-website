@@ -56,7 +56,7 @@ export default function InterviewScheduleModal({ candidate, campaign, onClose, o
 
   const loadUsers = async () => {
     try {
-      const res = await api.get('/users')
+      const res = await api.get('/recruitment/users/select')
       setUsers(res.data || [])
     } catch (err) {
       console.error('Error loading users:', err)
@@ -198,7 +198,7 @@ export default function InterviewScheduleModal({ candidate, campaign, onClose, o
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-slate-500 focus:border-slate-500"
           >
             <option value="">Mặc định: {campaign.recruiter?.fullName || campaign.pic?.fullName || 'Người lọc hồ sơ'}</option>
-            {users.filter(u => ['ADMIN', 'RECRUITER', 'MANAGER', 'AM', 'USER'].includes(u.role)).map((user) => (
+            {users.filter(u => ['ADMIN', 'RECRUITER', 'MANAGER', 'AM', 'SM', 'USER'].includes(u.role)).map((user) => (
               <option key={user.id} value={user.id}>
                 {user.fullName} ({user.email})
               </option>

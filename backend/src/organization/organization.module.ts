@@ -6,9 +6,10 @@ import { StoresController } from './organization.controller';
 import { AddressesController } from './addresses.controller';
 import { LocationController } from './location.controller';
 import { PrismaModule } from '../prisma/prisma.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, AuthModule],
   controllers: [OrganizationController, StoresController, AddressesController, LocationController],
   providers: [OrganizationService, LocationService],
   exports: [OrganizationService, LocationService],

@@ -130,7 +130,7 @@ export default function RecruitmentDashboard() {
       api.get('/recruitment/campaigns').catch(() => ({ data: [] })),
       api.get('/stores').catch(() => ({ data: [] })),
       api.get('/types/by-category/CANDIDATE_STATUS').catch(() => ({ data: [] })),
-      api.get('/users/select?role=RECRUITER').catch(() => ({ data: [] })),
+      api.get('/recruitment/users/tas').catch(() => ({ data: [] })),
     ]);
     setCampaigns(campaignsRes.data || []);
     setStores(storesRes.data || []);
@@ -1050,9 +1050,13 @@ export default function RecruitmentDashboard() {
                             ? 'SM'
                             : ta.taRole === 'MANAGER'
                               ? 'AM'
-                              : ta.taRole === 'RECRUITER'
-                                ? 'Recruiter'
-                                : ta.taRole}
+                              : ta.taRole === 'SM'
+                                ? 'SM'
+                                : ta.taRole === 'AM'
+                                  ? 'AM'
+                                  : ta.taRole === 'RECRUITER'
+                                    ? 'Recruiter'
+                                    : ta.taRole}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900 font-medium">
                           {ta.totalCandidates}

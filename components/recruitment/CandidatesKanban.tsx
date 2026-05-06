@@ -136,7 +136,7 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
     if (user.role === 'ADMIN' || user.role === 'RECRUITER') {
       return dbStatuses.map((s) => s.code)
     }
-    if (user.role === 'MANAGER') {
+    if (user.role === 'MANAGER' || user.role === 'AM') {
       return [
         'SM_AM_INTERVIEW_PASSED',
         'SM_AM_INTERVIEW_FAILED',

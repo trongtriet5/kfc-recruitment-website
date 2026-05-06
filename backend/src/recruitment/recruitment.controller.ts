@@ -55,6 +55,8 @@ export class RecruitmentController {
 
   // Campaigns
   @Get('campaigns')
+  @Permissions('CAMPAIGN_READ')
+  @UseGuards(PermissionsGuard)
   getCampaigns(@CurrentUser() user: any) { return this.service.getCampaigns(user); }
   
   @Get('campaigns/statistics')
@@ -63,21 +65,31 @@ export class RecruitmentController {
   }
   
   @Get('campaigns/:id')
+  @Permissions('CAMPAIGN_READ')
+  @UseGuards(PermissionsGuard)
   getCampaign(@Param('id') id: string, @CurrentUser() user: any) { return this.service.getCampaign(id, user); }
   
   @Post('campaigns')
+  @Permissions('CAMPAIGN_CREATE')
+  @UseGuards(PermissionsGuard)
   createCampaign(@Body() data: any, @CurrentUser() user: any) { return this.service.createCampaign(data, user); }
   
   @Patch('campaigns/:id')
+  @Permissions('CAMPAIGN_UPDATE')
+  @UseGuards(PermissionsGuard)
   updateCampaign(@Param('id') id: string, @Body() data: any, @CurrentUser() user: any) { 
     return this.service.updateCampaign(id, data, user); 
   }
   
   @Delete('campaigns/:id')
+  @Permissions('CAMPAIGN_DELETE')
+  @UseGuards(PermissionsGuard)
   deleteCampaign(@Param('id') id: string) { return this.service.deleteCampaign(id); }
 
   // Candidates
   @Get('candidates/export')
+  @Permissions('REPORT_EXPORT')
+  @UseGuards(PermissionsGuard)
   async exportCandidates(@Res() res: Response, @Query() query: any, @CurrentUser() user: any) {
     const workbook = await this.candidateReadService.exportCandidates(query, user);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -88,32 +100,44 @@ export class RecruitmentController {
 
   @Post('candidates/import-file')
   @UseInterceptors(FileInterceptor('file'))
+  @Permissions('CANDIDATE_CREATE')
+  @UseGuards(PermissionsGuard)
   importCandidates(@UploadedFile() file: Express.Multer.File, @CurrentUser() user: any) {
     return this.candidateWriteService.importCandidatesFromFile(file, user);
   }
 
   @Get('candidates')
+  @Permissions('CANDIDATE_READ')
+  @UseGuards(PermissionsGuard)
   getCandidates(@Query() query: any, @CurrentUser() user: any) { 
     return this.service.getCandidates(query, user); 
   }
   
   @Get('candidates/:id')
+  @Permissions('CANDIDATE_READ')
+  @UseGuards(PermissionsGuard)
   async getCandidate(@Param('id') id: string, @CurrentUser() user: any) { 
     const candidateReadService = this.candidateReadService;
     return candidateReadService.getCandidate(id, user); 
   }
   
   @Post('candidates')
+  @Permissions('CANDIDATE_CREATE')
+  @UseGuards(PermissionsGuard)
   createCandidate(@Body() data: any, @CurrentUser() user: any) {
     return this.candidateWriteService.createCandidate(data, user);
   }
   
   @Patch('candidates/:id')
+  @Permissions('CANDIDATE_UPDATE')
+  @UseGuards(PermissionsGuard)
   updateCandidate(@Param('id') id: string, @Body() data: any, @CurrentUser() user: any) {
     return this.service.updateCandidate(id, data, user);
   }
 
   @Patch('candidates/:id/transfer-campaign')
+  @Permissions('CANDIDATE_TRANSFER_CAMPAIGN')
+  @UseGuards(PermissionsGuard)
   transferCampaign(
     @Param('id') id: string,
     @Body() data: { campaignId: string },
@@ -123,6 +147,8 @@ export class RecruitmentController {
   }
   
   @Delete('candidates/:id')
+  @Permissions('CANDIDATE_DELETE')
+  @UseGuards(PermissionsGuard)
   deleteCandidate(@Param('id') id: string, @CurrentUser() user: any) { return this.service.deleteCandidate(id, user); }
 
   @Get('users/tas')
@@ -130,7 +156,16 @@ export class RecruitmentController {
     return this.service.getTAs();
   }
 
+  @Get('users/select')
+  @Permissions('CANDIDATE_READ')
+  @UseGuards(PermissionsGuard)
+  getUsersForSelect(@Query('role') role?: string) {
+    return this.service.getUsersForSelect(role);
+  }
+
   @Patch('candidates/:id/assign-pic')
+  @Permissions('CANDIDATE_ASSIGN_PIC')
+  @UseGuards(PermissionsGuard)
   assignPIC(@Param('id') id: string, @Body() data: { picId: string }) {
     return this.service.assignPIC(id, data.picId);
   }
@@ -177,76 +212,110 @@ export class RecruitmentController {
 
   // Interviews
   @Get('interviews')
+  @Permissions('INTERVIEW_READ')
+  @UseGuards(PermissionsGuard)
   getInterviews(@CurrentUser() user: any) { return this.candidateReadService.getInterviews(user); }
   
   @Post('interviews')
+  @Permissions('INTERVIEW_CREATE')
+  @UseGuards(PermissionsGuard)
   createInterview(@Body() data: any) { return this.service.createInterview(data); }
   
   @Patch('interviews/:id')
+  @Permissions('INTERVIEW_UPDATE')
+  @UseGuards(PermissionsGuard)
   updateInterview(@Param('id') id: string, @Body() data: any) { return this.service.updateInterview(id, data); }
 
   // Proposals
   @Get('proposals')
+  @Permissions('PROPOSAL_READ')
+  @UseGuards(PermissionsGuard)
   getProposals(@CurrentUser() user: any) { return this.service.getProposals(user); }
   
   @Get('proposals/:id')
+  @Permissions('PROPOSAL_READ')
+  @UseGuards(PermissionsGuard)
   getProposal(@Param('id') id: string, @CurrentUser() user: any) { return this.proposalService.getProposal(id, user.id, user.role); }
   
   @Post('proposals')
+  @Permissions('PROPOSAL_CREATE')
+  @UseGuards(PermissionsGuard)
   createProposal(@Body() data: any, @CurrentUser() user: any) { return this.proposalService.createProposal(data, user.id, user.role); }
   
   @Patch('proposals/:id')
+  @Permissions('PROPOSAL_UPDATE')
+  @UseGuards(PermissionsGuard)
   updateProposal(@Param('id') id: string, @Body() data: any, @CurrentUser() user: any) { 
     return this.service.updateProposal(id, data, user); 
   }
 
   @Delete('proposals/:id')
+  @Permissions('PROPOSAL_DELETE')
+  @UseGuards(PermissionsGuard)
   deleteProposal(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.deleteProposal(id, user);
   }
 
   // Proposal Workflow (Enhanced Approval Flow)
   @Post('proposals/:id/submit')
+  @Permissions('PROPOSAL_SUBMIT')
+  @UseGuards(PermissionsGuard)
   submitProposal(@Param('id') id: string, @CurrentUser() user: any) {
     return this.proposalService.submitProposal(id, user.id, user.role);
   }
 
   @Post('proposals/:id/review')
+  @Permissions('PROPOSAL_REVIEW')
+  @UseGuards(PermissionsGuard)
   reviewProposal(@Param('id') id: string, @Body() data: { notes?: string }, @CurrentUser() user: any) {
     return this.proposalService.reviewProposal(id, user.id, user.role, data.notes);
   }
 
   @Post('proposals/:id/hr-accept')
+  @Permissions('PROPOSAL_REVIEW')
+  @UseGuards(PermissionsGuard)
   hrAcceptProposal(@Param('id') id: string, @Body() data: { notes?: string }, @CurrentUser() user: any) {
     return this.proposalService.hrAcceptProposal(id, user.id, user.role, data.notes);
   }
 
   @Post('proposals/:id/approve')
+  @Permissions('PROPOSAL_APPROVE')
+  @UseGuards(PermissionsGuard)
   approveProposal(@Param('id') id: string, @CurrentUser() user: any) {
     return this.proposalService.approveProposal(id, user.id, user.role);
   }
 
   @Post('proposals/:id/unapprove')
+  @Permissions('PROPOSAL_APPROVE')
+  @UseGuards(PermissionsGuard)
   unapproveProposal(@Param('id') id: string, @Body() data: { notes?: string }, @CurrentUser() user: any) {
     return this.proposalService.unapproveProposal(id, user.id, user.role, data.notes);
   }
 
   @Post('proposals/batch-approve')
+  @Permissions('PROPOSAL_APPROVE')
+  @UseGuards(PermissionsGuard)
   batchApproveProposals(@Body() data: { ids: string[] }, @CurrentUser() user: any) {
     return this.proposalService.batchApproveProposals(data.ids, user.id, user.role);
   }
 
   @Post('proposals/batch-reject')
+  @Permissions('PROPOSAL_REJECT')
+  @UseGuards(PermissionsGuard)
   batchRejectProposals(@Body() data: { ids: string[]; reason: string }, @CurrentUser() user: any) {
     return this.proposalService.batchRejectProposals(data.ids, user.id, user.role, data.reason);
   }
 
   @Post('proposals/:id/reject')
+  @Permissions('PROPOSAL_REJECT')
+  @UseGuards(PermissionsGuard)
   rejectProposal(@Param('id') id: string, @Body() data: { reason: string }, @CurrentUser() user: any) {
     return this.proposalService.rejectProposal(id, user.id, user.role, data.reason);
   }
 
   @Post('proposals/:id/cancel')
+  @Permissions('PROPOSAL_CANCEL')
+  @UseGuards(PermissionsGuard)
   cancelProposal(@Param('id') id: string, @CurrentUser() user: any) {
     return this.proposalService.cancelProposal(id, user.id, user.role);
   }
@@ -269,13 +338,19 @@ export class RecruitmentController {
 
   // Headcounts
   @Get('headcounts')
+  @Permissions('REPORT_VIEW')
+  @UseGuards(PermissionsGuard)
   getHeadcounts() { return this.service.getHeadcounts(); }
   
   @Post('headcounts')
+  @Permissions('SETTINGS_MANAGE')
+  @UseGuards(PermissionsGuard)
   createHeadcount(@Body() data: any) { return this.service.createHeadcount(data); }
 
   // Dashboard
   @Get('dashboard')
+  @Permissions('REPORT_VIEW')
+  @UseGuards(PermissionsGuard)
   getDashboard(
     @Query('campaignId') campaignId?: string,
     @Query('storeId') storeId?: string,
@@ -296,37 +371,59 @@ export class RecruitmentController {
 
   // Sources
   @Get('sources')
+  @Permissions('SETTINGS_MANAGE')
+  @UseGuards(PermissionsGuard)
   getSources() { return this.service.getSources(); }
 
   @Get('sources/:id')
+  @Permissions('SETTINGS_MANAGE')
+  @UseGuards(PermissionsGuard)
   getSource(@Param('id') id: string) { return this.service.getSource(id); }
 
   @Post('sources')
+  @Permissions('SETTINGS_MANAGE')
+  @UseGuards(PermissionsGuard)
   createSource(@Body() data: any) { return this.service.createSource(data); }
 
   @Patch('sources/:id')
+  @Permissions('SETTINGS_MANAGE')
+  @UseGuards(PermissionsGuard)
   updateSource(@Param('id') id: string, @Body() data: any) { return this.service.updateSource(id, data); }
 
   @Delete('sources/:id')
+  @Permissions('SETTINGS_MANAGE')
+  @UseGuards(PermissionsGuard)
   deleteSource(@Param('id') id: string) { return this.service.deleteSource(id); }
 
   @Get('sources/code/:code')
+  @Permissions('SETTINGS_MANAGE')
+  @UseGuards(PermissionsGuard)
   getSourceByCode(@Param('code') code: string) { return this.service.getSourceByCode(code); }
 
   // Candidate Statuses
   @Get('statuses')
+  @Permissions('SETTINGS_MANAGE')
+  @UseGuards(PermissionsGuard)
   getStatuses() { return this.service.getStatuses(); }
 
   @Get('statuses/:id')
+  @Permissions('SETTINGS_MANAGE')
+  @UseGuards(PermissionsGuard)
   getStatus(@Param('id') id: string) { return this.service.getStatus(id); }
 
   @Post('statuses')
+  @Permissions('SETTINGS_MANAGE')
+  @UseGuards(PermissionsGuard)
   createStatus(@Body() data: any) { return this.service.createStatus(data); }
 
   @Patch('statuses/:id')
+  @Permissions('SETTINGS_MANAGE')
+  @UseGuards(PermissionsGuard)
   updateStatus(@Param('id') id: string, @Body() data: any) { return this.service.updateStatus(id, data); }
 
   @Delete('statuses/:id')
+  @Permissions('SETTINGS_MANAGE')
+  @UseGuards(PermissionsGuard)
   deleteStatus(@Param('id') id: string) { return this.service.deleteStatus(id); }
 
 

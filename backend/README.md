@@ -1,4 +1,4 @@
-# KFC Việt Nam - Recruitment Backend (NestJS)
+\# KFC Việt Nam - Recruitment Backend (NestJS)
 
 Backend API cho hệ thống tuyển dụng KFC Việt Nam.
 

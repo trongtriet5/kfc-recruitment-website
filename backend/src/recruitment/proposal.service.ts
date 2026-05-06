@@ -1,6 +1,12 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from './audit.service';
+import { normalizeRole } from '../auth/role-utils';
 
 export enum ProposalStatus {
   DRAFT = 'DRAFT',
@@ -26,6 +32,7 @@ export interface ProposalTransition {
 export const PROPOSAL_WORKFLOW: Record<ProposalStatus, ProposalTransition[]> = {
   [ProposalStatus.DRAFT]: [
     { target: ProposalStatus.SUBMITTED, roles: ['SM', 'AM', 'ADMIN'] },
+    { target: ProposalStatus.CANCELLED, roles: ['SM', 'AM', 'ADMIN'] },
   ],
   [ProposalStatus.SUBMITTED]: [
     { target: ProposalStatus.AM_REVIEWED, roles: ['AM', 'ADMIN'] },
@@ -81,7 +88,9 @@ export function canTransitionProposal(
 ): boolean {
   const transitions = PROPOSAL_WORKFLOW[proposalStatus as ProposalStatus];
   if (!transitions) return false;
-  return transitions.some(t => t.target === targetStatus && t.roles.includes(userRole));
+  return transitions.some(
+    (t) => t.target === targetStatus && t.roles.includes(userRole),
+  );
 }
 
 export function getAllowedTransitions(
@@ -91,8 +100,8 @@ export function getAllowedTransitions(
   const transitions = PROPOSAL_WORKFLOW[proposalStatus as ProposalStatus];
   if (!transitions) return [];
   return transitions
-    .filter(t => t.roles.includes(userRole))
-    .map(t => t.target);
+    .filter((t) => t.roles.includes(userRole))
+    .map((t) => t.target);
 }
 
 @Injectable()
@@ -106,22 +115,56 @@ export class ProposalService {
    * Create a new recruitment proposal (draft)
    */
   async createProposal(data: any, userId: string, userRole: string) {
+    const role = normalizeRole(userRole);
+    if (!role) throw new ForbiddenException('Vai trò không hợp lệ');
+
     // Auto-assign store for SM/AM
     let storeId = data.storeId;
-    if (userRole !== 'ADMIN' && !storeId) {
+    if (role !== 'ADMIN' && !storeId) {
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
         include: { managedStore: true, amStores: true },
       });
-      if (userRole === 'SM' && user?.managedStore) {
+      const isSMRole = role === 'SM';
+      const isAMRole = role === 'AM';
+      if (isSMRole && user?.managedStore) {
         storeId = user.managedStore.id;
-      } else if (userRole === 'AM' && user?.amStores?.length === 1) {
+      } else if (isAMRole && user?.amStores?.length === 1) {
         storeId = user.amStores[0].id;
       }
     }
 
     if (!storeId) {
       throw new BadRequestException('Vui lòng chọn cửa hàng');
+    }
+
+    const isSMRole = role === 'SM';
+    const isAMRole = role === 'AM';
+
+    // Enforce store ownership for SM/AM
+    if (isSMRole) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: { managedStore: { select: { id: true } } },
+      });
+      if (!user?.managedStore || user.managedStore.id !== storeId) {
+        throw new ForbiddenException(
+          'Bạn chỉ có thể tạo đề xuất cho cửa hàng mình quản lý',
+        );
+      }
+    }
+
+    if (isAMRole) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: { amStores: { select: { id: true } } },
+      });
+      const storeIds = user?.amStores?.map((s) => s.id) || [];
+      if (!storeIds.includes(storeId)) {
+        throw new ForbiddenException(
+          'Bạn chỉ có thể tạo đề xuất cho cửa hàng thuộc khu vực bạn quản lý',
+        );
+      }
     }
 
     // Validate headcount availability
@@ -151,8 +194,12 @@ export class ProposalService {
     // Auto-generate title if not provided
     let title = data.title;
     if (!title && storeId && data.positionId) {
-      const store = await this.prisma.store.findUnique({ where: { id: storeId } });
-      const position = await this.prisma.position.findUnique({ where: { id: data.positionId } });
+      const store = await this.prisma.store.findUnique({
+        where: { id: storeId },
+      });
+      const position = await this.prisma.position.findUnique({
+        where: { id: data.positionId },
+      });
       if (store && position) {
         title = `${store.code} - ${position.name} (${store.name})`;
       }
@@ -171,9 +218,13 @@ export class ProposalService {
         replacementFor: data.replacementFor,
         urgency: data.urgency || 'NORMAL',
         budget: data.budget,
-        targetJoinDate: data.targetJoinDate ? new Date(data.targetJoinDate) : null,
+        targetJoinDate: data.targetJoinDate
+          ? new Date(data.targetJoinDate)
+          : null,
         isUnplanned: data.isUnplanned ?? false,
-        status: ['ADMIN', 'AM'].includes(userRole) ? 'SUBMITTED' : 'DRAFT',
+        status: ['ADMIN', 'AM'].includes(role)
+           ? 'SUBMITTED'
+           : 'DRAFT',
         requestedById: userId,
 
         startDate: data.startDate ? new Date(data.startDate) : null,
@@ -191,16 +242,16 @@ export class ProposalService {
     });
 
     // Create workflow history for ADMIN/HEAD_OF_DEPARTMENT/AM creation
-    if (['ADMIN', 'AM'].includes(userRole)) {
+    if (['ADMIN', 'AM'].includes(role)) {
       await this.prisma.proposalWorkflow.create({
         data: {
           proposalId: proposal.id,
           fromStatus: 'DRAFT',
           toStatus: 'SUBMITTED',
           action: 'SUBMIT',
-          actorRole: userRole,
+          actorRole: role,
           actorId: userId,
-          notes: `${userRole} tạo đề xuất (gửi luôn)`,
+          notes: `${role} tạo đề xuất (gửi luôn)`,
         },
       });
     }
@@ -208,258 +259,446 @@ export class ProposalService {
     return proposal;
   }
 
-/**
- * Submit proposal
- * - SM creates: DRAFT → SUBMITTED → AM_REVIEWED → APPROVED (AM review → Admin approve)
- * - AM creates: DRAFT → SUBMITTED → APPROVED (Admin directly approve, skip AM review)
- */
-async submitProposal(proposalId: string, userId: string, userRole: string) {
-  const proposal = await this.getProposalWithAccess(proposalId, userId, userRole);
+  /**
+   * Submit proposal
+   * - SM creates: DRAFT → SUBMITTED → AM_REVIEWED → APPROVED (AM review → Admin approve)
+   * - AM creates: DRAFT → SUBMITTED → APPROVED (Admin directly approve, skip AM review)
+   */
+  async submitProposal(proposalId: string, userId: string, userRole: string) {
+    const role = normalizeRole(userRole);
+    if (!role) throw new ForbiddenException('Vai trò không hợp lệ');
 
-  if (proposal.status !== 'DRAFT') {
-    throw new BadRequestException('Chỉ có thể gửi đề xuất ở trạng thái nháp');
-  }
-  // getProposalWithAccess already verified store access for SM/AM
+    const proposal = await this.getProposalForMutation(
+      proposalId,
+      userId,
+      role,
+    );
 
-  // AM skips AM review and goes directly to APPROVED waitlist
-  // SM goes through normal flow: SUBMITTED → AM_REVIEWED (AM review needed)
-  if (userRole === 'AM') {
-    return this.transitionStatus(proposalId, 'SUBMITTED', userId, userRole, 'AM gửi đề xuất (bỏ qua AM review)');
-  }
+    if (proposal.status !== 'DRAFT') {
+      throw new BadRequestException('Chỉ có thể gửi đề xuất ở trạng thái nháp');
+    }
+    // getProposalWithAccess already verified store access for SM/AM
 
-  return this.transitionStatus(proposalId, 'SUBMITTED', userId, userRole, 'SM gửi đề xuất tuyển dụng');
-}
+    // AM skips AM review and goes directly to APPROVED waitlist
+    // SM goes through normal flow: SUBMITTED → AM_REVIEWED (AM review needed)
+    if (role === 'AM') {
+      return this.transitionStatus(
+        proposalId,
+        'SUBMITTED',
+        userId,
+        role,
+        'AM gửi đề xuất (bỏ qua AM review)',
+      );
+    }
 
-/**
- * AM review proposal - Only for SM proposals
- * Skip for AM created proposals (they go directly to SUBMITTED → APPROVED)
- */
-async reviewProposal(proposalId: string, userId: string, userRole: string, notes?: string) {
-  const proposal = await this.getProposalWithAccess(proposalId, userId, userRole);
-
-  if (proposal.status !== 'SUBMITTED') {
-    throw new BadRequestException('Đề xuất chưa được gửi');
-  }
-
-  if (userRole !== 'ADMIN' && userRole !== 'AM') {
-    throw new ForbiddenException('Chỉ AM hoặc Admin có thể xem xét');
-  }
-
-  // Check if creator is AM - skip review, proposal already at SUBMITTED
-  const creator = await this.prisma.user.findUnique({ where: { id: proposal.requestedById } });
-  if (creator?.role === 'AM') {
-    // AM created, should go directly to approve, not review
-    throw new BadRequestException('Đề xuất do AM tạo, bỏ qua bước AM xem xét');
+    return this.transitionStatus(
+      proposalId,
+      'SUBMITTED',
+      userId,
+      role,
+      'SM gửi đề xuất tuyển dụng',
+    );
   }
 
-  return this.transitionStatus(proposalId, 'AM_REVIEWED', userId, userRole, notes || 'AM xem xét đề xuất');
-}
+  /**
+   * AM review proposal - Only for SM proposals
+   * Skip for AM created proposals (they go directly to SUBMITTED → APPROVED)
+   */
+  async reviewProposal(
+    proposalId: string,
+    userId: string,
+    userRole: string,
+    notes?: string,
+  ) {
+    const proposal = await this.getProposalWithAccess(
+      proposalId,
+      userId,
+      userRole,
+    );
+
+    if (proposal.status !== 'SUBMITTED') {
+      throw new BadRequestException('Đề xuất chưa được gửi');
+    }
+
+    const role = normalizeRole(userRole);
+    if (!role) throw new ForbiddenException('Vai trò không hợp lệ');
+
+    if (role !== 'ADMIN' && role !== 'AM') {
+      throw new ForbiddenException('Chỉ AM hoặc Admin có thể xem xét');
+    }
+
+    // Check if creator is AM - skip review, proposal already at SUBMITTED
+    const creator = await this.prisma.user.findUnique({
+      where: { id: proposal.requestedById },
+    });
+    if (normalizeRole(creator?.role) === 'AM') {
+      // AM created, should go directly to approve, not review
+      throw new BadRequestException(
+        'Đề xuất do AM tạo, bỏ qua bước AM xem xét',
+      );
+    }
+
+    return this.transitionStatus(
+      proposalId,
+      'AM_REVIEWED',
+      userId,
+      role,
+      notes || 'AM xem xét đề xuất',
+    );
+  }
 
   /**
    * HR accept proposal
    */
-  async hrAcceptProposal(proposalId: string, userId: string, userRole: string, notes?: string) {
-    const proposal = await this.getProposalWithAccess(proposalId, userId, userRole);
+  async hrAcceptProposal(
+    proposalId: string,
+    userId: string,
+    userRole: string,
+    notes?: string,
+  ) {
+    const proposal = await this.getProposalWithAccess(
+      proposalId,
+      userId,
+      userRole,
+    );
 
     if (proposal.status !== 'AM_REVIEWED') {
       throw new BadRequestException('Đề xuất chưa được AM xem xét');
     }
 
-    if (!['ADMIN', 'RECRUITER'].includes(userRole)) {
+    const role = normalizeRole(userRole);
+    if (!role) throw new ForbiddenException('Vai trò không hợp lệ');
+
+    if (!['ADMIN', 'RECRUITER'].includes(role)) {
       throw new ForbiddenException('Chỉ HR/Admin có thể tiếp nhận');
     }
 
-    return this.transitionStatus(proposalId, 'HR_ACCEPTED', userId, userRole, notes || 'HR tiếp nhận đề xuất');
+    return this.transitionStatus(
+      proposalId,
+      'HR_ACCEPTED',
+      userId,
+      role,
+      notes || 'HR tiếp nhận đề xuất',
+    );
   }
 
-/**
- * Final approval
- * - SM proposals: SUBMITTED → AM_REVIEWED → HR_ACCEPTED → APPROVED
- * - AM proposals: SUBMITTED → APPROVED (skip AM review and HR accept)
- */
-async approveProposal(proposalId: string, userId: string, userRole: string) {
-    const proposal = await this.getProposalWithAccess(proposalId, userId, userRole);
+  /**
+   * Final approval
+   * - SM proposals: SUBMITTED → AM_REVIEWED → HR_ACCEPTED → APPROVED
+   * - AM proposals: SUBMITTED → APPROVED (skip AM review and HR accept)
+   */
+  async approveProposal(proposalId: string, userId: string, userRole: string) {
+    const proposal = await this.getProposalWithAccess(
+      proposalId,
+      userId,
+      userRole,
+    );
 
-    if (!['ADMIN'].includes(userRole)) {
+    const role = normalizeRole(userRole);
+    if (!role) throw new ForbiddenException('Vai trò không hợp lệ');
+
+    if (!['ADMIN'].includes(role)) {
       throw new ForbiddenException('Chỉ Admin/Head of Department có thể duyệt');
     }
 
-    const creator = await this.prisma.user.findUnique({ where: { id: proposal.requestedById } });
+    const creator = await this.prisma.user.findUnique({
+      where: { id: proposal.requestedById },
+    });
 
-    if (creator?.role === 'SM') {
+    if (normalizeRole(creator?.role) === 'SM') {
       if (proposal.status !== 'HR_ACCEPTED') {
-        throw new BadRequestException('Đề xuất của SM phải được HR tiếp nhận (HR_ACCEPTED) trước khi duyệt');
+        throw new BadRequestException(
+          'Đề xuất của SM phải được HR tiếp nhận (HR_ACCEPTED) trước khi duyệt',
+        );
       }
     } else {
       if (proposal.status !== 'SUBMITTED') {
-        throw new BadRequestException('Đề xuất của AM/Admin phải ở trạng thái SUBMITTED để được duyệt');
+        throw new BadRequestException(
+          'Đề xuất của AM/Admin phải ở trạng thái SUBMITTED để được duyệt',
+        );
       }
     }
 
-    const updated = await this.transitionStatus(proposalId, 'APPROVED', userId, userRole, 'Admin duyệt đề xuất');
+    const updated = await this.transitionStatus(
+      proposalId,
+      'APPROVED',
+      userId,
+      role,
+      'Admin duyệt đề xuất',
+    );
     await this.reserveHeadcount(proposal);
     return updated;
   }
 
-  async unapproveProposal(proposalId: string, userId: string, userRole: string, notes?: string) {
-    const proposal = await this.getProposalWithAccess(proposalId, userId, userRole);
+  async unapproveProposal(
+    proposalId: string,
+    userId: string,
+    userRole: string,
+    notes?: string,
+  ) {
+    const proposal = await this.getProposalWithAccess(
+      proposalId,
+      userId,
+      userRole,
+    );
 
-    if (!['ADMIN'].includes(userRole)) {
-      throw new ForbiddenException('Chỉ Admin/Head of Department có thể hoàn duyệt');
+    const role = normalizeRole(userRole);
+    if (!role) throw new ForbiddenException('Vai trò không hợp lệ');
+
+    if (!['ADMIN'].includes(role)) {
+      throw new ForbiddenException(
+        'Chỉ Admin/Head of Department có thể hoàn duyệt',
+      );
     }
 
     if (proposal.status !== 'APPROVED') {
-      throw new BadRequestException('Chỉ có thể hoàn duyệt đề xuất đã được duyệt');
+      throw new BadRequestException(
+        'Chỉ có thể hoàn duyệt đề xuất đã được duyệt',
+      );
     }
 
     await this.releaseHeadcount(proposal);
-    const updated = await this.transitionStatus(proposalId, 'SUBMITTED', userId, userRole, notes || 'Hoàn duyệt');
+    const updated = await this.transitionStatus(
+      proposalId,
+      'SUBMITTED',
+      userId,
+      role,
+      notes || 'Hoàn duyệt',
+    );
     return updated;
   }
 
   /**
    * Batch approve multiple proposals
    */
-  async batchApproveProposals(proposalIds: string[], userId: string, userRole: string) {
-    if (!['ADMIN'].includes(userRole)) {
+  async batchApproveProposals(
+    proposalIds: string[],
+    userId: string,
+    userRole: string,
+  ) {
+    const role = normalizeRole(userRole);
+    if (!role) throw new ForbiddenException('Vai trò không hợp lệ');
+
+    if (!['ADMIN'].includes(role)) {
       throw new ForbiddenException('Chỉ Admin/Head of Department có thể duyệt');
     }
 
-    const results: { id: string; success: boolean; message: string }[] = []
+    const results: { id: string; success: boolean; message: string }[] = [];
 
     for (const proposalId of proposalIds) {
       try {
-        const result = await this.approveProposal(proposalId, userId, userRole)
-        results.push({ id: proposalId, success: true, message: 'Đã duyệt' })
+        const result = await this.approveProposal(proposalId, userId, userRole);
+        results.push({ id: proposalId, success: true, message: 'Đã duyệt' });
       } catch (error: any) {
-        results.push({ id: proposalId, success: false, message: error.message || 'Lỗi không xác định' })
+        results.push({
+          id: proposalId,
+          success: false,
+          message: error.message || 'Lỗi không xác định',
+        });
       }
     }
 
-    const successCount = results.filter(r => r.success).length
-    const failCount = results.filter(r => !r.success).length
+    const successCount = results.filter((r) => r.success).length;
+    const failCount = results.filter((r) => !r.success).length;
 
     return {
       total: proposalIds.length,
       success: successCount,
       failed: failCount,
-      results
-    }
+      results,
+    };
   }
 
   /**
    * Batch reject multiple proposals
    */
-  async batchRejectProposals(proposalIds: string[], userId: string, userRole: string, reason: string) {
-    if (!['ADMIN'].includes(userRole)) {
-      throw new ForbiddenException('Chỉ Admin/Head of Department có thể từ chối');
+  async batchRejectProposals(
+    proposalIds: string[],
+    userId: string,
+    userRole: string,
+    reason: string,
+  ) {
+    const role = normalizeRole(userRole);
+    if (!role) throw new ForbiddenException('Vai trò không hợp lệ');
+
+    if (!['ADMIN'].includes(role)) {
+      throw new ForbiddenException(
+        'Chỉ Admin/Head of Department có thể từ chối',
+      );
     }
 
     if (!reason || reason.trim().length === 0) {
       throw new BadRequestException('Vui lòng cung cấp lý do từ chối');
     }
 
-    const results: { id: string; success: boolean; message: string }[] = []
+    const results: { id: string; success: boolean; message: string }[] = [];
 
     for (const proposalId of proposalIds) {
       try {
-        await this.rejectProposal(proposalId, userId, userRole, reason)
-        results.push({ id: proposalId, success: true, message: 'Đã từ chối' })
+        await this.rejectProposal(proposalId, userId, userRole, reason);
+        results.push({ id: proposalId, success: true, message: 'Đã từ chối' });
       } catch (error: any) {
-        results.push({ id: proposalId, success: false, message: error.message || 'Lỗi không xác định' })
+        results.push({
+          id: proposalId,
+          success: false,
+          message: error.message || 'Lỗi không xác định',
+        });
       }
     }
 
-    const successCount = results.filter(r => r.success).length
-    const failCount = results.filter(r => !r.success).length
+    const successCount = results.filter((r) => r.success).length;
+    const failCount = results.filter((r) => !r.success).length;
 
     return {
       total: proposalIds.length,
       success: successCount,
       failed: failCount,
-      results
-    }
+      results,
+    };
   }
 
   /**
    * Reject proposal
    */
-  async rejectProposal(proposalId: string, userId: string, userRole: string, reason: string) {
+  async rejectProposal(
+    proposalId: string,
+    userId: string,
+    userRole: string,
+    reason: string,
+  ) {
     if (!reason || reason.trim().length === 0) {
       throw new BadRequestException('Vui lòng cung cấp lý do từ chối');
     }
 
-    const proposal = await this.getProposalWithAccess(proposalId, userId, userRole);
+    const proposal = await this.getProposalWithAccess(
+      proposalId,
+      userId,
+      userRole,
+    );
+
+    const role = normalizeRole(userRole);
+    if (!role) throw new ForbiddenException('Vai trò không hợp lệ');
 
     if (['APPROVED', 'CANCELLED', 'REJECTED'].includes(proposal.status)) {
-      throw new BadRequestException('Không thể từ chối đề xuất ở trạng thái này');
+      throw new BadRequestException(
+        'Không thể từ chối đề xuất ở trạng thái này',
+      );
     }
 
-    const updated = await this.prisma.recruitmentProposal.update({
-      where: { id: proposalId },
-      data: {
-        status: 'REJECTED',
-        rejectedAt: new Date(),
-        rejectionReason: reason,
-      },
-    });
-
-    await this.logWorkflow(proposalId, proposal.status, 'REJECTED', 'REJECT', userId, userRole, reason);
-
-    return updated;
+    return this.transitionStatus(
+      proposalId,
+      'REJECTED',
+      userId,
+      role,
+      reason,
+    );
   }
 
   /**
    * Cancel proposal
    */
   async cancelProposal(proposalId: string, userId: string, userRole: string) {
-    const proposal = await this.getProposalWithAccess(proposalId, userId, userRole);
+    const proposal = await this.getProposalForMutation(
+      proposalId,
+      userId,
+      userRole,
+    );
 
     if (proposal.status === 'CANCELLED') {
       throw new BadRequestException('Đề xuất đã bị hủy');
     }
 
-    // SM can cancel proposals for their managed store (including admin-created ones)
-    // Access is already verified by getProposalWithAccess
+    const role = normalizeRole(userRole);
+    if (!role) throw new ForbiddenException('Vai trò không hợp lệ');
 
-    const updated = await this.prisma.recruitmentProposal.update({
+    const updated = await this.transitionStatus(
+      proposalId,
+      'CANCELLED',
+      userId,
+      role,
+      'Hủy đề xuất',
+    );
+
+    // Only release if we previously reserved on APPROVED.
+    if (proposal.status === 'APPROVED') {
+      await this.releaseHeadcount(proposal);
+    }
+
+    return updated;
+  }
+
+  /**
+   * Get proposal for mutation (update/delete/submit/cancel).
+   * Rule: only creator can mutate. Exception: AM can mutate SM proposals in stores they manage.
+   */
+  async getProposalForMutation(
+    proposalId: string,
+    userId: string,
+    userRole: string,
+  ) {
+    const proposal = await this.prisma.recruitmentProposal.findUnique({
       where: { id: proposalId },
-      data: {
-        status: 'CANCELLED',
-        cancelledAt: new Date(),
-        cancelledById: userId,
+      include: {
+        store: { select: { id: true, amId: true, smId: true } },
+        requestedBy: { select: { id: true, role: true } },
       },
     });
 
-    await this.logWorkflow(proposalId, proposal.status, 'CANCELLED', 'CANCEL', userId, userRole);
+    if (!proposal) throw new NotFoundException('Đề xuất không tồn tại');
 
-    // Release headcount reservation if any
-    await this.releaseHeadcount(proposal);
+    // Admin can mutate all proposals
+    const role = normalizeRole(userRole);
+    if (!role) throw new ForbiddenException('Vai trò không hợp lệ');
+    if (role === 'ADMIN') return proposal;
 
-    return updated;
+    const isAMRole = role === 'AM';
+
+    const isCreator = proposal.requestedById === userId;
+    if (isCreator) return proposal;
+
+    const creatorRole = normalizeRole(proposal.requestedBy?.role);
+    const isCreatorSM = creatorRole === 'SM' || proposal.requestedById === proposal.store?.smId;
+    const isAMManagingStore = proposal.store?.amId === userId;
+
+    if (isAMRole && isCreatorSM && isAMManagingStore) {
+      return proposal;
+    }
+
+    throw new ForbiddenException(
+      'Bạn chỉ có quyền chỉnh sửa/xóa đề xuất do bạn tạo. AM chỉ được chỉnh sửa đề xuất của SM thuộc cửa hàng mình quản lý',
+    );
   }
 
   /**
    * Get proposal with access check.
    * SM/AM can access proposals for their managed stores (regardless of who created the proposal).
    */
-  private async getProposalWithAccess(proposalId: string, userId: string, userRole: string) {
+  private async getProposalWithAccess(
+    proposalId: string,
+    userId: string,
+    userRole: string,
+  ) {
     const proposal = await this.prisma.recruitmentProposal.findUnique({
       where: { id: proposalId },
       include: {
         store: true,
-        workflowHistory: { 
-          orderBy: { createdAt: 'desc' }, 
-          take: 10 
+        workflowHistory: {
+          orderBy: { createdAt: 'desc' },
+          take: 10,
         },
         fulfillment: true,
-      }
+      },
     });
 
     if (!proposal) throw new NotFoundException('Đề xuất không tồn tại');
-    if (userRole === 'ADMIN' || userRole === 'RECRUITER') return proposal;
+    const role = normalizeRole(userRole);
+    if (!role) throw new ForbiddenException('Vai trò không hợp lệ');
+    if (role === 'ADMIN' || role === 'RECRUITER') return proposal;
 
-    if (userRole === 'SM') {
+    const isSMRole = role === 'SM';
+    const isAMRole = role === 'AM';
+
+    if (isSMRole) {
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
         include: { managedStore: { select: { id: true } } },
@@ -468,12 +707,12 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
       if (!user?.managedStore || user.managedStore.id !== proposal.storeId) {
         throw new ForbiddenException('Bạn không có quyền truy cập đề xuất này');
       }
-    } else if (userRole === 'AM') {
+    } else if (isAMRole) {
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
         include: { amStores: { select: { id: true } } },
       });
-      const managedIds = user?.amStores?.map(s => s.id) || [];
+      const managedIds = user?.amStores?.map((s) => s.id) || [];
       if (!managedIds.includes(proposal.storeId || '')) {
         throw new ForbiddenException('Bạn không có quyền truy cập đề xuất này');
       }
@@ -517,7 +756,15 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
       data: updateData,
     });
 
-    await this.logWorkflow(proposalId, fromStatus, toStatus, this.getActionType(toStatus, fromStatus), actorId, actorRole, notes);
+    await this.logWorkflow(
+      proposalId,
+      fromStatus,
+      toStatus,
+      this.getActionType(toStatus, fromStatus),
+      actorId,
+      actorRole,
+      notes,
+    );
 
     return updated;
   }
@@ -621,8 +868,12 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
     if (filters?.urgency) where.urgency = filters.urgency;
 
     // Role-based filtering: SM/AM see proposals for their managed stores
-    if (filters?.userRole && filters.userRole !== 'ADMIN' && filters.userRole !== 'RECRUITER') {
-      if (filters.userRole === 'SM') {
+    const role = normalizeRole(filters?.userRole);
+    if (role && role !== 'ADMIN' && role !== 'RECRUITER') {
+      const isSMRole = role === 'SM';
+      const isAMRole = role === 'AM';
+
+      if (isSMRole) {
         // SM sees all proposals for their managed store (regardless of who created)
         const user = await this.prisma.user.findUnique({
           where: { id: filters.userId },
@@ -635,17 +886,20 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
           // SM has no store assigned - show nothing
           where.id = '__no_access__';
         }
-      } else if (filters.userRole === 'AM') {
+      } else if (isAMRole) {
         const user = await this.prisma.user.findUnique({
           where: { id: filters.userId },
           include: { amStores: { select: { id: true } } },
         });
-        const storeIds = user?.amStores?.map(s => s.id) || [];
+        const storeIds = user?.amStores?.map((s) => s.id) || [];
         if (storeIds.length > 0) {
           where.storeId = { in: storeIds };
         } else {
           where.id = '__no_access__';
         }
+      } else {
+        // Unknown role - no access
+        where.id = '__no_access__';
       }
     }
 
@@ -658,26 +912,23 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
         store: true,
         position: true,
         approver: { select: { id: true, fullName: true } },
-        workflowHistory: { 
+        workflowHistory: {
           where: { action: 'SUBMIT' },
           orderBy: { createdAt: 'asc' },
           take: 1,
         },
         fulfillment: true,
       },
-      orderBy: [
-        { urgency: 'asc' },
-        { createdAt: 'desc' },
-      ],
+      orderBy: [{ urgency: 'asc' }, { createdAt: 'desc' }],
       skip: (page - 1) * limit,
       take: limit,
     });
 
     // Calculate wait time and current holder for each proposal
     const now = new Date();
-    const proposalsWithMeta = proposals.map(p => {
+    const proposalsWithMeta = proposals.map((p) => {
       let holder = null;
-      
+
       if (p.status === 'SUBMITTED') {
         holder = { name: 'AM', role: 'AM' };
       } else if (p.status === 'AM_REVIEWED') {
@@ -688,43 +939,50 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
 
       // Calculate days waiting
       const submittedAt = p.amReviewedAt || p.createdAt;
-      const daysWaiting = submittedAt 
-        ? Math.floor((now.getTime() - new Date(submittedAt).getTime()) / (1000 * 60 * 60 * 24))
+      const daysWaiting = submittedAt
+        ? Math.floor(
+            (now.getTime() - new Date(submittedAt).getTime()) /
+              (1000 * 60 * 60 * 24),
+          )
         : 0;
 
       return {
         ...p,
         holder,
-        daysWaiting
+        daysWaiting,
       };
     });
 
     // Get counts - count candidates via campaign only (avoid double counting)
-    const proposalIds = proposals.map(p => p.id);
+    const proposalIds = proposals.map((p) => p.id);
 
     const campaignProposals = await this.prisma.campaign.findMany({
       where: { proposalId: { in: proposalIds } },
-      select: { id: true, proposalId: true }
+      select: { id: true, proposalId: true },
     });
-    const localCampaignIds = campaignProposals.map(c => c.id);
+    const localCampaignIds = campaignProposals.map((c) => c.id);
 
-    const campaignCounts = localCampaignIds.length > 0 ? await this.prisma.candidate.groupBy({
-      by: ['campaignId'],
-      _count: { id: true },
-      where: { campaignId: { in: localCampaignIds } }
-    }) : [];
+    const campaignCounts =
+      localCampaignIds.length > 0
+        ? await this.prisma.candidate.groupBy({
+            by: ['campaignId'],
+            _count: { id: true },
+            where: { campaignId: { in: localCampaignIds } },
+          })
+        : [];
 
     const countMap: Record<string, number> = {};
-    campaignCounts.forEach(c => {
-      const campaign = campaignProposals.find(cp => cp.id === c.campaignId);
+    campaignCounts.forEach((c) => {
+      const campaign = campaignProposals.find((cp) => cp.id === c.campaignId);
       if (campaign && campaign.proposalId) {
-        countMap[campaign.proposalId] = (countMap[campaign.proposalId] || 0) + c._count.id;
+        countMap[campaign.proposalId] =
+          (countMap[campaign.proposalId] || 0) + c._count.id;
       }
     });
 
-    const proposalsWithCount = proposalsWithMeta.map(p => ({
+    const proposalsWithCount = proposalsWithMeta.map((p) => ({
       ...p,
-      _count: { candidates: countMap[p.id] || 0 }
+      _count: { candidates: countMap[p.id] || 0 },
     }));
 
     const total = await this.prisma.recruitmentProposal.count({ where });
@@ -744,25 +1002,29 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
     const proposal = await this.prisma.recruitmentProposal.findUnique({
       where: { id },
       include: {
-    store: true,
-    position: true,
-    approver: { select: { id: true, fullName: true } },
-    workflowHistory: {
-      include: {
-        actor: { select: { id: true, fullName: true, role: true } },
+        store: true,
+        position: true,
+        approver: { select: { id: true, fullName: true } },
+        workflowHistory: {
+          include: {
+            actor: { select: { id: true, fullName: true, role: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+        fulfillment: true,
+        candidates: true,
       },
-      orderBy: { createdAt: 'asc' },
-    },
-    fulfillment: true,
-    candidates: true,
-  }
     });
 
     if (!proposal) throw new NotFoundException('Đề xuất không tồn tại');
 
     // Access check: SM/AM can view proposals for their managed stores (regardless of creator)
-    if (userRole && userRole !== 'ADMIN' && userRole !== 'RECRUITER') {
-      if (userRole === 'SM') {
+    const roleForRead = normalizeRole(userRole);
+    if (roleForRead && roleForRead !== 'ADMIN' && roleForRead !== 'RECRUITER') {
+      const isSMRole = roleForRead === 'SM';
+      const isAMRole = roleForRead === 'AM';
+
+      if (isSMRole) {
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
           include: { managedStore: { select: { id: true } } },
@@ -770,12 +1032,12 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
         if (!user?.managedStore || user.managedStore.id !== proposal.storeId) {
           throw new ForbiddenException();
         }
-      } else if (userRole === 'AM') {
+      } else if (isAMRole) {
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
           include: { amStores: { select: { id: true } } },
         });
-        const managedIds = user?.amStores?.map(s => s.id) || [];
+        const managedIds = user?.amStores?.map((s) => s.id) || [];
         if (!managedIds.includes(proposal.storeId || '')) {
           throw new ForbiddenException();
         }
@@ -785,4 +1047,3 @@ async approveProposal(proposalId: string, userId: string, userRole: string) {
     return proposal;
   }
 }
-

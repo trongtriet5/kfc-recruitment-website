@@ -1,20 +1,9 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Public paths that don't require authentication
-const PUBLIC_PATHS = [
-  '/login',
-  '/apply',
-  '/api/auth', // Allow auth API calls
-];
+const COMPLETELY_PUBLIC_PATHS = ['/login', '/apply'];
 
-// Paths that should be completely public (no redirect to login)
-const COMPLETELY_PUBLIC_PATHS = [
-  '/login',
-  '/apply',
-];
-
-export function middleware(request: NextRequest) {
+export default function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow public paths
@@ -23,15 +12,18 @@ export function middleware(request: NextRequest) {
   }
 
   // Check for token in cookies or Authorization header
-  const token = request.cookies.get('token')?.value ||
-                request.headers.get('authorization')?.replace('Bearer ', '');
+  const token =
+    request.cookies.get('token')?.value ||
+    request.headers.get('authorization')?.replace('Bearer ', '');
 
   // Allow requests without token to public API endpoints (like apply)
-  if (pathname.startsWith('/api/recruitment/forms/link/') ||
-      pathname.startsWith('/api/recruitment/campaigns/link/') ||
-      pathname === '/api/recruitment/apply' ||
-      pathname === '/api/recruitment/public/stores' ||
-      pathname === '/api/recruitment/public/positions') {
+  if (
+    pathname.startsWith('/api/recruitment/forms/link/') ||
+    pathname.startsWith('/api/recruitment/campaigns/link/') ||
+    pathname === '/api/recruitment/apply' ||
+    pathname === '/api/recruitment/public/stores' ||
+    pathname === '/api/recruitment/public/positions'
+  ) {
     return NextResponse.next();
   }
 
@@ -57,14 +49,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder files
-     * - .*\\..* (files with extensions)
-     */
     '/((?!_next/static|_next/image|favicon.ico|images|icons|.*\\..*).*)',
   ],
 };

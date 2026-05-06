@@ -93,7 +93,7 @@ export const PERMISSIONS: Record<Role, PermissionAction[]> = {
   AM: [
     'CANDIDATE_READ', 'CANDIDATE_UPDATE',
     'CANDIDATE_STATUS_CHANGE',
-    'PROPOSAL_CREATE', 'PROPOSAL_READ', 'PROPOSAL_UPDATE',
+    'PROPOSAL_CREATE', 'PROPOSAL_READ', 'PROPOSAL_UPDATE', 'PROPOSAL_DELETE',
     'PROPOSAL_SUBMIT', 'PROPOSAL_REVIEW', 'PROPOSAL_APPROVE', 'PROPOSAL_REJECT', 'PROPOSAL_CANCEL',
     'CAMPAIGN_READ',
     'INTERVIEW_CREATE', 'INTERVIEW_READ', 'INTERVIEW_UPDATE',
@@ -103,7 +103,7 @@ export const PERMISSIONS: Record<Role, PermissionAction[]> = {
   SM: [
     'CANDIDATE_READ',
     'CANDIDATE_STATUS_CHANGE',
-    'PROPOSAL_CREATE', 'PROPOSAL_READ', 'PROPOSAL_UPDATE',
+    'PROPOSAL_CREATE', 'PROPOSAL_READ', 'PROPOSAL_UPDATE', 'PROPOSAL_DELETE',
     'PROPOSAL_SUBMIT', 'PROPOSAL_CANCEL',
     'CAMPAIGN_READ',
     'INTERVIEW_READ',
@@ -345,7 +345,7 @@ export function getAllowedProposalActions(
 
 export interface StoreHierarchyConfig {
   storeRelation: 'managedStore' | 'managedStores' | 'all' | 'none';
-  canViewOtherAMStores?: boolean;  // For USER role - can view all stores under their AM
+  canViewOtherAMStores?: boolean;  // SM can view all stores under their AM (UI convenience)
 }
 
 export const STORE_HIERARCHY: Record<Role, StoreHierarchyConfig> = {

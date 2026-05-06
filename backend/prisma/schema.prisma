@@ -13,7 +13,7 @@ model User {
   password           String                @db.VarChar(255)
   fullName           String                @db.VarChar(255)
   phone              String?               @db.VarChar(50)
-  role               String?               @default("USER") @db.VarChar(50)
+  role               String?               @default("SM") @db.VarChar(50)
   roleId             String?               @db.VarChar(50)
   isActive           Boolean?              @default(true)
   createdAt          DateTime?             @default(now()) @db.Timestamp(6)

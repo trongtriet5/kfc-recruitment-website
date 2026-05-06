@@ -1,6 +1,7 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../../prisma/prisma.service';
+import { normalizeRole } from '../role-utils';
 
 @Injectable()
 export class ScopeGuard implements CanActivate {
@@ -21,7 +22,8 @@ export class ScopeGuard implements CanActivate {
     }
 
     // ADMIN can access everything
-    if (user.role === 'ADMIN') return true;
+    const role = normalizeRole(user.role);
+    if (role === 'ADMIN') return true;
 
     // Get user's store association
     const userWithStore = await this.prisma.user.findUnique({
@@ -34,12 +36,12 @@ export class ScopeGuard implements CanActivate {
 
     if (scope === 'own-store') {
       // SM can only access their own store
-      if (user.role === 'USER' && userWithStore?.managedStore) {
+      if (role === 'SM' && userWithStore?.managedStore) {
         request.storeScope = userWithStore.managedStore.id;
         return true;
       }
-      // MANAGER (AM) can access stores they manage
-      if (user.role === 'MANAGER' && userWithStore?.amStores?.length > 0) {
+      // AM can access stores they manage
+      if (role === 'AM' && userWithStore?.amStores?.length > 0) {
         request.storeScope = userWithStore.amStores.map(s => s.id);
         return true;
       }
@@ -61,10 +63,10 @@ export class ScopeGuard implements CanActivate {
         const isStoreSM = proposal.store?.smId === user.id;
         const isStoreAM = proposal.store?.amId === user.id;
         
-        if (user.role === 'USER' && !isStoreSM) {
+        if (role === 'SM' && !isStoreSM) {
           throw new ForbiddenException('Bạn chỉ xem được đề xuất của cửa hàng mình');
         }
-        if (user.role === 'MANAGER' && !isStoreAM) {
+        if (role === 'AM' && !isStoreAM) {
           throw new ForbiddenException('Bạn chỉ xem được đề xuất của cửa hàng bạn quản lý');
         }
       }

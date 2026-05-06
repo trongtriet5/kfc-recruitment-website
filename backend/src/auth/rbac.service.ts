@@ -10,6 +10,7 @@ import {
   getAllowedTransitions,
   STATUS_GROUPS,
 } from '../recruitment/constraints';
+import { normalizeRole } from './role-utils';
 
 @Injectable()
 export class RbacService {
@@ -31,7 +32,9 @@ export class RbacService {
     }
 
     // 2. Fallback to hardcoded constraints using userRole string
-    return hasPermission(userRole as Role, action);
+    const normalized = normalizeRole(userRole);
+    if (!normalized) return false;
+    return hasPermission(normalized, action);
   }
 
   /**
@@ -84,16 +87,17 @@ export class RbacService {
 
     if (!user) throw new ForbiddenException('User not found');
 
-    if (userRole === 'ADMIN') {
+    const role = normalizeRole(userRole);
+    if (role === 'ADMIN') {
       const allStores = await this.prisma.store.findMany({ select: { id: true } });
       return allStores.map(s => s.id);
     }
 
-    if (userRole === 'SM' && user.managedStore) {
+    if (role === 'SM' && user.managedStore) {
       return [user.managedStore.id];
     }
 
-    if (userRole === 'AM') {
+    if (role === 'AM') {
       if (user.amStores?.length > 0) {
         return user.amStores.map(s => s.id);
       }
@@ -136,14 +140,15 @@ export class RbacService {
 
   // Get proposal IDs visible to a user (including hierarchical view)
   async getVisibleProposalIds(userId: string, userRole: string): Promise<string[]> {
+    const role = normalizeRole(userRole);
     const myStoreIds = await this.getAccessibleStoreIds(userId, userRole);
     
-    if (userRole === 'ADMIN') {
+    if (role === 'ADMIN') {
       const allProposals = await this.prisma.recruitmentProposal.findMany({ select: { id: true } });
       return allProposals.map(p => p.id);
     }
 
-    if (userRole === 'AM' && myStoreIds.length > 0) {
+    if (role === 'AM' && myStoreIds.length > 0) {
       const proposals = await this.prisma.recruitmentProposal.findMany({
         where: { storeId: { in: myStoreIds } },
         select: { id: true }
@@ -151,45 +156,34 @@ export class RbacService {
       return proposals.map(p => p.id);
     }
 
-    if (userRole === 'SM' && myStoreIds.length > 0) {
-      const myStore = await this.prisma.store.findFirst({
-        where: { id: { in: myStoreIds } },
-        select: { amId: true }
-      });
-
-      const amStoreIds = myStore?.amId 
-        ? (await this.prisma.store.findMany({
-            where: { amId: myStore.amId },
-            select: { id: true }
-          })).map(s => s.id)
-        : [];
-
-      const allVisibleStoreIds = [...new Set([...myStoreIds, ...amStoreIds])];
-      
+    // SM: only proposals of their own store
+    if (role === 'SM' && myStoreIds.length > 0) {
       const proposals = await this.prisma.recruitmentProposal.findMany({
-        where: { storeId: { in: allVisibleStoreIds } },
-        select: { id: true }
+        where: { storeId: { in: myStoreIds } },
+        select: { id: true },
       });
-      return proposals.map(p => p.id);
+      return proposals.map((p) => p.id);
     }
 
     return [];
   }
 
   // Check if a proposal is visible to user
-  async canViewProposal(userId: string, userRole: string, proposalStoreId: string): Promise<boolean> {
+  // Backward compatible name/signature: parameter is proposalId (not storeId)
+  async canViewProposal(userId: string, userRole: string, proposalId: string): Promise<boolean> {
     const visibleIds = await this.getVisibleProposalIds(userId, userRole);
-    return visibleIds.includes(proposalStoreId);
+    return visibleIds.includes(proposalId);
   }
 
   // Get user IDs whose proposals the current user can view
   async getProposalViewableUserIds(userId: string, userRole: string): Promise<string[]> {
-    if (userRole === 'ADMIN') {
+    const role = normalizeRole(userRole);
+    if (role === 'ADMIN') {
       const allUsers = await this.prisma.user.findMany({ select: { id: true } });
       return allUsers.map(u => u.id);
     }
 
-    if (userRole === 'AM') {
+    if (role === 'AM') {
       const myStoreIds = await this.getAccessibleStoreIds(userId, userRole);
       const smIds = await this.prisma.store.findMany({
         where: { id: { in: myStoreIds }, smId: { not: null } },
@@ -198,26 +192,7 @@ export class RbacService {
       return smIds.map(s => s.smId!).filter(Boolean);
     }
 
-    if (userRole === 'SM') {
-      const myUser = await this.prisma.user.findUnique({
-        where: { id: userId },
-        include: { managedStore: true }
-      });
-      
-      if (!myUser?.managedStore?.amId) return [userId];
-      
-      const storesUnderAM = await this.prisma.store.findMany({
-        where: { amId: myUser.managedStore.amId },
-        select: { smId: true }
-      });
-      
-      const smUserIds = storesUnderAM
-        .map(s => s.smId)
-        .filter(Boolean) as string[];
-      
-      if (smUserIds.length > 0) {
-        return smUserIds;
-      }
+    if (role === 'SM') {
       return [userId];
     }
 

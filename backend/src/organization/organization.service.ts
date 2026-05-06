@@ -1,6 +1,7 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CacheService, CACHE_KEYS } from '../common/cache.service';
+import { normalizeRole } from '../auth/role-utils';
 
 // Helper to fix UTF-8 encoding issues
 function fixUtf8Encoding(obj: any): any {
@@ -144,7 +145,9 @@ export class OrganizationService {
   // Stores
   async getStores(user?: any) {
     // Only cache for admin (no user filter)
-    if (!user || user.role === 'ADMIN') {
+    const role = normalizeRole(user?.role);
+
+    if (!user || role === 'ADMIN') {
       const cached = this.cache.get<any[]>(CACHE_KEYS.STORES_ACTIVE);
       if (cached) return cached;
     }
@@ -152,7 +155,7 @@ export class OrganizationService {
     const where: any = { isActive: true };
     
     // Filter by user access for SM/AM
-    if (user && user.role !== 'ADMIN') {
+    if (user && role !== 'ADMIN') {
       const userWithStore = await this.prisma.user.findUnique({
         where: { id: user.id },
         include: { 
@@ -161,9 +164,9 @@ export class OrganizationService {
         }
       });
       
-      if (user.role === 'USER' && userWithStore?.managedStore) {
+      if (role === 'SM' && userWithStore?.managedStore) {
         where.id = userWithStore.managedStore.id;
-      } else if (user.role === 'MANAGER' && userWithStore?.amStores?.length > 0) {
+      } else if (role === 'AM' && userWithStore?.amStores?.length > 0) {
         where.id = { in: userWithStore.amStores.map(s => s.id) };
       }
     }
@@ -177,7 +180,7 @@ export class OrganizationService {
     const result = fixUtf8Encoding(stores.map((store) => this.mapStoreResponse(store)));
 
     // Cache for admin
-    if (!user || user.role === 'ADMIN') {
+    if (!user || role === 'ADMIN') {
       this.cache.set(CACHE_KEYS.STORES_ACTIVE, result);
     }
 

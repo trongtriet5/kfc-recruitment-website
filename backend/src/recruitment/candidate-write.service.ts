@@ -3,6 +3,7 @@ import { CandidateGateway } from './candidate.gateway';
 import { PrismaService } from '../prisma/prisma.service';
 import { CampaignFulfillmentService } from './campaign-fulfillment.service';
 import readXlsxFile from 'read-excel-file/node';
+import { normalizeRole } from '../auth/role-utils';
 
 const ALLOWED_SMAM_RESULTS = [
   'SM_AM_INTERVIEW_PASSED',
@@ -162,7 +163,8 @@ export class CandidateWriteService {
     });
     if (!candidate) throw new NotFoundException('Ứng viên không tồn tại');
 
-    if (user && user.role !== 'ADMIN') {
+    const role = normalizeRole(user?.role);
+    if (user && role !== 'ADMIN') {
       const storeIds = await this.getAccessibleStoreIds(user);
       const campaignIdsFromUserProposals = await this.getCampaignIdsFromUserProposals(user.id);
       const isFromUserProposal = candidate.campaignId && campaignIdsFromUserProposals.includes(candidate.campaignId);
@@ -175,7 +177,8 @@ export class CandidateWriteService {
         throw new ForbiddenException('Bạn không có quyền cập nhật ứng viên này');
       }
 
-      if (data.status && !ALLOWED_SMAM_RESULTS.includes(data.status)) {
+      // Only SM/AM are constrained to interview-stage results.
+      if ((role === 'SM' || role === 'AM') && data.status && !ALLOWED_SMAM_RESULTS.includes(data.status)) {
         throw new ForbiddenException('Bạn không có quyền cập nhật trạng thái này');
       }
     }
@@ -360,7 +363,8 @@ if (existing) {
     const candidate = await this.prisma.candidate.findUnique({ where: { id } });
     if (!candidate) throw new NotFoundException('Ứng viên không tồn tại');
 
-    if (user && user.role !== 'ADMIN') {
+    const role = normalizeRole(user?.role);
+    if (user && role !== 'ADMIN') {
       const storeIds = await this.getAccessibleStoreIds(user);
       const campaignIdsFromUserProposals = await this.getCampaignIdsFromUserProposals(user.id);
       const isFromUserProposal = candidate.campaignId && campaignIdsFromUserProposals.includes(candidate.campaignId);
@@ -438,7 +442,8 @@ if (existing) {
       throw new BadRequestException('Chỉ có thể chuyển ứng viên vào chiến dịch đang hoạt động (ACTIVE)');
     }
 
-    if (user && user.role !== 'ADMIN') {
+    const role = normalizeRole(user?.role);
+    if (user && role !== 'ADMIN') {
       const storeIds = await this.getAccessibleStoreIds(user);
       if (!campaign.storeId || !storeIds.includes(campaign.storeId)) {
         throw new ForbiddenException('Bạn không có quyền chuyển ứng viên sang chiến dịch này');
@@ -582,12 +587,13 @@ if (existing) {
   }
 
   private async getAccessibleStoreIds(user: any): Promise<string[]> {
-    if (!user || user.role === 'ADMIN') {
+    const role = normalizeRole(user?.role);
+    if (!user || role === 'ADMIN') {
       const stores = await this.prisma.store.findMany({ select: { id: true } });
       return stores.map(s => s.id);
     }
 
-    if (user.role === 'SM') {
+    if (role === 'SM') {
       const u = await this.prisma.user.findUnique({
         where: { id: user.id },
         include: { managedStore: { select: { id: true } } }
@@ -595,7 +601,7 @@ if (existing) {
       return u?.managedStore ? [u.managedStore.id] : [];
     }
 
-    if (user.role === 'AM') {
+    if (role === 'AM') {
       const u = await this.prisma.user.findUnique({
         where: { id: user.id },
         include: { amStores: { select: { id: true } } }

@@ -53,7 +53,7 @@ export default function CreateCandidateForm({ onSuccess, onCancel }: CreateCandi
         api.get('/stores').catch(() => ({ data: [] })),
         api.get('/types/by-category/CANDIDATE_STATUS').catch(() => ({ data: [] })),
         api.get('/recruitment/campaigns').catch(() => ({ data: [] })),
-        api.get('/users/select').catch(() => ({ data: [] })),
+        api.get('/recruitment/users/select').catch(() => ({ data: [] })),
         api.get('/recruitment/proposals').catch(() => ({ data: { data: [] } })),
       ])
 

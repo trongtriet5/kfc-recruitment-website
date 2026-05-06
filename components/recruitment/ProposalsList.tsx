@@ -108,7 +108,7 @@ export default function ProposalsList() {
   }, [])
 
   const loadUsers = () => {
-    api.get('/users').then((res) => setAllUsers(res.data || [])).catch(console.error)
+    api.get('/recruitment/users/select').then((res) => setAllUsers(res.data || [])).catch(console.error)
   }
 
   const loadUser = () => {
@@ -132,7 +132,7 @@ export default function ProposalsList() {
       .finally(() => setLoading(false))
   }
 
-  const canEditTitle = user && (user.role === 'ADMIN' || user.role === 'RECRUITER' || user.role === 'MANAGER')
+  const canEditTitle = user && (user.role === 'ADMIN' || user.role === 'RECRUITER' || user.role === 'AM' || user.role === 'MANAGER')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -230,7 +230,7 @@ export default function ProposalsList() {
     }
   }
 
-  const canCreateCampaign = user && ['ADMIN', 'RECRUITER', 'MANAGER'].includes(user.role)
+  const canCreateCampaign = user && ['ADMIN', 'RECRUITER', 'AM', 'MANAGER'].includes(user.role)
 
   return (
     <div className="space-y-8">
@@ -511,7 +511,7 @@ export default function ProposalsList() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Người phụ trách</label>
               <SearchableSelect
                 options={allUsers
-                  .filter(u => ['ADMIN', 'RECRUITER', 'HEAD_OF_DEPARTMENT', 'MANAGER'].includes(u.role))
+                  .filter(u => ['ADMIN', 'RECRUITER', 'AM', 'HEAD_OF_DEPARTMENT', 'MANAGER'].includes(u.role))
                   .map(u => ({ id: u.id, name: u.fullName }))
                 }
                 value={campaignFormData.picId}
@@ -523,8 +523,8 @@ export default function ProposalsList() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Người lọc hồ sơ</label>
             <SearchableSelect
-              options={allUsers
-                .filter(u => ['ADMIN', 'RECRUITER', 'HEAD_OF_DEPARTMENT', 'MANAGER'].includes(u.role))
+               options={allUsers
+                .filter(u => ['ADMIN', 'RECRUITER', 'AM', 'HEAD_OF_DEPARTMENT', 'MANAGER'].includes(u.role))
                 .map(u => ({ id: u.id, name: u.fullName }))
               }
               value={campaignFormData.recruiterId}

@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import * as ExcelJS from 'exceljs';
 import readXlsxFile from 'read-excel-file/node';
+import { normalizeRole } from '../auth/role-utils';
 
 const SALT_ROUNDS = 10;
 
@@ -108,8 +109,9 @@ export class UsersService {
     });
 
     // Manual explicit store assignment takes priority
-    const isSM = roleCode === 'SM' || roleCode === 'USER';
-    const isAM = roleCode === 'AM' || roleCode === 'MANAGER';
+    const normalizedRole = normalizeRole(roleCode) ?? roleCode;
+    const isSM = normalizedRole === 'SM';
+    const isAM = normalizedRole === 'AM';
 
     if (data.storeId && isSM) {
       await this.assignSMToStore(user.id, data.storeId);
@@ -160,12 +162,13 @@ export class UsersService {
 
   /** Legacy auto-match by name/email convention (used for imports) */
   private async assignUserToStoresByConvention(user: any) {
-    if (user.role === 'AM' || user.role === 'MANAGER') {
+    const role = normalizeRole(user?.role);
+    if (role === 'AM') {
       await this.prisma.store.updateMany({
         where: { amName: user.fullName },
         data: { amId: user.id }
       });
-    } else if (user.role === 'SM' || user.role === 'USER') {
+    } else if (role === 'SM') {
       const match = user.email.match(/^sm\.([a-z0-9.]+)@kfcvietnam\.com\.vn$/i);
       if (match) {
         const slug = match[1].toLowerCase();
@@ -231,8 +234,9 @@ export class UsersService {
     });
 
     const role = updateData.role || user.role;
-    const isSM = role === 'SM' || role === 'USER';
-    const isAM = role === 'AM' || role === 'MANAGER';
+    const normalizedRole = normalizeRole(role) ?? role;
+    const isSM = normalizedRole === 'SM';
+    const isAM = normalizedRole === 'AM';
 
     if (storeId !== undefined && isSM) {
       if (storeId) {
@@ -316,8 +320,9 @@ export class UsersService {
   }
 
   private async assignToStoreByCode(userId: string, storeCode: string, role: string) {
-    const isSM = role === 'SM' || role === 'USER';
-    const isAM = role === 'AM' || role === 'MANAGER';
+    const normalizedRole = normalizeRole(role) ?? role;
+    const isSM = normalizedRole === 'SM';
+    const isAM = normalizedRole === 'AM';
     
     // Support multiple store codes separated by comma
     const codes = storeCode.split(',').map(c => c.trim()).filter(c => c);
