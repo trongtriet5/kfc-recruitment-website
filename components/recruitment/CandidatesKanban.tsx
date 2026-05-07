@@ -113,12 +113,18 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
     api
       .get('/recruitment/candidates', { params })
       .then((res) => {
+        const sortByNewest = (items: Candidate[]) =>
+          [...items].sort(
+            (left, right) =>
+              new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+          )
+
         // Handle both old format (array) and new format (paginated)
         if (Array.isArray(res.data)) {
-          setCandidates(res.data)
+          setCandidates(sortByNewest(res.data))
           setLocalPagination({ total: res.data.length, totalPages: 1 })
         } else {
-          setCandidates(res.data.data || [])
+          setCandidates(sortByNewest(res.data.data || []))
           setLocalPagination({
             total: res.data.total || 0,
             totalPages: res.data.totalPages || 0,
@@ -301,11 +307,16 @@ export default function CandidatesKanban(props: CandidatesKanbanProps = {}) {
     const group = dynamicGroups[groupKey]
     if (!group) return []
 
-    return candidates.filter((c) => {
-      if (!c.status) return false
-      const candidateStatusCode = typeof c.status === 'object' ? c.status.code : c.status
-      return group.statuses.some((s) => s.value === candidateStatusCode)
-    })
+    return candidates
+      .filter((c) => {
+        if (!c.status) return false
+        const candidateStatusCode = typeof c.status === 'object' ? c.status.code : c.status
+        return group.statuses.some((s) => s.value === candidateStatusCode)
+      })
+      .sort(
+        (left, right) =>
+          new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+      )
   }
 
   const handleCandidateClick = (e: React.MouseEvent, candidate: Candidate) => {

@@ -50,11 +50,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const loadNotifications = () => {
     if (!user) return;
-    api
-      .get('/recruitment/notifications')
-      .then(res => {
-        setNotifications(res.data.notifications || []);
-        setUnreadCount(res.data.unreadCount || 0);
+    Promise.all([
+      api.get('/recruitment/notifications'),
+      api.get('/recruitment/notifications/unread-count'),
+    ])
+      .then(([notificationsRes, unreadRes]) => {
+        const list = Array.isArray(notificationsRes.data) ? notificationsRes.data : [];
+        setNotifications(list);
+        setUnreadCount(Number(unreadRes.data || 0));
       })
       .catch(console.error);
   };
@@ -64,13 +67,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     loadNotifications();
   };
 
+  const markAllAsRead = async () => {
+    await api.post('/recruitment/notifications/mark-all-read');
+    loadNotifications();
+  };
+
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.isRead) {
       markAsRead(notification.id);
     }
-    if (notification.actionUrl) {
-      router.push(notification.actionUrl);
-    }
+    const fallbackUrl =
+      notification.type === 'NEW_CANDIDATE'
+        ? '/recruitment/candidates?view=kanban'
+        : '/recruitment/candidates';
+    router.push(notification.actionUrl || fallbackUrl);
     setShowNotifications(false);
   };
 
@@ -121,6 +131,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       toast(notification.title || 'Thông báo mới', {
         description: notification.message,
         icon: <Icon name="bell" size={18} className="text-gray-900" />,
+        action: {
+          label: 'Xem',
+          onClick: () => {
+            const fallbackUrl =
+              notification.type === 'NEW_CANDIDATE'
+                ? '/recruitment/candidates?view=kanban'
+                : '/recruitment/candidates';
+            router.push(notification.actionUrl || fallbackUrl);
+          },
+        },
         className: 'bg-white border-gray-100 shadow-xl rounded-2xl p-4',
       });
     };
@@ -213,7 +233,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="p-4 border-t">
             <button
               onClick={() => setShowNotifications(!showNotifications)}
-              className={`w-full flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+              className={`relative w-full flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
                 showNotifications ? 'bg-kfc-red text-white' : 'text-gray-700 hover:bg-gray-100'
               }`}
             >
@@ -222,7 +242,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </span>
               Thông báo
               {unreadCount > 0 && (
-                <span className="ml-auto bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    router.push('/recruitment/candidates?view=kanban');
+                    setShowNotifications(false);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      router.push('/recruitment/candidates?view=kanban');
+                      setShowNotifications(false);
+                    }
+                  }}
+                  className="absolute -top-1 right-2 bg-red-500 text-white text-[10px] rounded-full h-5 min-w-5 px-1 flex items-center justify-center font-semibold cursor-pointer"
+                >
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
@@ -257,7 +294,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <Dialog open={showNotifications} onOpenChange={setShowNotifications}>
           <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Thông báo</DialogTitle>
+              <div className="flex items-center justify-between gap-3">
+                <DialogTitle>Thông báo</DialogTitle>
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={markAllAsRead}
+                    className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                  >
+                    Đánh dấu tất cả đã đọc
+                  </button>
+                )}
+              </div>
             </DialogHeader>
             <div className="mt-4">
               {notifications.length === 0 ? (

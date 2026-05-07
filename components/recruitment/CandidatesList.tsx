@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -39,6 +40,7 @@ interface User {
 
 
 export default function CandidatesList() {
+  const searchParams = useSearchParams()
   const { dbStatuses, dynamicGroups } = useCandidateStatuses()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [user, setUser] = useState<User | null>(null)
@@ -124,6 +126,13 @@ export default function CandidatesList() {
   }, [])
 
   useEffect(() => {
+    const requestedView = searchParams.get('view')
+    if (requestedView === 'kanban' || requestedView === 'list') {
+      setViewMode(requestedView)
+    }
+  }, [searchParams])
+
+  useEffect(() => {
     setPage(1) // Reset to page 1 when filter changes
   }, [statusFilter, campaignFilter, storeFilter, taFilter])
 
@@ -175,12 +184,18 @@ export default function CandidatesList() {
     api
       .get('/recruitment/candidates', { params })
       .then((res) => {
+        const sortByNewest = (items: Candidate[]) =>
+          [...items].sort(
+            (left, right) =>
+              new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+          )
+
         // Handle both old format (array) and new format (paginated)
         if (Array.isArray(res.data)) {
-          setCandidates(res.data)
+          setCandidates(sortByNewest(res.data))
           setPagination({ total: res.data.length, totalPages: 1 })
         } else {
-          setCandidates(res.data.data || [])
+          setCandidates(sortByNewest(res.data.data || []))
           setPagination({
             total: res.data.total || 0,
             totalPages: res.data.totalPages || 0,

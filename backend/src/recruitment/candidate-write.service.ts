@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+﻿import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { CandidateGateway } from './candidate.gateway';
 import { PrismaService } from '../prisma/prisma.service';
 import { CampaignFulfillmentService } from './campaign-fulfillment.service';
@@ -29,7 +29,7 @@ export class CandidateWriteService {
       const blacklistEntry = await this.checkBlacklist(data.phone, data.email);
       if (blacklistEntry) {
         throw new ForbiddenException(
-          `Ứng viên nằm trong danh sách đen. Lý do: ${blacklistEntry.reason}`
+          `á»¨ng viÃªn náº±m trong danh sÃ¡ch Ä‘en. LÃ½ do: ${blacklistEntry.reason}`
         );
       }
     }
@@ -112,7 +112,7 @@ export class CandidateWriteService {
         actorId: user?.id,
         action: 'CANDIDATE_CREATED',
         toValue: status?.name || 'CV_FILTERING',
-        notes: data.sourceCode ? `Nguồn: ${data.sourceCode}` : null,
+        notes: data.sourceCode ? `Nguá»“n: ${data.sourceCode}` : null,
       }
     });
 
@@ -128,27 +128,43 @@ export class CandidateWriteService {
       select: { id: true }
     });
 
-    if (staff.length > 0) {
-      const notificationData = staff.map(member => ({
-        recipientId: member.id,
-        type: 'NEW_CANDIDATE',
-        title: 'Ứng viên mới',
-        message: `Ứng viên ${candidate.fullName} vừa ứng tuyển vào hệ thống`,
-        actionUrl: `/recruitment/candidates?id=${candidate.id}`,
-        isRead: false
-      }));
+    const notificationData = staff.map(member => ({
+      recipientId: member.id,
+      type: 'NEW_CANDIDATE',
+      title: 'á»¨ng viÃªn má»›i',
+      message: `á»¨ng viÃªn ${candidate.fullName} vá»«a á»©ng tuyá»ƒn vÃ o há»‡ thá»‘ng`,
+      actionUrl: '/recruitment/candidates?view=kanban',
+      isRead: false
+    }));
 
-      // Create many doesn't return the objects with IDs in all Prisma versions easily, 
-      // so we create one to emit and use createMany for the rest if possible, 
-      // or just create them in a loop if the number of staff is small.
-      // Given it's a few recruiters/admins, a loop or Promise.all is fine.
+    const storeRecipients = await this.getStoreStakeholderRecipientIds(candidate.storeId);
+    if (storeRecipients.length > 0) {
+      const store = await this.prisma.store.findUnique({
+        where: { id: candidate.storeId as string },
+        select: { name: true, code: true }
+      });
+      const storeLabel = store?.code ? `${store.name} (${store.code})` : (store?.name || 'cá»­a hÃ ng');
+      const existingRecipientIds = new Set(notificationData.map((n) => n.recipientId));
 
+      for (const recipientId of storeRecipients) {
+        if (existingRecipientIds.has(recipientId)) continue;
+        notificationData.push({
+          recipientId,
+          type: 'NEW_CANDIDATE',
+          title: 'á»¨ng viÃªn má»›i thuá»™c cá»­a hÃ ng',
+          message: `á»¨ng viÃªn ${candidate.fullName} vá»«a á»©ng tuyá»ƒn cho ${storeLabel}`,
+          actionUrl: '/recruitment/candidates?view=kanban',
+          isRead: false
+        });
+      }
+    }
+
+    if (notificationData.length > 0) {
       const createdNotifications = await Promise.all(
-        notificationData.map(n => this.prisma.notification.create({ data: n }))
+        notificationData.map((n) => this.prisma.notification.create({ data: n }))
       );
 
-      // Emit all created notifications so each recipient gets their specific real-time update
-      createdNotifications.forEach(notification => {
+      createdNotifications.forEach((notification) => {
         this.candidateGateway.emitNotification(notification);
       });
     }
@@ -156,13 +172,35 @@ export class CandidateWriteService {
     return candidate;
   }
 
+  private async getStoreStakeholderRecipientIds(storeId?: string | null): Promise<string[]> {
+    if (!storeId) return [];
+
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: { smId: true, amId: true }
+    });
+    if (!store) return [];
+
+    const ids = [store.smId, store.amId].filter(Boolean) as string[];
+    if (ids.length === 0) return [];
+
+    const activeUsers = await this.prisma.user.findMany({
+      where: {
+        id: { in: ids },
+        isActive: true
+      },
+      select: { id: true }
+    });
+
+    return activeUsers.map(user => user.id);
+  }
 async updateCandidate(id: string, data: any, user?: any) {
     console.log('[DEBUG-updateCandidate] user:', user, 'role:', user?.role);
     const candidate = await this.prisma.candidate.findUnique({
       where: { id },
       include: { status: true }
     });
-    if (!candidate) throw new NotFoundException('Ứng viên không tồn tại');
+    if (!candidate) throw new NotFoundException('á»¨ng viÃªn khÃ´ng tá»“n táº¡i');
 
     const role = normalizeRole(user?.role);
     if (user && role !== 'ADMIN') {
@@ -178,7 +216,7 @@ async updateCandidate(id: string, data: any, user?: any) {
         isFromAccessibleCampaign;
 
 if (!hasAccess) {
-        throw new ForbiddenException('Bạn không có quyền cập nhật ứng viên này');
+        throw new ForbiddenException('Báº¡n khÃ´ng cÃ³ quyá»n cáº­p nháº­t á»©ng viÃªn nÃ y');
       }
 
       const newStatusName = data.status;
@@ -189,11 +227,11 @@ if (!hasAccess) {
         const interviewStatuses = ['SM_AM_INTERVIEW_PASSED', 'SM_AM_INTERVIEW_FAILED', 'SM_AM_NO_SHOW', 'OM_PV_INTERVIEW_PASSED', 'OM_PV_INTERVIEW_FAILED', 'OM_PV_NO_SHOW', 'NO_INTERVIEW'];
 
         if (terminalStatuses.includes(currentStatusCode) && interviewStatuses.includes(newStatusName)) {
-          throw new ForbiddenException('Không thể chuyển trạng thái từ giai đoạn offer về phỏng vấn');
+          throw new ForbiddenException('KhÃ´ng thá»ƒ chuyá»ƒn tráº¡ng thÃ¡i tá»« giai Ä‘oáº¡n offer vá» phá»ng váº¥n');
         }
 
         if (!ALLOWED_SMAM_RESULTS.includes(newStatusName)) {
-          throw new ForbiddenException('Bạn không có quyền cập nhật trạng thái này');
+          throw new ForbiddenException('Báº¡n khÃ´ng cÃ³ quyá»n cáº­p nháº­t tráº¡ng thÃ¡i nÃ y');
         }
       }
     }
@@ -376,7 +414,7 @@ if (existing) {
 
   async deleteCandidate(id: string, user?: any) {
     const candidate = await this.prisma.candidate.findUnique({ where: { id } });
-    if (!candidate) throw new NotFoundException('Ứng viên không tồn tại');
+    if (!candidate) throw new NotFoundException('á»¨ng viÃªn khÃ´ng tá»“n táº¡i');
 
 const role = normalizeRole(user?.role);
     if (user && role !== 'ADMIN') {
@@ -390,7 +428,7 @@ const role = normalizeRole(user?.role);
         isFromAccessibleCampaign;
 
       if (!hasAccess) {
-        throw new ForbiddenException('Bạn không có quyền xóa ứng viên này');
+        throw new ForbiddenException('Báº¡n khÃ´ng cÃ³ quyá»n xÃ³a á»©ng viÃªn nÃ y');
       }
     }
 
@@ -434,9 +472,9 @@ const role = normalizeRole(user?.role);
       data: {
         candidateId,
         action: 'PIC_ASSIGNED',
-        fromValue: oldPic?.fullName || 'Chưa phân công',
+        fromValue: oldPic?.fullName || 'ChÆ°a phÃ¢n cÃ´ng',
         toValue: newPic?.fullName || picId,
-        notes: `Thay đổi người phụ trách từ ${oldPic?.fullName || 'Chưa phân công'} sang ${newPic?.fullName || picId}`,
+        notes: `Thay Ä‘á»•i ngÆ°á»i phá»¥ trÃ¡ch tá»« ${oldPic?.fullName || 'ChÆ°a phÃ¢n cÃ´ng'} sang ${newPic?.fullName || picId}`,
       }
     });
 
@@ -445,24 +483,24 @@ const role = normalizeRole(user?.role);
 
   async transferCampaign(candidateId: string, campaignId: string, user?: any) {
     const candidate = await this.prisma.candidate.findUnique({ where: { id: candidateId } });
-    if (!candidate) throw new NotFoundException('Ứng viên không tồn tại');
+    if (!candidate) throw new NotFoundException('á»¨ng viÃªn khÃ´ng tá»“n táº¡i');
 
     if (candidate.campaignId === campaignId) {
-      throw new BadRequestException('Ứng viên đã nằm trong chiến dịch này rồi');
+      throw new BadRequestException('á»¨ng viÃªn Ä‘Ã£ náº±m trong chiáº¿n dá»‹ch nÃ y rá»“i');
     }
 
     const campaign = await this.prisma.campaign.findUnique({ where: { id: campaignId } });
-    if (!campaign) throw new NotFoundException('Chiến dịch không tồn tại');
+    if (!campaign) throw new NotFoundException('Chiáº¿n dá»‹ch khÃ´ng tá»“n táº¡i');
 
     if (campaign.status !== 'ACTIVE') {
-      throw new BadRequestException('Chỉ có thể chuyển ứng viên vào chiến dịch đang hoạt động (ACTIVE)');
+      throw new BadRequestException('Chá»‰ cÃ³ thá»ƒ chuyá»ƒn á»©ng viÃªn vÃ o chiáº¿n dá»‹ch Ä‘ang hoáº¡t Ä‘á»™ng (ACTIVE)');
     }
 
     const role = normalizeRole(user?.role);
     if (user && role !== 'ADMIN') {
       const storeIds = await this.getAccessibleStoreIds(user);
       if (!campaign.storeId || !storeIds.includes(campaign.storeId)) {
-        throw new ForbiddenException('Bạn không có quyền chuyển ứng viên sang chiến dịch này');
+        throw new ForbiddenException('Báº¡n khÃ´ng cÃ³ quyá»n chuyá»ƒn á»©ng viÃªn sang chiáº¿n dá»‹ch nÃ y');
       }
     }
 
@@ -484,7 +522,7 @@ const role = normalizeRole(user?.role);
         candidateId,
         actorId: user?.id,
         action: 'CAMPAIGN_TRANSFERRED',
-        notes: `Chuyển sang chiến dịch: ${campaign.name}`,
+        notes: `Chuyá»ƒn sang chiáº¿n dá»‹ch: ${campaign.name}`,
       }
     });
 
@@ -494,7 +532,7 @@ const role = normalizeRole(user?.role);
   async importCandidatesFromFile(file: Express.Multer.File, user?: any) {
     try {
       const rows = await readXlsxFile(file.buffer);
-      if (rows.length < 2) throw new Error('File không có dữ liệu');
+      if (rows.length < 2) throw new Error('File khÃ´ng cÃ³ dá»¯ liá»‡u');
 
       const header = rows[0] as any[];
       const dataRows = rows.slice(1);
@@ -502,14 +540,14 @@ const role = normalizeRole(user?.role);
       const findIdx = (keywords: string[]) => 
         header.findIndex(h => h && keywords.some(k => String(h).toLowerCase().includes(k.toLowerCase())));
 
-      const nameIdx = findIdx(['họ tên', 'fullName', 'name']);
-      const phoneIdx = findIdx(['điện thoại', 'phone', 'sđt']);
+      const nameIdx = findIdx(['há» tÃªn', 'fullName', 'name']);
+      const phoneIdx = findIdx(['Ä‘iá»‡n thoáº¡i', 'phone', 'sÄ‘t']);
       const emailIdx = findIdx(['email']);
-      const positionIdx = findIdx(['vị trí', 'position']);
-      const storeIdx = findIdx(['cửa hàng', 'store', 'mã ch']);
-      const campaignIdx = findIdx(['chiến dịch', 'campaign', 'mã cd']);
-      const genderIdx = findIdx(['giới tính', 'gender']);
-      const sourceIdx = findIdx(['nguồn', 'source']);
+      const positionIdx = findIdx(['vá»‹ trÃ­', 'position']);
+      const storeIdx = findIdx(['cá»­a hÃ ng', 'store', 'mÃ£ ch']);
+      const campaignIdx = findIdx(['chiáº¿n dá»‹ch', 'campaign', 'mÃ£ cd']);
+      const genderIdx = findIdx(['giá»›i tÃ­nh', 'gender']);
+      const sourceIdx = findIdx(['nguá»“n', 'source']);
 
       const results = { success: 0, failed: 0, errors: [] as string[] };
 
@@ -520,7 +558,7 @@ const role = normalizeRole(user?.role);
           const email = row[emailIdx] ? String(row[emailIdx]).trim() : null;
 
           if (!fullName || !phone) {
-            throw new Error('Thiếu họ tên hoặc số điện thoại');
+            throw new Error('Thiáº¿u há» tÃªn hoáº·c sá»‘ Ä‘iá»‡n thoáº¡i');
           }
 
           // Find store if code provided
@@ -568,13 +606,13 @@ const role = normalizeRole(user?.role);
           results.success++;
         } catch (error: any) {
           results.failed++;
-          results.errors.push(`Lỗi dòng ${dataRows.indexOf(row) + 2}: ${error.message}`);
+          results.errors.push(`Lá»—i dÃ²ng ${dataRows.indexOf(row) + 2}: ${error.message}`);
         }
       }
 
       return results;
     } catch (error: any) {
-      throw new Error(`Lỗi xử lý file: ${error.message}`);
+      throw new Error(`Lá»—i xá»­ lÃ½ file: ${error.message}`);
     }
   }
 
@@ -671,7 +709,7 @@ const role = normalizeRole(user?.role);
       return;
     }
 
-// ── 1. Revert campaign fulfillment ──────────────────────────────────────
+// â”€â”€ 1. Revert campaign fulfillment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (candidate.campaignId) {
       const campaign = await this.prisma.campaign.findUnique({
         where: { id: candidate.campaignId },
@@ -696,7 +734,7 @@ const role = normalizeRole(user?.role);
       }
     }
 
-    // ── 2. Revert proposal fulfillment ──────────────────────────────────────
+    // â”€â”€ 2. Revert proposal fulfillment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const linkedProposalId = candidate.proposalId || candidate.recruitmentProposalId;
     let proposal: any = null;
 
@@ -719,7 +757,7 @@ const role = normalizeRole(user?.role);
     }
 
     if (!proposal) {
-      console.log('[RevertFulfillment-write] No proposal found — skipping revert');
+      console.log('[RevertFulfillment-write] No proposal found â€” skipping revert');
       return;
     }
 
@@ -792,3 +830,6 @@ const role = normalizeRole(user?.role);
     }
   }
 }
+
+
+
