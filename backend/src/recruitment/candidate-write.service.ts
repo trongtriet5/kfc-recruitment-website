@@ -156,7 +156,8 @@ export class CandidateWriteService {
     return candidate;
   }
 
-  async updateCandidate(id: string, data: any, user?: any) {
+async updateCandidate(id: string, data: any, user?: any) {
+    console.log('[DEBUG-updateCandidate] user:', user, 'role:', user?.role);
     const candidate = await this.prisma.candidate.findUnique({
       where: { id },
       include: { status: true }
@@ -167,32 +168,46 @@ export class CandidateWriteService {
     if (user && role !== 'ADMIN') {
       const storeIds = await this.getAccessibleStoreIds(user);
       const campaignIdsFromUserProposals = await this.getCampaignIdsFromUserProposals(user.id);
-      const isFromUserProposal = candidate.campaignId && campaignIdsFromUserProposals.includes(candidate.campaignId);
+      const campaignIdsForManagedStores = await this.getCampaignIdsForStores(storeIds);
+      const allCampaignIds = [...new Set([...campaignIdsFromUserProposals, ...campaignIdsForManagedStores])];
+      const isFromAccessibleCampaign = candidate.campaignId && allCampaignIds.includes(candidate.campaignId);
 
-      const hasAccess = candidate.picId === user.id ||
-        (candidate.storeId && storeIds.includes(candidate.storeId)) ||
-        isFromUserProposal;
+      console.log('[DEBUG] storeIds:', storeIds, 'campaignIds:', allCampaignIds, 'candidate.campaignId:', candidate.campaignId, 'candidate.storeId:', candidate.storeId);
 
-      if (!hasAccess) {
+      const hasAccess = (candidate.storeId && storeIds.includes(candidate.storeId)) ||
+        isFromAccessibleCampaign;
+
+if (!hasAccess) {
         throw new ForbiddenException('Bạn không có quyền cập nhật ứng viên này');
       }
 
-      // Only SM/AM are constrained to interview-stage results.
-      if ((role === 'SM' || role === 'AM') && data.status && !ALLOWED_SMAM_RESULTS.includes(data.status)) {
-        throw new ForbiddenException('Bạn không có quyền cập nhật trạng thái này');
+      const newStatusName = data.status;
+      // SM/AM only allowed to update to specific statuses
+      if ((role === 'SM' || role === 'AM') && newStatusName) {
+        const currentStatusCode = candidate.status?.code;
+        const terminalStatuses = ['OFFER_SENT', 'OFFER_ACCEPTED', 'OFFER_REJECTED', 'WAITING_ONBOARDING', 'ONBOARDING_ACCEPTED', 'ONBOARDING_REJECTED'];
+        const interviewStatuses = ['SM_AM_INTERVIEW_PASSED', 'SM_AM_INTERVIEW_FAILED', 'SM_AM_NO_SHOW', 'OM_PV_INTERVIEW_PASSED', 'OM_PV_INTERVIEW_FAILED', 'OM_PV_NO_SHOW', 'NO_INTERVIEW'];
+
+        if (terminalStatuses.includes(currentStatusCode) && interviewStatuses.includes(newStatusName)) {
+          throw new ForbiddenException('Không thể chuyển trạng thái từ giai đoạn offer về phỏng vấn');
+        }
+
+        if (!ALLOWED_SMAM_RESULTS.includes(newStatusName)) {
+          throw new ForbiddenException('Bạn không có quyền cập nhật trạng thái này');
+        }
       }
     }
 
-    const { fullName, dateOfBirth, availableStartDate, status: statusName, ...rest } = data;
+    const { fullName, dateOfBirth, availableStartDate, status: newStatusName, ...rest } = data;
     const updateData: any = { ...rest };
 
     if (fullName) updateData.fullName = fullName;
     if (dateOfBirth) updateData.dateOfBirth = new Date(dateOfBirth);
     if (availableStartDate) updateData.availableStartDate = new Date(availableStartDate);
 
-    if (statusName) {
+    if (newStatusName) {
       const status = await this.prisma.candidateStatus.findUnique({
-        where: { code: statusName }
+        where: { code: newStatusName }
       });
       if (status) {
         updateData.statusId = status.id;
@@ -363,15 +378,16 @@ if (existing) {
     const candidate = await this.prisma.candidate.findUnique({ where: { id } });
     if (!candidate) throw new NotFoundException('Ứng viên không tồn tại');
 
-    const role = normalizeRole(user?.role);
+const role = normalizeRole(user?.role);
     if (user && role !== 'ADMIN') {
       const storeIds = await this.getAccessibleStoreIds(user);
       const campaignIdsFromUserProposals = await this.getCampaignIdsFromUserProposals(user.id);
-      const isFromUserProposal = candidate.campaignId && campaignIdsFromUserProposals.includes(candidate.campaignId);
+      const campaignIdsForManagedStores = await this.getCampaignIdsForStores(storeIds);
+      const allCampaignIds = [...new Set([...campaignIdsFromUserProposals, ...campaignIdsForManagedStores])];
+      const isFromAccessibleCampaign = candidate.campaignId && allCampaignIds.includes(candidate.campaignId);
 
-      const hasAccess = candidate.picId === user.id ||
-        (candidate.storeId && storeIds.includes(candidate.storeId)) ||
-        isFromUserProposal;
+      const hasAccess = (candidate.storeId && storeIds.includes(candidate.storeId)) ||
+        isFromAccessibleCampaign;
 
       if (!hasAccess) {
         throw new ForbiddenException('Bạn không có quyền xóa ứng viên này');
@@ -619,6 +635,17 @@ if (existing) {
   private async getCampaignIdsFromUserProposals(userId: string): Promise<string[]> {
     const proposals = await this.prisma.recruitmentProposal.findMany({
       where: { requestedById: userId },
+      select: { campaignId: true }
+    });
+    return proposals
+      .map(p => p.campaignId)
+      .filter((id): id is string => id !== null);
+  }
+
+  private async getCampaignIdsForStores(storeIds: string[]): Promise<string[]> {
+    if (storeIds.length === 0) return [];
+    const proposals = await this.prisma.recruitmentProposal.findMany({
+      where: { storeId: { in: storeIds }, campaignId: { not: null } },
       select: { campaignId: true }
     });
     return proposals

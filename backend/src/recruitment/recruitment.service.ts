@@ -42,11 +42,11 @@ export class RecruitmentService {
     private candidateReadService: CandidateReadService,
     private candidateWriteService: CandidateWriteService,
     private proposalService: ProposalService,
-  ) {}
+  ) { }
 
   // ==================== FORMS ====================
   async getForms() {
-    return this.prisma.recruitmentForm.findMany({
+    const forms = await this.prisma.recruitmentForm.findMany({
       include: {
         source: true,
         _count: {
@@ -55,6 +55,17 @@ export class RecruitmentService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    // Hydrate fields manually to ensure all fields are loaded
+    return Promise.all(
+      forms.map(async (form) => {
+        const fields = await this.prisma.formField.findMany({
+          where: { formId: form.id },
+          orderBy: { order: 'asc' },
+        });
+        return { ...form, fields };
+      }),
+    );
   }
 
   async getFormByLink(link: string) {
@@ -453,13 +464,31 @@ export class RecruitmentService {
       where.campaignId = filters.campaignId;
     }
     if (filters.taId && filters.taId !== 'ALL') {
-      where.picId = filters.taId;
+      if (Array.isArray(filters.taId)) {
+        where.picId = { in: filters.taId };
+      } else if (typeof filters.taId === 'string' && filters.taId.includes(',')) {
+        where.picId = { in: filters.taId.split(',') };
+      } else {
+        where.picId = filters.taId;
+      }
     }
     if (filters.statusId && filters.statusId !== 'ALL') {
-      where.statusId = filters.statusId;
+      if (Array.isArray(filters.statusId)) {
+        where.statusId = { in: filters.statusId };
+      } else if (typeof filters.statusId === 'string' && filters.statusId.includes(',')) {
+        where.statusId = { in: filters.statusId.split(',') };
+      } else {
+        where.statusId = filters.statusId;
+      }
     }
     if (filters.storeId && filters.storeId !== 'ALL') {
-      where.storeId = filters.storeId;
+      if (Array.isArray(filters.storeId)) {
+        where.storeId = { in: filters.storeId };
+      } else if (typeof filters.storeId === 'string' && filters.storeId.includes(',')) {
+        where.storeId = { in: filters.storeId.split(',') };
+      } else {
+        where.storeId = filters.storeId;
+      }
     }
     if (filters.dateFrom || filters.dateTo) {
       where.createdAt = {};
@@ -474,13 +503,17 @@ export class RecruitmentService {
     const where: any = {};
 
     if (filters.storeId && filters.storeId !== 'ALL') {
-      if (filters.storeId.startsWith('PROVINCE:')) {
+      if (typeof filters.storeId === 'string' && filters.storeId.startsWith('PROVINCE:')) {
         const provinceCode = filters.storeId.replace('PROVINCE:', '');
         const stores = await this.prisma.store.findMany({
           where: { provinceCode },
           select: { id: true },
         });
         where.storeId = { in: stores.map((s) => s.id) };
+      } else if (Array.isArray(filters.storeId)) {
+        where.storeId = { in: filters.storeId };
+      } else if (typeof filters.storeId === 'string' && filters.storeId.includes(',')) {
+        where.storeId = { in: filters.storeId.split(',') };
       } else {
         where.storeId = filters.storeId;
       }
@@ -497,10 +530,22 @@ export class RecruitmentService {
     const where: any = {};
 
     if (filters.taId && filters.taId !== 'ALL') {
-      where.picId = filters.taId;
+      if (Array.isArray(filters.taId)) {
+        where.picId = { in: filters.taId };
+      } else if (typeof filters.taId === 'string' && filters.taId.includes(',')) {
+        where.picId = { in: filters.taId.split(',') };
+      } else {
+        where.picId = filters.taId;
+      }
     }
     if (filters.statusId && filters.statusId !== 'ALL') {
-      where.statusId = filters.statusId;
+      if (Array.isArray(filters.statusId)) {
+        where.statusId = { in: filters.statusId };
+      } else if (typeof filters.statusId === 'string' && filters.statusId.includes(',')) {
+        where.statusId = { in: filters.statusId.split(',') };
+      } else {
+        where.statusId = filters.statusId;
+      }
     }
     if (filters.dateFrom || filters.dateTo) {
       where.createdAt = {};
@@ -620,9 +665,19 @@ export class RecruitmentService {
 
     const proposalsWithCandidates = await Promise.all(
       proposalsRaw.map(async (p) => {
+        // Get all campaign IDs associated with this proposal
+        const campaigns = await this.prisma.campaign.findMany({
+          where: { proposalId: p.id },
+          select: { id: true },
+        });
+        const campaignIds = campaigns.map((c) => c.id);
+
         const candidates = await this.prisma.candidate.findMany({
           where: {
-            recruitmentProposalId: p.id,
+            OR: [
+              { recruitmentProposalId: p.id },
+              ...(campaignIds.length > 0 ? [{ campaignId: { in: campaignIds } }] : []),
+            ],
             ...candidateWhere,
           },
           select: { id: true, status: { select: { code: true } } },
@@ -676,8 +731,8 @@ export class RecruitmentService {
           processed,
           achieved,
           onboarded,
-          offerSent,
-          offerAccepted,
+          waitingOnboarding,
+          rejectedOnboarding,
         ] = await Promise.all([
           this.prisma.candidate.count({ where: taWhere }),
           this.prisma.candidate.count({
@@ -689,17 +744,30 @@ export class RecruitmentService {
           this.prisma.candidate.count({
             where: {
               ...taWhere,
-              status: { code: { in: PASSED_STATUS_CODES } },
+              status: { 
+                code: { 
+                  in: [
+                    "SM_AM_INTERVIEW_PASSED", 
+                    "OM_PV_INTERVIEW_PASSED", 
+                    "OFFER_SENT", 
+                    "OFFER_ACCEPTED", 
+                    "OFFER_REJECTED", 
+                    "WAITING_ONBOARDING", 
+                    "ONBOARDING_ACCEPTED", 
+                    "ONBOARDING_REJECTED"
+                  ] 
+                } 
+              },
             },
           }),
           this.prisma.candidate.count({
             where: { ...taWhere, status: { code: ONBOARDED_STATUS_CODE } },
           }),
           this.prisma.candidate.count({
-            where: { ...taWhere, status: { code: OFFER_SENT_STATUS_CODE } },
+            where: { ...taWhere, status: { code: 'WAITING_ONBOARDING' } },
           }),
           this.prisma.candidate.count({
-            where: { ...taWhere, status: { code: OFFER_ACCEPTED_STATUS_CODE } },
+            where: { ...taWhere, status: { code: 'ONBOARDING_REJECTED' } },
           }),
         ]);
 
@@ -712,8 +780,8 @@ export class RecruitmentService {
           processedCandidates: processed,
           passedCandidates: achieved,
           onboardedCandidates: onboarded,
-          offerSentCandidates: offerSent,
-          offerAcceptedCandidates: offerAccepted,
+          waitingOnboardingCandidates: waitingOnboarding,
+          rejectedOnboardingCandidates: rejectedOnboarding,
         };
       }),
     );

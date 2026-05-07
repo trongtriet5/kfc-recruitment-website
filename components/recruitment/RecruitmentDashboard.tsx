@@ -18,6 +18,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { SearchableSelect } from '@/components/ui/select-searchable';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 // Dynamically import ApexCharts to avoid SSR issues
 const Chart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
@@ -109,9 +115,9 @@ export default function RecruitmentDashboard() {
 
   // Filter states
   const [campaignId, setCampaignId] = useState<string>('ALL');
-  const [storeId, setStoreId] = useState<string>('ALL');
-  const [taId, setTaId] = useState<string>('ALL');
-  const [statusId, setStatusId] = useState<string>('ALL');
+  const [storeId, setStoreId] = useState<string | string[]>(['ALL']);
+  const [taId, setTaId] = useState<string | string[]>(['ALL']);
+  const [statusId, setStatusId] = useState<string | string[]>(['ALL']);
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
     from: undefined,
     to: undefined,
@@ -141,9 +147,33 @@ export default function RecruitmentDashboard() {
   const buildFilterParams = () => {
     const params = new URLSearchParams();
     if (campaignId && campaignId !== 'ALL') params.append('campaignId', campaignId);
-    if (storeId && storeId !== 'ALL') params.append('storeId', storeId);
-    if (taId && taId !== 'ALL') params.append('taId', taId);
-    if (statusId && statusId !== 'ALL') params.append('statusId', statusId);
+    if (storeId) {
+      if (Array.isArray(storeId)) {
+        if (storeId.length > 0 && !storeId.includes('ALL')) {
+          params.append('storeId', storeId.join(','));
+        }
+      } else if (storeId !== 'ALL') {
+        params.append('storeId', storeId);
+      }
+    }
+    if (taId) {
+      if (Array.isArray(taId)) {
+        if (taId.length > 0 && !taId.includes('ALL')) {
+          params.append('taId', taId.join(','));
+        }
+      } else if (taId !== 'ALL') {
+        params.append('taId', taId);
+      }
+    }
+    if (statusId) {
+      if (Array.isArray(statusId)) {
+        if (statusId.length > 0 && !statusId.includes('ALL')) {
+          params.append('statusId', statusId.join(','));
+        }
+      } else if (statusId !== 'ALL') {
+        params.append('statusId', statusId);
+      }
+    }
     if (dateRange.from) params.append('dateFrom', dateRange.from.toISOString());
     if (dateRange.to) params.append('dateTo', dateRange.to.toISOString());
     return params.toString();
@@ -465,747 +495,767 @@ export default function RecruitmentDashboard() {
 
   // Proposal chart - Clustered column chart
   return (
-    <div className="[&>*+*]:mt-0 space-y-0 relative">
-      {loading && (
-        <div className="absolute inset-x-0 top-0 h-0.5 z-50 bg-red-600 animate-pulse"></div>
-      )}
-      {/* Page Header */}
-      <div className="pb-2">
-        <h1 className="text-2xl font-bold text-gray-900">Bảng điều khiển tuyển dụng</h1>
-        <p className="text-gray-600 mt-2">Tổng quan về quy trình tuyển dụng và thống kê ứng viên</p>
-      </div>
-
-      {/* Filter Toolbar */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
-        <div className="flex flex-wrap items-center gap-3">
-
-          {/* Cửa hàng */}
-          <div className="w-[220px]">
-            <SearchableSelect
-              options={[
-                { id: 'ALL', name: 'Tất cả cửa hàng' },
-                ...stores
-                  .sort(
-                    (a, b) =>
-                      (a.city || '').localeCompare(b.city || '') ||
-                      (a.code || '').localeCompare(b.code || '')
-                  )
-                  .map(s => ({
-                    id: s.id,
-                    name: `${s.code} - ${s.name}`,
-                    group: s.city || 'Khác',
-                  })),
-              ]}
-              value={storeId}
-              onChange={setStoreId}
-              placeholder="Cửa hàng"
-            />
-          </div>
-
-          {/* TA phụ trách */}
-          <div className="w-[220px]">
-            <SearchableSelect
-              options={[
-                { id: 'ALL', name: 'Tất cả người phụ trách' },
-                ...users.map(u => ({ id: u.id, name: u.fullName })),
-              ]}
-              value={taId}
-              onChange={setTaId}
-              placeholder="Người phụ trách"
-            />
-          </div>
-
-          {/* Trạng thái */}
-          <div className="w-[220px]">
-            <SearchableSelect
-              options={[
-                { id: 'ALL', name: 'Tất cả trạng thái' },
-                ...statuses.map(s => ({ id: s.id, name: s.name })),
-              ]}
-              value={statusId}
-              onChange={setStatusId}
-              placeholder="Trạng thái"
-            />
-          </div>
-
-          {/* Date Picker */}
-          <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-md px-2 h-10 shadow-sm">
-            <Popover>
-              <PopoverTrigger asChild>
-                <button className="text-xs font-medium text-gray-600 hover:text-gray-900 flex items-center gap-1.5 px-1">
-                  {dateRange.from ? dateRange.from.toLocaleDateString('vi-VN') : 'Từ ngày'}
-                  <Calendar className="w-3.5 h-3.5" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <CalendarPicker
-                  mode="single"
-                  selected={dateRange.from}
-                  onSelect={date => setDateRange({ ...dateRange, from: date })}
-                />
-              </PopoverContent>
-            </Popover>
-            <span className="text-gray-300">-</span>
-            <Popover>
-              <PopoverTrigger asChild>
-                <button className="text-xs font-medium text-gray-600 hover:text-gray-900 flex items-center gap-1.5 px-1">
-                  {dateRange.to ? dateRange.to.toLocaleDateString('vi-VN') : 'Đến ngày'}
-                  <Calendar className="w-3.5 h-3.5" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <CalendarPicker
-                  mode="single"
-                  selected={dateRange.to}
-                  onSelect={date => setDateRange({ ...dateRange, to: date })}
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                Tổng ứng viên
-              </p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{data?.totalCandidates || 0}</p>
-            </div>
-            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-              <svg
-                className="w-5 h-5 text-gray-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                Chiến dịch hoạt động
-              </p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{data.activeCampaigns}</p>
-              <p className="text-xs text-gray-400 mt-1">Tổng: {data.totalCampaigns}</p>
-            </div>
-            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-              <svg
-                className="w-5 h-5 text-gray-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"
-                />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                Form tuyển dụng
-              </p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{data.totalForms}</p>
-            </div>
-            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-              <svg
-                className="w-5 h-5 text-gray-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                Đã xử lý
-              </p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{processedCount}</p>
-              <p className="text-xs text-gray-400 mt-1 italic">* Khác trạng thái Lọc CV</p>
-            </div>
-            <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
-              <svg
-                className="w-5 h-5 text-blue-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                Ứng viên đạt
-              </p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{cvPassedCount}</p>
-              <p className="text-xs text-gray-400 mt-1 italic">* Quản lý trả kết quả đạt</p>
-            </div>
-            <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
-              <svg
-                className="w-5 h-5 text-emerald-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                Đồng ý nhận việc
-              </p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{acceptedCount}</p>
-              <p className="text-xs text-gray-400 mt-1 italic">* Trạng thái Đồng ý nhận việc</p>
-            </div>
-            <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
-              <svg
-                className="w-5 h-5 text-green-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Charts Row 1: Funnel Details Table */}
-      <div className="bg-white shadow overflow-x-auto">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Chi tiết quá trình tuyển dụng</h3>
-        </div>
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
-                Trạng thái
-              </th>
-              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-l">
-                Số lượng
-              </th>
-              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-l">
-                Chuyển đổi (%)
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {(() => {
-              // Lấy số lượng thực tế của ứng viên (tổng số CV nhận vào)
-              // Ưu tiên: trạng thái đầu tiên "Lọc CV" (CV_FILTERING) trong group "application"
-              // Nếu không có, dùng totalCandidates
-              const applicationGroupIndex = funnelData.findIndex(
-                x => x.type === 'group' && x.groupKey === 'application'
-              );
-              let applicationTotal = 0;
-              if (applicationGroupIndex !== -1) {
-                // Tìm trạng thái đầu tiên trong group "application" (CV_FILTERING - "Lọc CV")
-                const nextGroupIndex = funnelData.findIndex(
-                  (x, idx) => idx > applicationGroupIndex && x.type === 'group'
-                );
-                const endIndex = nextGroupIndex === -1 ? funnelData.length : nextGroupIndex;
-                const firstApplicationStatus = funnelData
-                  .slice(applicationGroupIndex + 1, endIndex)
-                  .find(i => i.type === 'status' && i.statusCode === 'CV_FILTERING');
-
-                // Số lượng thực tế = số lượng của trạng thái "Lọc CV" (tổng số CV nhận vào)
-                applicationTotal = firstApplicationStatus?.count || 0;
-              }
-              // Nếu không tìm thấy, chỉ dùng totalCandidates nếu > 0
-              const totalForConversion =
-                applicationTotal > 0 || data.totalCandidates > 0
-                  ? Math.max(applicationTotal, data.totalCandidates)
-                  : 0;
-
-              return funnelData.map((item, index) => {
-                if (item.type === 'group') {
-                  // Nếu là group "Ứng tuyển", hiển thị số lượng thực tế (tổng số CV nhận vào)
-                  // Các group khác: tính tổng các status trong group (cumulative count)
-                  let groupTotal = 0;
-                  if (item.groupKey === 'application') {
-                    // Group "Ứng tuyển": dùng số lượng thực tế (tổng số CV nhận vào)
-                    groupTotal = totalForConversion;
-                  } else {
-                    // Các group khác: tính tổng các status trong group
-                    const nextGroupIndex = funnelData.findIndex(
-                      (x, idx) => idx > index && x.type === 'group'
-                    );
-                    const endIndex = nextGroupIndex === -1 ? funnelData.length : nextGroupIndex;
-                    const groupItems = funnelData
-                      .slice(index + 1, endIndex)
-                      .filter(i => i.type === 'status');
-
-                    // Tính tổng số lượng của tất cả trạng thái trong group
-                    groupTotal = groupItems.reduce((sum, i) => sum + (i.count || 0), 0);
-                  }
-
-                  // Khi không có ứng viên hoặc group "application" có count = 0 thì hiển thị 0%
-                  const groupConversionRate =
-                    totalForConversion === 0 || groupTotal === 0
-                      ? '0.0'
-                      : item.groupKey === 'application'
-                        ? '100.0'
-                        : ((groupTotal / totalForConversion) * 100).toFixed(1);
-
-                  return (
-                    <tr key={`group-${item.groupKey}`} className="bg-gray-100 hover:bg-gray-100">
-                      <td className="px-4 py-3 text-sm font-semibold text-gray-900 sticky left-0 bg-gray-100 z-10">
-                        <span className="font-bold">{item.groupLabel}</span>
-                      </td>
-                      <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-center border-l">
-                        {groupTotal.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 text-sm font-semibold text-gray-500 text-center border-l">
-                        {groupConversionRate}%
-                      </td>
-                    </tr>
-                  );
-                } else {
-                  // Status row
-                  // Lấy số lượng thực tế của trạng thái từ candidatesByStatus (không phải cumulative)
-                  const actualStatusCount =
-                    candidatesByStatus.find(s => s.statusId === item.statusId)?.count || 0;
-
-                  // Chuyển đổi (%) = số lượng thực tế / số lượng "Ứng tuyển"
-                  const conversionRate =
-                    totalForConversion > 0 && actualStatusCount > 0
-                      ? ((actualStatusCount / totalForConversion) * 100).toFixed(1)
-                      : '0.0';
-
-                  return (
-                    <tr key={item.statusId} className="hover:bg-gray-50">
-                      <td className="px-4 py-2 text-sm text-gray-700 sticky left-0 bg-white z-10">
-                        <div className="flex items-center gap-2 pl-6">
-                          {item.statusColor && (
-                            <div
-                              className="w-3 h-3 rounded-full flex-shrink-0"
-                              style={{ backgroundColor: item.statusColor }}
-                            />
-                          )}
-                          <span>{item.statusName}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-2 text-sm text-gray-900 text-center border-l">
-                        {actualStatusCount.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-2 text-sm text-gray-500 text-center border-l">
-                        {conversionRate}%
-                      </td>
-                    </tr>
-                  );
-                }
-              });
-            })()}
-          </tbody>
-          <tfoot className="bg-gray-50">
-            {(() => {
-              // Lấy số lượng thực tế của ứng viên để hiển thị trong footer
-              // Ưu tiên: trạng thái đầu tiên "Lọc CV" (CV_FILTERING) trong group "application"
-              const applicationGroupIndex = funnelData.findIndex(
-                x => x.type === 'group' && x.groupKey === 'application'
-              );
-              let applicationTotal = 0;
-              if (applicationGroupIndex !== -1) {
-                const nextGroupIndex = funnelData.findIndex(
-                  (x, idx) => idx > applicationGroupIndex && x.type === 'group'
-                );
-                const endIndex = nextGroupIndex === -1 ? funnelData.length : nextGroupIndex;
-                const firstApplicationStatus = funnelData
-                  .slice(applicationGroupIndex + 1, endIndex)
-                  .find(i => i.type === 'status' && i.statusCode === 'CV_FILTERING');
-
-                // Số lượng thực tế = số lượng của trạng thái "Lọc CV"
-                applicationTotal = firstApplicationStatus?.count || 0;
-              }
-              const totalForDisplay = Math.max(applicationTotal, data.totalCandidates);
-
-              return (
-                <tr>
-                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 sticky left-0 bg-gray-50 z-10">
-                    Tổng cộng
-                  </td>
-                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-center border-l">
-                    {totalForDisplay.toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3 text-sm font-semibold text-gray-500 text-center border-l">
-                    100%
-                  </td>
-                </tr>
-              );
-            })()}
-          </tfoot>
-        </table>
-      </div>
-      {/* TA Performance Chart */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-6">Hiệu suất Người phụ trách (TA)</h3>
-        {typeof window !== 'undefined' && (
-          <Chart
-            options={{
-              chart: {
-                type: 'bar',
-                height: 400,
-                stacked: false,
-                toolbar: { show: false },
-                fontFamily: 'Lexend, sans-serif',
-              },
-              plotOptions: {
-                bar: {
-                  horizontal: false,
-                  columnWidth: '55%',
-                  borderRadius: 4,
-                },
-              },
-              dataLabels: {
-                enabled: false,
-              },
-              stroke: {
-                show: true,
-                width: 2,
-                colors: ['transparent'],
-              },
-              xaxis: {
-                categories: data.taPerformance.map(ta => ta.taName),
-                labels: {
-                  style: {
-                    fontFamily: 'Lexend, sans-serif',
-                  },
-                },
-              },
-              yaxis: {
-                title: {
-                  text: 'Số lượng ứng viên',
-                  style: {
-                    fontFamily: 'Lexend, sans-serif',
-                  },
-                },
-                labels: {
-                  style: {
-                    fontFamily: 'Lexend, sans-serif',
-                  },
-                },
-              },
-              fill: {
-                opacity: 1,
-              },
-              tooltip: {
-                y: {
-                  formatter: val => `${val} ứng viên`,
-                },
-                style: {
-                  fontFamily: 'Lexend, sans-serif',
-                },
-              },
-              colors: ['#10B981', '#F59E0B'],
-              legend: {
-                position: 'top',
-                fontFamily: 'Lexend, sans-serif',
-              },
-            }}
-            series={[
-              {
-                name: 'Đã xử lý',
-                data: data.taPerformance.map(
-                  (ta: any) => ta.processedCandidates ?? ta.totalCandidates
-                ),
-              },
-              {
-                name: 'Ứng viên đạt',
-                data: data.taPerformance.map((ta: any) => ta.passedCandidates),
-              },
-              {
-                name: 'Đồng ý nhận việc',
-                data: data.taPerformance.map((ta: any) => ta.onboardedCandidates),
-              },
-            ]}
-            type="bar"
-            height={400}
-          />
+    <TooltipProvider>
+      <div className="[&>*+*]:mt-0 space-y-0 relative">
+        {loading && (
+          <div className="absolute inset-x-0 top-0 h-0.5 z-50 bg-red-600 animate-pulse"></div>
         )}
-      </div>
+        {/* Page Header */}
+        <div className="pb-2">
+          <h1 className="text-2xl font-bold text-gray-900">Bảng điều khiển tuyển dụng</h1>
+          <p className="text-gray-600 mt-2">Tổng quan về quy trình tuyển dụng và thống kê ứng viên</p>
+        </div>
 
-      {/* TA Performance Table */}
-      {data.taPerformance && data.taPerformance.length > 0 && (
-        <div className="mt-6">
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="px-6 py-4 border-b">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Hiệu suất của TA (Người phụ trách)
-              </h3>
+        {/* Filter Toolbar */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
+          <div className="flex flex-wrap items-center gap-3">
+
+            {/* Cửa hàng */}
+            <div className="w-[220px]">
+              <SearchableSelect
+                options={[
+                  { id: 'ALL', name: 'Tất cả cửa hàng' },
+                  ...stores
+                    .sort(
+                      (a, b) =>
+                        (a.city || '').localeCompare(b.city || '') ||
+                        (a.code || '').localeCompare(b.code || '')
+                    )
+                    .map(s => ({
+                      id: s.id,
+                      name: `${s.code} - ${s.name}`,
+                      group: s.city || 'Khác',
+                    })),
+                ]}
+                value={storeId}
+                onChange={setStoreId}
+                placeholder="Cửa hàng"
+                isMulti={true}
+              />
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      TA
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Vai trò
-                    </th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Tổng UV
-                    </th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Đã xử lý
-                    </th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Ứng viên đạt
-                    </th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Offer gửi
-                    </th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Nhận offer
-                    </th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Đồng ý nhận việc
-                    </th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Tỷ lệ đạt
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {data.taPerformance.map((ta: any) => {
-                    const processed = ta.processedCandidates ?? ta.totalCandidates;
-                    const passedRate =
-                      ta.totalCandidates > 0
-                        ? ((ta.passedCandidates / ta.totalCandidates) * 100).toFixed(1)
-                        : '0.0';
-                    const offerAcceptanceRate =
-                      ta.offerSentCandidates > 0
-                        ? ((ta.offerAcceptedCandidates / ta.offerSentCandidates) * 100).toFixed(1)
-                        : '0.0';
-                    const onboardedRate =
-                      ta.totalCandidates > 0
-                        ? ((ta.onboardedCandidates / ta.totalCandidates) * 100).toFixed(1)
-                        : '0.0';
+
+            {/* TA phụ trách */}
+            <div className="w-[220px]">
+              <SearchableSelect
+                options={[
+                  { id: 'ALL', name: 'Tất cả người phụ trách' },
+                  ...users.map(u => ({ id: u.id, name: u.fullName })),
+                ]}
+                value={taId}
+                onChange={setTaId}
+                placeholder="Người phụ trách"
+                isMulti={true}
+              />
+            </div>
+
+            {/* Trạng thái */}
+            <div className="w-[220px]">
+              <SearchableSelect
+                options={[
+                  { id: 'ALL', name: 'Tất cả trạng thái' },
+                  ...statuses.map(s => ({ id: s.id, name: s.name })),
+                ]}
+                value={statusId}
+                onChange={setStatusId}
+                placeholder="Trạng thái"
+                isMulti={true}
+              />
+            </div>
+
+            {/* Date Picker */}
+            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-md px-2 h-10 shadow-sm">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="text-xs font-medium text-gray-600 hover:text-gray-900 flex items-center gap-1.5 px-1">
+                    {dateRange.from ? dateRange.from.toLocaleDateString('vi-VN') : 'Từ ngày'}
+                    <Calendar className="w-3.5 h-3.5" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <CalendarPicker
+                    mode="single"
+                    selected={dateRange.from}
+                    onSelect={date => setDateRange({ ...dateRange, from: date })}
+                  />
+                </PopoverContent>
+              </Popover>
+              <span className="text-gray-300">-</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="text-xs font-medium text-gray-600 hover:text-gray-900 flex items-center gap-1.5 px-1">
+                    {dateRange.to ? dateRange.to.toLocaleDateString('vi-VN') : 'Đến ngày'}
+                    <Calendar className="w-3.5 h-3.5" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <CalendarPicker
+                    mode="single"
+                    selected={dateRange.to}
+                    onSelect={date => setDateRange({ ...dateRange, to: date })}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Tổng ứng viên
+                </p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{data?.totalCandidates || 0}</p>
+              </div>
+              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                <svg
+                  className="w-5 h-5 text-gray-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Chiến dịch hoạt động
+                </p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{data.activeCampaigns}</p>
+                <p className="text-xs text-gray-400 mt-1">Tổng: {data.totalCampaigns}</p>
+              </div>
+              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                <svg
+                  className="w-5 h-5 text-gray-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Form tuyển dụng
+                </p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{data.totalForms}</p>
+              </div>
+              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                <svg
+                  className="w-5 h-5 text-gray-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Đã xử lý
+                </p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{processedCount}</p>
+                <p className="text-xs text-gray-400 mt-1 italic">* Khác trạng thái Lọc CV</p>
+              </div>
+              <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+                <svg
+                  className="w-5 h-5 text-blue-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Ứng viên đạt
+                </p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{cvPassedCount}</p>
+                <p className="text-xs text-gray-400 mt-1 italic">* Quản lý trả kết quả đạt</p>
+              </div>
+              <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
+                <svg
+                  className="w-5 h-5 text-emerald-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Đồng ý nhận việc
+                </p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{acceptedCount}</p>
+                <p className="text-xs text-gray-400 mt-1 italic">* Trạng thái Đồng ý nhận việc</p>
+              </div>
+              <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
+                <svg
+                  className="w-5 h-5 text-green-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Charts Row 1: Funnel Details Table */}
+        <div className="bg-white shadow overflow-x-auto">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900">Chi tiết quá trình tuyển dụng</h3>
+          </div>
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
+                  Trạng thái
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-l">
+                  Số lượng
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-l">
+                  Chuyển đổi (%)
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {(() => {
+                // Lấy số lượng thực tế của ứng viên (tổng số CV nhận vào)
+                // Ưu tiên: trạng thái đầu tiên "Lọc CV" (CV_FILTERING) trong group "application"
+                // Nếu không có, dùng totalCandidates
+                const applicationGroupIndex = funnelData.findIndex(
+                  x => x.type === 'group' && x.groupKey === 'application'
+                );
+                let applicationTotal = 0;
+                if (applicationGroupIndex !== -1) {
+                  // Tìm trạng thái đầu tiên trong group "application" (CV_FILTERING - "Lọc CV")
+                  const nextGroupIndex = funnelData.findIndex(
+                    (x, idx) => idx > applicationGroupIndex && x.type === 'group'
+                  );
+                  const endIndex = nextGroupIndex === -1 ? funnelData.length : nextGroupIndex;
+                  const firstApplicationStatus = funnelData
+                    .slice(applicationGroupIndex + 1, endIndex)
+                    .find(i => i.type === 'status' && i.statusCode === 'CV_FILTERING');
+
+                  // Số lượng thực tế = số lượng của trạng thái "Lọc CV" (tổng số CV nhận vào)
+                  applicationTotal = firstApplicationStatus?.count || 0;
+                }
+                // Nếu không tìm thấy, chỉ dùng totalCandidates nếu > 0
+                const totalForConversion =
+                  applicationTotal > 0 || data.totalCandidates > 0
+                    ? Math.max(applicationTotal, data.totalCandidates)
+                    : 0;
+
+                return funnelData.map((item, index) => {
+                  if (item.type === 'group') {
+                    // Nếu là group "Ứng tuyển", hiển thị số lượng thực tế (tổng số CV nhận vào)
+                    // Các group khác: tính tổng các status trong group (cumulative count)
+                    let groupTotal = 0;
+                    if (item.groupKey === 'application') {
+                      // Group "Ứng tuyển": dùng số lượng thực tế (tổng số CV nhận vào)
+                      groupTotal = totalForConversion;
+                    } else {
+                      // Các group khác: tính tổng các status trong group
+                      const nextGroupIndex = funnelData.findIndex(
+                        (x, idx) => idx > index && x.type === 'group'
+                      );
+                      const endIndex = nextGroupIndex === -1 ? funnelData.length : nextGroupIndex;
+                      const groupItems = funnelData
+                        .slice(index + 1, endIndex)
+                        .filter(i => i.type === 'status');
+
+                      // Tính tổng số lượng của tất cả trạng thái trong group
+                      groupTotal = groupItems.reduce((sum, i) => sum + (i.count || 0), 0);
+                    }
+
+                    // Khi không có ứng viên hoặc group "application" có count = 0 thì hiển thị 0%
+                    const groupConversionRate =
+                      totalForConversion === 0 || groupTotal === 0
+                        ? '0.0'
+                        : item.groupKey === 'application'
+                          ? '100.0'
+                          : ((groupTotal / totalForConversion) * 100).toFixed(1);
+
                     return (
-                      <tr key={ta.taId} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{ta.taName}</div>
-                          <div className="text-sm text-gray-500">{ta.taEmail}</div>
+                      <tr key={`group-${item.groupKey}`} className="bg-gray-100 hover:bg-gray-100">
+                        <td className="px-4 py-3 text-sm font-semibold text-gray-900 sticky left-0 bg-gray-100 z-10">
+                          <span className="font-bold">{item.groupLabel}</span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {ta.taRole === 'USER'
-                            ? 'SM'
-                            : ta.taRole === 'MANAGER'
-                              ? 'AM'
-                              : ta.taRole === 'SM'
-                                ? 'SM'
-                                : ta.taRole === 'AM'
-                                  ? 'AM'
-                                  : ta.taRole === 'RECRUITER'
-                                    ? 'Recruiter'
-                                    : ta.taRole}
+                        <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-center border-l">
+                          {groupTotal.toLocaleString()}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900 font-medium">
-                          {ta.totalCandidates}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-indigo-600 font-medium">
-                          {processed}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-blue-600 font-medium">
-                          {ta.passedCandidates} ({passedRate}%)
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-orange-600 font-medium">
-                          {ta.offerSentCandidates || 0}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-purple-600 font-medium">
-                          {ta.offerAcceptedCandidates || 0} ({offerAcceptanceRate}%)
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-green-600 font-medium">
-                          {ta.onboardedCandidates} ({onboardedRate}%)
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${parseFloat(onboardedRate) >= 50
-                                ? 'bg-green-100 text-green-800'
-                                : parseFloat(onboardedRate) >= 20
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : 'bg-red-100 text-red-800'
-                              }`}
-                          >
-                            {onboardedRate}%
-                          </span>
+                        <td className="px-4 py-3 text-sm font-semibold text-gray-500 text-center border-l">
+                          {groupConversionRate}%
                         </td>
                       </tr>
                     );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
+                  } else {
+                    // Status row
+                    // Lấy số lượng thực tế của trạng thái từ candidatesByStatus (không phải cumulative)
+                    const actualStatusCount =
+                      candidatesByStatus.find(s => s.statusId === item.statusId)?.count || 0;
 
-      {/* Charts Row 2: Status Distribution and Monthly Trend */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Status Distribution Pie Chart */}
+                    // Chuyển đổi (%) = số lượng thực tế / số lượng "Ứng tuyển"
+                    const conversionRate =
+                      totalForConversion > 0 && actualStatusCount > 0
+                        ? ((actualStatusCount / totalForConversion) * 100).toFixed(1)
+                        : '0.0';
+
+                    return (
+                      <tr key={item.statusId} className="hover:bg-gray-50">
+                        <td className="px-4 py-2 text-sm text-gray-700 sticky left-0 bg-white z-10">
+                          <div className="flex items-center gap-2 pl-6">
+                            {item.statusColor && (
+                              <div
+                                className="w-3 h-3 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: item.statusColor }}
+                              />
+                            )}
+                            <span>{item.statusName}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-2 text-sm text-gray-900 text-center border-l">
+                          {actualStatusCount.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-gray-500 text-center border-l">
+                          {conversionRate}%
+                        </td>
+                      </tr>
+                    );
+                  }
+                });
+              })()}
+            </tbody>
+            <tfoot className="bg-gray-50">
+              {(() => {
+                // Lấy số lượng thực tế của ứng viên để hiển thị trong footer
+                // Ưu tiên: trạng thái đầu tiên "Lọc CV" (CV_FILTERING) trong group "application"
+                const applicationGroupIndex = funnelData.findIndex(
+                  x => x.type === 'group' && x.groupKey === 'application'
+                );
+                let applicationTotal = 0;
+                if (applicationGroupIndex !== -1) {
+                  const nextGroupIndex = funnelData.findIndex(
+                    (x, idx) => idx > applicationGroupIndex && x.type === 'group'
+                  );
+                  const endIndex = nextGroupIndex === -1 ? funnelData.length : nextGroupIndex;
+                  const firstApplicationStatus = funnelData
+                    .slice(applicationGroupIndex + 1, endIndex)
+                    .find(i => i.type === 'status' && i.statusCode === 'CV_FILTERING');
+
+                  // Số lượng thực tế = số lượng của trạng thái "Lọc CV"
+                  applicationTotal = firstApplicationStatus?.count || 0;
+                }
+                const totalForDisplay = Math.max(applicationTotal, data.totalCandidates);
+
+                return (
+                  <tr>
+                    <td className="px-4 py-3 text-sm font-semibold text-gray-900 sticky left-0 bg-gray-50 z-10">
+                      Tổng cộng
+                    </td>
+                    <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-center border-l">
+                      {totalForDisplay.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-semibold text-gray-500 text-center border-l">
+                      100%
+                    </td>
+                  </tr>
+                );
+              })()}
+            </tfoot>
+          </table>
+        </div>
+        {/* TA Performance Chart */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Phân bố theo trạng thái</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">Hiệu suất Người phụ trách (TA)</h3>
           {typeof window !== 'undefined' && (
             <Chart
               options={{
                 chart: {
-                  type: 'pie',
-                  height: 350,
+                  type: 'bar',
+                  height: 400,
+                  stacked: false,
+                  toolbar: { show: false },
+                  fontFamily: 'Lexend, sans-serif',
                 },
-                labels: statusChartData.labels,
-                colors: statusChartData.colors,
-                legend: {
-                  position: 'bottom',
+                plotOptions: {
+                  bar: {
+                    horizontal: false,
+                    columnWidth: '55%',
+                    borderRadius: 4,
+                  },
                 },
                 dataLabels: {
-                  enabled: true,
-                  formatter: (val: number) => `${val.toFixed(1)}%`,
+                  enabled: false,
+                },
+                stroke: {
+                  show: true,
+                  width: 2,
+                  colors: ['transparent'],
+                },
+                xaxis: {
+                  categories: data.taPerformance.map(ta => ta.taName),
+                  labels: {
+                    style: {
+                      fontFamily: 'Lexend, sans-serif',
+                    },
+                  },
+                },
+                yaxis: {
+                  title: {
+                    text: 'Số lượng ứng viên',
+                    style: {
+                      fontFamily: 'Lexend, sans-serif',
+                    },
+                  },
+                  labels: {
+                    style: {
+                      fontFamily: 'Lexend, sans-serif',
+                    },
+                  },
+                },
+                fill: {
+                  opacity: 1,
                 },
                 tooltip: {
                   y: {
-                    formatter: (val: number) => `${val} ứng viên`,
+                    formatter: val => `${val} ứng viên`,
+                  },
+                  style: {
+                    fontFamily: 'Lexend, sans-serif',
                   },
                 },
+                colors: ['#10B981', '#F59E0B'],
+                legend: {
+                  position: 'top',
+                  fontFamily: 'Lexend, sans-serif',
+                },
               }}
-              series={statusChartData.series}
-              type="pie"
-              height={350}
-            />
-          )}
-        </div>
-
-        {/* Monthly Trend */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Xu hướng tuyển dụng (6 tháng gần đây)
-          </h3>
-          {typeof window !== 'undefined' && (
-            <Chart
-              options={monthlyChartOptions}
-              series={monthlyChartSeries}
-              type="area"
-              height={350}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Chart: Candidates by Proposal */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">
-            Số lượng ứng viên theo đề xuất
-          </h3>
-          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-            <Button
-              variant={proposalViewMode === 'chart' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setProposalViewMode('chart')}
-            >
-              Chart
-            </Button>
-            <Button
-              variant={proposalViewMode === 'table' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setProposalViewMode('table')}
-            >
-              Table
-            </Button>
-          </div>
-        </div>
-
-        {proposalViewMode === 'chart' ? (
-          typeof window !== 'undefined' && (
-            <Chart
-              options={proposalChartOptions}
-              series={proposalChartSeries}
+              series={[
+                {
+                  name: 'Đã xử lý',
+                  data: data.taPerformance.map(
+                    (ta: any) => ta.processedCandidates ?? ta.totalCandidates
+                  ),
+                },
+                {
+                  name: 'Ứng viên đạt',
+                  data: data.taPerformance.map((ta: any) => ta.passedCandidates),
+                },
+                {
+                  name: 'Đồng ý nhận việc',
+                  data: data.taPerformance.map((ta: any) => ta.onboardedCandidates),
+                },
+              ]}
               type="bar"
               height={400}
             />
-          )
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tên đề xuất</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Số lượng đề xuất</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Ứng viên đạt</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Ứng viên nhận việc</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {candidatesByProposal?.map((p: any) => (
-                  <tr key={p.proposalId} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{p.proposalTitle}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{p.quantity}</td>
-                    <td className="px-4 py-3 text-sm text-green-600 font-medium">{p.passedCount}</td>
-                    <td className="px-4 py-3 text-sm text-blue-600 font-medium">{p.acceptedCount}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          )}
+        </div>
+
+        {/* TA Performance Table */}
+        {data.taPerformance && data.taPerformance.length > 0 && (
+          <div className="mt-6">
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="px-6 py-4 border-b">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Hiệu suất của TA (Người phụ trách)
+                </h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        TA phụ trách
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Tổng UV
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Đã xử lý
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <div className="flex items-center justify-center gap-1">
+                          <span>Ứng viên đạt</span>
+                          <Tooltip delayDuration={300}>
+                            <TooltipTrigger asChild>
+                              <div className="cursor-help flex items-center">
+                                <Icon name="info" size={14} className="text-gray-400 hover:text-gray-600 transition-colors" />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="w-72">
+                              <div className="text-gray-900 font-bold mb-2.5 flex items-center gap-2 border-b border-gray-50 pb-2">
+                                <Icon name="info" size={14} className="text-blue-500" />
+                                Phân loại trạng thái "Đạt":
+                              </div>
+                              <div className="space-y-2">
+                                <div className="flex items-start gap-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1 flex-shrink-0"></div>
+                                  <span><b>Phỏng vấn:</b> SM/AM PV Đạt, OM PV Đạt</span>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-orange-500 mt-1 flex-shrink-0"></div>
+                                  <span><b>Offer:</b> Đã gửi / Đồng ý / Từ chối Offer</span>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1 flex-shrink-0"></div>
+                                  <span><b>Nhận việc:</b> Chờ nhận việc, Đồng ý nhận việc, Từ chối nhận việc</span>
+                                </div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Tỷ lệ đạt
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Chờ nhận việc
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Từ chối nhận việc
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Đồng ý nhận việc
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Tỷ lệ nhận việc
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {data.taPerformance.map((ta: any) => {
+                      const processed = ta.processedCandidates ?? ta.totalCandidates;
+                      const passedRate =
+                        ta.totalCandidates > 0
+                          ? ((ta.passedCandidates / ta.totalCandidates) * 100).toFixed(1)
+                          : '0.0';
+                      const onboardedRate =
+                        ta.totalCandidates > 0
+                          ? ((ta.onboardedCandidates / ta.totalCandidates) * 100).toFixed(1)
+                          : '0.0';
+                      return (
+                        <tr key={ta.taId} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">{ta.taName}</div>
+                            <div className="text-sm text-gray-500">{ta.taEmail}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900 font-medium">
+                            {ta.totalCandidates}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-700">
+                            {processed}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-700">
+                            {ta.passedCandidates}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-700">
+                            {passedRate}%
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-700">
+                            {ta.waitingOnboardingCandidates || 0}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-700">
+                            {ta.rejectedOnboardingCandidates || 0}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900 font-medium">
+                            {ta.onboardedCandidates}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs font-medium ${parseFloat(onboardedRate) >= 50
+                                ? 'bg-green-100 text-green-800'
+                                : parseFloat(onboardedRate) >= 20
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-red-100 text-red-800'
+                                }`}
+                            >
+                              {onboardedRate}%
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
+
+        {/* Charts Row 2: Status Distribution and Monthly Trend */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Status Distribution Pie Chart */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Phân bố theo trạng thái</h3>
+            {typeof window !== 'undefined' && (
+              <Chart
+                options={{
+                  chart: {
+                    type: 'pie',
+                    height: 350,
+                  },
+                  labels: statusChartData.labels,
+                  colors: statusChartData.colors,
+                  legend: {
+                    position: 'bottom',
+                  },
+                  dataLabels: {
+                    enabled: true,
+                    formatter: (val: number) => `${val.toFixed(1)}%`,
+                  },
+                  tooltip: {
+                    y: {
+                      formatter: (val: number) => `${val} ứng viên`,
+                    },
+                  },
+                }}
+                series={statusChartData.series}
+                type="pie"
+                height={350}
+              />
+            )}
+          </div>
+
+          {/* Monthly Trend */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Xu hướng tuyển dụng (6 tháng gần đây)
+            </h3>
+            {typeof window !== 'undefined' && (
+              <Chart
+                options={monthlyChartOptions}
+                series={monthlyChartSeries}
+                type="area"
+                height={350}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Chart: Candidates by Proposal */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">
+              Số lượng ứng viên theo đề xuất
+            </h3>
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+              <Button
+                variant={proposalViewMode === 'chart' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setProposalViewMode('chart')}
+              >
+                Chart
+              </Button>
+              <Button
+                variant={proposalViewMode === 'table' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setProposalViewMode('table')}
+              >
+                Table
+              </Button>
+            </div>
+          </div>
+
+          {proposalViewMode === 'chart' ? (
+            typeof window !== 'undefined' && (
+              <Chart
+                options={proposalChartOptions}
+                series={proposalChartSeries}
+                type="bar"
+                height={400}
+              />
+            )
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Tên đề xuất</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Số lượng đề xuất</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Ứng viên đạt</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Ứng viên nhận việc</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {candidatesByProposal?.map((p: any) => (
+                    <tr key={p.proposalId} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{p.proposalTitle}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{p.quantity}</td>
+                      <td className="px-4 py-3 text-sm text-green-600 font-semibold">{p.passedCount}</td>
+                      <td className="px-4 py-3 text-sm text-blue-600 font-semibold">{p.acceptedCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 }

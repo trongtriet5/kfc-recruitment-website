@@ -350,11 +350,15 @@ export default function FormDesigner({ formId, formData, fields: initialFields, 
     return (
       <div
         key={field.id || index}
-        className={`p-4 bg-white rounded-lg border ${
+        className={`p-4 bg-white rounded-lg border cursor-pointer transition-all hover:border-slate-400 group ${
           draggedIndex === index ? 'border-yellow-500 border-dashed opacity-50' : 'border-gray-200'
         }`}
+        onClick={() => editField(field)}
         draggable
-        onDragStart={() => handleDragStart(index)}
+        onDragStart={(e) => {
+          e.stopPropagation();
+          handleDragStart(index);
+        }}
         onDragEnter={() => handleDragEnter(index)}
         onDragEnd={handleDragEnd}
         onDragOver={(e) => e.preventDefault()}
@@ -474,14 +478,30 @@ export default function FormDesigner({ formId, formData, fields: initialFields, 
 
           <div className="flex flex-col gap-1">
             <button
-              onClick={() => duplicateField(index)}
+              onClick={(e) => {
+                e.stopPropagation();
+                editField(field);
+              }}
+              className="p-1 text-gray-400 hover:text-blue-600"
+              title="Chỉnh sửa"
+            >
+              <Icon name="edit" size={16} />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                duplicateField(index);
+              }}
               className="p-1 text-gray-400 hover:text-green-600"
               title="Nhân bản"
             >
               <Icon name="copy" size={16} />
             </button>
             <button
-              onClick={() => setDeleteFieldIndex(index)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeleteFieldIndex(index);
+              }}
               className="p-1 text-gray-400 hover:text-red-600"
               title="Xóa"
             >

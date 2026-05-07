@@ -15,17 +15,37 @@ export class CandidateReadService {
     if (filters?.statusId) {
       where.statusId = filters.statusId;
     }
-    if (filters?.campaignId) where.campaignId = filters.campaignId;
-    if (filters?.taId) where.picId = filters.taId;
+    if (filters?.campaignId) {
+      if (Array.isArray(filters.campaignId)) {
+        where.campaignId = { in: filters.campaignId };
+      } else if (typeof filters.campaignId === 'string' && filters.campaignId.includes(',')) {
+        where.campaignId = { in: filters.campaignId.split(',') };
+      } else {
+        where.campaignId = filters.campaignId;
+      }
+    }
+    if (filters?.taId) {
+      if (Array.isArray(filters.taId)) {
+        where.picId = { in: filters.taId };
+      } else if (typeof filters.taId === 'string' && filters.taId.includes(',')) {
+        where.picId = { in: filters.taId.split(',') };
+      } else {
+        where.picId = filters.taId;
+      }
+    }
     
     if (filters?.storeId) {
-      if (filters.storeId.startsWith('CITY:')) {
+      if (typeof filters.storeId === 'string' && filters.storeId.startsWith('CITY:')) {
         const city = filters.storeId.replace('CITY:', '');
         const storeIdsInCity = await this.getStoreIdsByCity(city);
         where.OR = [
           { storeId: { in: storeIdsInCity } },
           { preferredLocations: { hasSome: storeIdsInCity } }
         ];
+      } else if (Array.isArray(filters.storeId)) {
+        where.storeId = { in: filters.storeId };
+      } else if (typeof filters.storeId === 'string' && filters.storeId.includes(',')) {
+        where.storeId = { in: filters.storeId.split(',') };
       } else {
         where.storeId = filters.storeId;
       }
@@ -99,39 +119,92 @@ export class CandidateReadService {
     const sourceIds   = [...new Set(data.map(c => c.sourceId).filter(Boolean))];
     const statusIds   = [...new Set(data.map(c => c.statusId).filter(Boolean))];
     const picIds      = [...new Set(data.map(c => c.picId).filter(Boolean))];
+    const candidateIds = data.map(c => c.id);
 
-    const [campaigns, stores, forms, sources, statuses, pics] = await Promise.all([
-      campaignIds.length ? this.prisma.campaign.findMany({ where: { id: { in: campaignIds }} }) : [],
-      storeIds.length    ? this.prisma.store.findMany({ where: { id: { in: storeIds }} }) : [],
-      formIds.length     ? this.prisma.recruitmentForm.findMany({ where: { id: { in: formIds }} }) : [],
-      sourceIds.length   ? this.prisma.source.findMany({ where: { id: { in: sourceIds }} }) : [],
-      statusIds.length   ? this.prisma.candidateStatus.findMany({ where: { id: { in: statusIds }} }) : [],
-      picIds.length      ? this.prisma.user.findMany({ where: { id: { in: picIds } }, select: { id: true, fullName: true, email: true } }) : [],
+    const [campaigns, stores, forms, sources, statuses, pics, interviews, allStores] = await Promise.all([
+      campaignIds.length ? this.prisma.campaign.findMany({ where: { id: { in: campaignIds as string[] }} }) : [],
+      storeIds.length    ? this.prisma.store.findMany({ where: { id: { in: storeIds as string[] }} }) : [],
+      formIds.length     ? this.prisma.recruitmentForm.findMany({ where: { id: { in: formIds as string[] }} }) : [],
+      sourceIds.length   ? this.prisma.source.findMany({ where: { id: { in: sourceIds as string[] }} }) : [],
+      statusIds.length   ? this.prisma.candidateStatus.findMany({ where: { id: { in: statusIds as string[] }} }) : [],
+      picIds.length      ? this.prisma.user.findMany({ where: { id: { in: picIds as string[] } }, select: { id: true, fullName: true, email: true } }) : [],
+      this.prisma.interview.findMany({
+        where: { candidateId: { in: candidateIds } },
+        orderBy: { scheduledAt: 'desc' }
+      }),
+      this.prisma.store.findMany({ select: { id: true, name: true, code: true } })
     ]);
+
     const campaignMap = Object.fromEntries(campaigns.map(x=>[x.id,x]));
     const storeMap    = Object.fromEntries(stores.map(x=>[x.id,x]));
     const formMap     = Object.fromEntries(forms.map(x=>[x.id,x]));
     const sourceMap   = Object.fromEntries(sources.map(x=>[x.id,x]));
     const statusMap   = Object.fromEntries(statuses.map(x=>[x.id,x]));
     const picMap      = Object.fromEntries(pics.map(x=>[x.id,x]));
+    const allStoreMap = Object.fromEntries(allStores.map(x=>[x.id,x]));
 
-    return data.map(c => ({
-      ...c,
-      campaign: c.campaignId ? campaignMap[c.campaignId] || null : null,
-      store: c.storeId ? storeMap[c.storeId] || null : null,
-      form: c.formId ? formMap[c.formId] || null : null,
-      source: c.sourceId ? sourceMap[c.sourceId] || null : null,
-      status: c.statusId ? statusMap[c.statusId] || null : null,
-      pic: c.picId ? picMap[c.picId] || null : null
-    }));
+    const interviewMap: Record<string, any> = {};
+    interviews.forEach(i => {
+      if (!interviewMap[i.candidateId]) {
+        interviewMap[i.candidateId] = i;
+      }
+    });
+
+    return data.map(c => {
+      let preferredStoreNames: string[] = [];
+      if (c.preferredLocations && c.preferredLocations.length > 0) {
+        preferredStoreNames = c.preferredLocations
+          .map((id: string) => {
+            const s = allStoreMap[id];
+            return s ? (s.code ? `${s.name} (${s.code})` : s.name) : null;
+          })
+          .filter(Boolean);
+      }
+
+      return {
+        ...c,
+        campaign: c.campaignId ? campaignMap[c.campaignId] || null : null,
+        store: c.storeId ? storeMap[c.storeId] || null : null,
+        form: c.formId ? formMap[c.formId] || null : null,
+        source: c.sourceId ? sourceMap[c.sourceId] || null : null,
+        status: c.statusId ? statusMap[c.statusId] || null : null,
+        pic: c.picId ? picMap[c.picId] || null : null,
+        latestInterview: interviewMap[c.id] || null,
+        preferredStoreNames
+      };
+    });
   }
 
   async exportCandidates(filters?: any, user?: any) {
     // Fetch candidates without pagination limit for export
     const where: any = { deletedAt: null };
-    if (filters?.campaignId) where.campaignId = filters.campaignId;
-    if (filters?.statusId) where.statusId = filters.statusId;
-    if (filters?.storeId) where.storeId = filters.storeId;
+    if (filters?.campaignId) {
+      if (Array.isArray(filters.campaignId)) {
+        where.campaignId = { in: filters.campaignId };
+      } else if (typeof filters.campaignId === 'string' && filters.campaignId.includes(',')) {
+        where.campaignId = { in: filters.campaignId.split(',') };
+      } else {
+        where.campaignId = filters.campaignId;
+      }
+    }
+    if (filters?.statusId) {
+      if (Array.isArray(filters.statusId)) {
+        where.statusId = { in: filters.statusId };
+      } else if (typeof filters.statusId === 'string' && filters.statusId.includes(',')) {
+        where.statusId = { in: filters.statusId.split(',') };
+      } else {
+        where.statusId = filters.statusId;
+      }
+    }
+    if (filters?.storeId) {
+      if (Array.isArray(filters.storeId)) {
+        where.storeId = { in: filters.storeId };
+      } else if (typeof filters.storeId === 'string' && filters.storeId.includes(',')) {
+        where.storeId = { in: filters.storeId.split(',') };
+      } else {
+        where.storeId = filters.storeId;
+      }
+    }
     
     // Apply user scoping
     const userRole = normalizeRole(user?.role);
@@ -166,8 +239,14 @@ export class CandidateReadService {
       { header: 'Email', key: 'email', width: 30 },
       { header: 'Số điện thoại', key: 'phone', width: 15 },
       { header: 'Chiến dịch', key: 'campaign', width: 30 },
-      { header: 'Cửa hàng', key: 'store', width: 20 },
-      { header: 'Vị trí', key: 'position', width: 20 },
+      { header: 'Cửa hàng', key: 'store', width: 25 },
+      { header: 'Vị trí ứng tuyển', key: 'appliedPosition', width: 25 },
+      { header: 'Vị trí trúng tuyển', key: 'hiredPosition', width: 25 },
+      { header: 'Ngày nhận việc dự kiến', key: 'availableStartDate', width: 20 },
+      { header: 'Địa điểm mong muốn', key: 'preferredLocations', width: 40 },
+      { header: 'Người giới thiệu', key: 'referrer', width: 25 },
+      { header: 'Kinh nghiệm', key: 'experience', width: 40 },
+      { header: 'Ngày phỏng vấn', key: 'interviewDate', width: 20 },
       { header: 'Trạng thái', key: 'status', width: 20 },
       { header: 'Người phụ trách', key: 'pic', width: 20 },
       { header: 'Nguồn', key: 'source', width: 15 },
@@ -181,11 +260,17 @@ export class CandidateReadService {
         phone: c.phone,
         campaign: c.campaign?.name || 'N/A',
         store: c.store ? `${c.store.code} - ${c.store.name}` : 'N/A',
-        position: c.position || 'N/A',
+        appliedPosition: c.appliedPosition || 'N/A',
+        hiredPosition: c.position || 'N/A',
+        availableStartDate: c.availableStartDate ? new Date(c.availableStartDate).toLocaleDateString('vi-VN') : 'N/A',
+        preferredLocations: c.preferredStoreNames?.join(', ') || 'N/A',
+        referrer: c.referrerName ? `${c.referrer} (${c.referrerName})` : (c.referrer || 'N/A'),
+        experience: c.workExperience || 'N/A',
+        interviewDate: c.latestInterview?.scheduledAt ? new Date(c.latestInterview.scheduledAt).toLocaleDateString('vi-VN') : 'N/A',
         status: c.status?.name || 'Mới',
         pic: c.pic?.fullName || 'Chưa gán',
         source: c.source?.name || 'N/A',
-        createdAt: c.createdAt,
+        createdAt: c.createdAt ? new Date(c.createdAt).toLocaleDateString('vi-VN') : 'N/A',
       });
     });
 

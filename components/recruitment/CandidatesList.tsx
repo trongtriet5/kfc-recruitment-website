@@ -44,9 +44,9 @@ export default function CandidatesList() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('__all__')
-  const [campaignFilter, setCampaignFilter] = useState('__all__')
-  const [storeFilter, setStoreFilter] = useState('__all__')
-  const [taFilter, setTaFilter] = useState('__all__')
+  const [campaignFilter, setCampaignFilter] = useState<string | string[]>(['__all__'])
+  const [storeFilter, setStoreFilter] = useState<string | string[]>(['__all__'])
+  const [taFilter, setTaFilter] = useState<string | string[]>(['__all__'])
   const [campaigns, setCampaigns] = useState<any[]>([])
   const [stores, setStores] = useState<any[]>([])
   const [tas, setTas] = useState<any[]>([])
@@ -144,14 +144,32 @@ export default function CandidatesList() {
     if (statusFilter && statusFilter !== '__all__') {
       params.statusId = statusFilter
     }
-    if (campaignFilter && campaignFilter !== '__all__') {
-      params.campaignId = campaignFilter
+    if (campaignFilter) {
+      if (Array.isArray(campaignFilter)) {
+        if (campaignFilter.length > 0 && !campaignFilter.includes('__all__')) {
+          params.campaignId = campaignFilter.join(',')
+        }
+      } else if (campaignFilter !== '__all__') {
+        params.campaignId = campaignFilter
+      }
     }
-    if (storeFilter && storeFilter !== '__all__') {
-      params.storeId = storeFilter
+    if (storeFilter) {
+      if (Array.isArray(storeFilter)) {
+        if (storeFilter.length > 0 && !storeFilter.includes('__all__')) {
+          params.storeId = storeFilter.join(',')
+        }
+      } else if (storeFilter !== '__all__') {
+        params.storeId = storeFilter
+      }
     }
-    if (taFilter && taFilter !== '__all__') {
-      params.taId = taFilter
+    if (taFilter) {
+      if (Array.isArray(taFilter)) {
+        if (taFilter.length > 0 && !taFilter.includes('__all__')) {
+          params.taId = taFilter.join(',')
+        }
+      } else if (taFilter !== '__all__') {
+        params.taId = taFilter
+      }
     }
 
     api
@@ -305,9 +323,18 @@ export default function CandidatesList() {
     try {
       const params: any = {}
       if (statusFilter && statusFilter !== '__all__') params.statusId = statusFilter
-      if (campaignFilter && campaignFilter !== '__all__') params.campaignId = campaignFilter
-      if (storeFilter && storeFilter !== '__all__') params.storeId = storeFilter
-      if (taFilter && taFilter !== '__all__') params.taId = taFilter
+
+      if (Array.isArray(campaignFilter)) {
+        if (campaignFilter.length > 0 && !campaignFilter.includes('__all__')) params.campaignId = campaignFilter.join(',')
+      } else if (campaignFilter && campaignFilter !== '__all__') params.campaignId = campaignFilter
+
+      if (Array.isArray(storeFilter)) {
+        if (storeFilter.length > 0 && !storeFilter.includes('__all__')) params.storeId = storeFilter.join(',')
+      } else if (storeFilter && storeFilter !== '__all__') params.storeId = storeFilter
+
+      if (Array.isArray(taFilter)) {
+        if (taFilter.length > 0 && !taFilter.includes('__all__')) params.taId = taFilter.join(',')
+      } else if (taFilter && taFilter !== '__all__') params.taId = taFilter
 
       const res = await api.get('/recruitment/candidates/export', { params, responseType: 'blob' })
       const url = window.URL.createObjectURL(new Blob([res.data]))
@@ -385,7 +412,7 @@ export default function CandidatesList() {
     return 'bg-blue-50 text-blue-700 border border-blue-200'
   }
 
-  if (loading && candidates.length === 0) {
+  if (loading && campaigns.length === 0) {
     return (
       <div className="relative pt-6 space-y-8 animate-pulse">
         {/* Header skeleton */}
@@ -560,6 +587,7 @@ export default function CandidatesList() {
                   onChange={setCampaignFilter}
                   placeholder="Chiến dịch"
                   className="w-[220px]"
+                  isMulti={true}
                 />
               </div>
 
@@ -569,17 +597,22 @@ export default function CandidatesList() {
                   options={[
                     { id: '__all__', name: 'Tất cả cửa hàng' },
                     ...stores
-                      .sort((a, b) => (a.city || '').localeCompare(b.city || '') || (a.code || '').localeCompare(b.code || ''))
+                      .sort(
+                        (a, b) =>
+                          ((a.province?.name || a.city) || '').localeCompare((b.province?.name || b.city) || '') ||
+                          (a.code || '').localeCompare(b.code || '')
+                      )
                       .map(s => ({
                         id: s.id,
                         name: `${s.code} - ${s.name}`,
-                        group: s.city || 'Khác'
+                        group: s.province?.name || s.city || 'Khác',
                       }))
                   ]}
                   value={storeFilter}
                   onChange={setStoreFilter}
                   placeholder="Cửa hàng"
                   className="w-[220px]"
+                  isMulti={true}
                 />
               </div>
 
@@ -594,24 +627,29 @@ export default function CandidatesList() {
                   onChange={setTaFilter}
                   placeholder="Người phụ trách"
                   className="w-[250px]"
+                  isMulti={true}
                 />
               </div>
 
-              {(campaignFilter !== '__all__' || storeFilter !== '__all__' || taFilter !== '__all__') && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setCampaignFilter('__all__')
-                    setStoreFilter('__all__')
-                    setTaFilter('__all__')
-                  }}
-                  className="text-red-500 hover:text-red-600 hover:bg-red-50 h-10"
-                >
-                  <X className="w-4 h-4 mr-1" />
-                  Xóa lọc
-                </Button>
-              )}
+              {(
+                (Array.isArray(campaignFilter) ? (campaignFilter.length > 0 && !campaignFilter.includes('__all__')) : campaignFilter !== '__all__') ||
+                (Array.isArray(storeFilter) ? (storeFilter.length > 0 && !storeFilter.includes('__all__')) : storeFilter !== '__all__') ||
+                (Array.isArray(taFilter) ? (taFilter.length > 0 && !taFilter.includes('__all__')) : taFilter !== '__all__')
+              ) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setCampaignFilter(['__all__'])
+                      setStoreFilter(['__all__'])
+                      setTaFilter(['__all__'])
+                    }}
+                    className="text-red-500 hover:text-red-600 hover:bg-red-50 h-10"
+                  >
+                    <X className="w-4 h-4 mr-1" />
+                    Xóa lọc
+                  </Button>
+                )}
             </div>
           )}
         </div>
@@ -654,9 +692,22 @@ export default function CandidatesList() {
             </div>
           )}
 
-          <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
+          <div className={`bg-white border border-gray-200 rounded-lg shadow-sm ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
             <ul className="divide-y divide-gray-100 min-h-[300px]">
-              {candidates.length === 0 ? (
+              {loading && candidates.length === 0 ? (
+                <>
+                  {[1, 2, 3, 4, 5].map(i => (
+                    <li key={i} className="px-6 py-4 animate-pulse">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <div className="h-5 bg-gray-200 rounded w-48" />
+                          <div className="h-4 bg-gray-100 rounded w-64" />
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </>
+              ) : candidates.length === 0 ? (
                 <li className="px-6 py-16 text-center">
                   <div className="text-gray-300 mb-4 flex justify-center">
                     <Icon name="users" size={56} />

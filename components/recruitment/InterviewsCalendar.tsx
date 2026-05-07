@@ -106,31 +106,38 @@ export default function InterviewsCalendar() {
   }
 
   const getResultLabel = (interview: Interview) => {
-    const status = typeof interview.candidate.status === 'object' ? interview.candidate.status?.code : interview.candidate.status;
-
-    if (["SM_AM_INTERVIEW_PASSED", "OM_PV_INTERVIEW_PASSED", "OFFER_SENT", "OFFER_ACCEPTED", "OFFER_REJECTED", "WAITING_ONBOARDING", "ONBOARDING_ACCEPTED"].includes(status || "")) {
-      return "Đạt";
+    const status = interview.candidate.status;
+    if (status && typeof status === 'object') {
+      return status.name;
     }
-    if (["SM_AM_INTERVIEW_FAILED", "OM_PV_INTERVIEW_FAILED"].includes(status || "")) {
-      return "Không đạt";
+    
+    const statusCode = status as string;
+    const labels: Record<string, string> = {
+      SM_AM_INTERVIEW_PASSED: 'Đạt SM/AM',
+      OM_PV_INTERVIEW_PASSED: 'Đạt OM/PV',
+      SM_AM_INTERVIEW_FAILED: 'Không đạt SM/AM',
+      OM_PV_INTERVIEW_FAILED: 'Không đạt OM/PV',
+      WAITING_INTERVIEW: 'Chờ PV',
+      NO_INTERVIEW: 'Không đến PV',
+      OFFER_SENT: 'Đã gửi Offer',
+      OFFER_ACCEPTED: 'Đồng ý nhận việc',
+      OFFER_REJECTED: 'Từ chối Offer',
+      WAITING_ONBOARDING: 'Chờ nhận việc',
+      ONBOARDING_ACCEPTED: 'Đã nhận việc'
     }
-    if (status === "WAITING_INTERVIEW") {
-      return "Chờ PV";
-    }
-    if (status === "NO_INTERVIEW") {
-      return "Không đến phỏng vấn";
-    }
+    
+    if (labels[statusCode]) return labels[statusCode];
 
     // Fallback to existing result label if status doesn't match
     const result = interview.result;
     if (!result) return 'Chưa có kết quả'
     if (typeof result === 'object') return result.name
-    const labels: Record<string, string> = {
+    const resultLabels: Record<string, string> = {
       PASSED: 'Đạt',
       FAILED: 'Không đạt',
       NO_SHOW: 'Không đến',
     }
-    return labels[result] || result
+    return resultLabels[result] || result
   }
 
   const getResultColor = (interview: Interview) => {
@@ -437,14 +444,7 @@ export default function InterviewsCalendar() {
                           </div>
                           <div className="mt-2 pt-2 border-t border-current border-opacity-10 flex justify-between items-center">
                             <span className="font-bold uppercase tracking-tighter text-[10px]">
-                              {(() => {
-                                const status = typeof interview.candidate.status === 'object' ? interview.candidate.status?.code : interview.candidate.status;
-                                if (["SM_AM_INTERVIEW_PASSED", "OM_PV_INTERVIEW_PASSED", "OFFER_SENT", "OFFER_ACCEPTED", "OFFER_REJECTED", "WAITING_ONBOARDING", "ONBOARDING_ACCEPTED"].includes(status || "")) return "Đạt";
-                                if (["SM_AM_INTERVIEW_FAILED", "OM_PV_INTERVIEW_FAILED"].includes(status || "")) return "Không đạt";
-                                if (status === "WAITING_INTERVIEW") return "Chờ PV";
-                                if (status === "NO_INTERVIEW") return "Không đến PV";
-                                return typeof interview.candidate.status === 'object' ? interview.candidate.status?.name : (status || "Chờ PV");
-                              })()}
+                              {getResultLabel(interview)}
                             </span>
                             <Icon name="chevron-right" size={12} className="opacity-0 group-hover/card:opacity-100 transition-opacity" />
                           </div>

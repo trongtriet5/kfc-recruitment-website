@@ -61,9 +61,27 @@ return {
   }
 
   async getCampaignByLink(link: string) {
-    return this.prisma.campaign.findUnique({
-      where: { link }
+    const campaign = await this.prisma.campaign.findUnique({
+      where: { link },
+      include: { form: true },
     });
+    if (!campaign) return null;
+
+    const fields = await this.prisma.formField.findMany({
+      where: { formId: campaign.formId, isActive: true },
+      orderBy: { order: 'asc' },
+    });
+
+    return {
+      ...campaign,
+      form: {
+        ...campaign.form,
+        fields,
+      },
+    };
+
+
+
   }
 
   async getCampaignStatistics(campaignId?: string) {
