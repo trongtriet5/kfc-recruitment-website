@@ -51,10 +51,15 @@ const ROLE_LABELS: Record<string, string> = {
 }
 
 const ROLE_COLORS: Record<string, string> = {
-  ADMIN: 'bg-purple-100 text-purple-800',
-  AM: 'bg-blue-100 text-blue-800',
-  SM: 'bg-gray-100 text-gray-800',
-  RECRUITER: 'bg-green-100 text-green-800',
+  ADMIN: 'bg-gray-100 text-gray-700 border border-gray-200',
+  AM: 'bg-gray-100 text-gray-700 border border-gray-200',
+  SM: 'bg-gray-100 text-gray-700 border border-gray-200',
+  RECRUITER: 'bg-gray-100 text-gray-700 border border-gray-200',
+}
+
+const formatRoleOptionLabel = (role: Role) => {
+  const suffix = `(${role.code})`
+  return role.name.includes(suffix) ? role.name : `${role.name} ${suffix}`
 }
 
 export default function UsersManagementPage() {
@@ -295,7 +300,7 @@ export default function UsersManagementPage() {
   }).filter(group => group.stores.length > 0)
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
         {/* Toolbar */}
         <div className="flex justify-between items-center">
           <div>
@@ -303,28 +308,28 @@ export default function UsersManagementPage() {
             <p className="text-sm text-gray-500">Quản lý và phân quyền tài khoản, gán cửa hàng cho SM/AM</p>
           </div>
           <div className="flex gap-2">
-            <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-sm font-medium">
+            <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md bg-white hover:bg-gray-50 text-sm font-medium text-gray-700">
               <Icon name="download" size={18} /> Export Excel
             </button>
-            <label className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer text-sm font-medium">
+            <label className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md bg-white hover:bg-gray-50 cursor-pointer text-sm font-medium text-gray-700">
               <Icon name="upload" size={18} /> {importing ? 'Đang import...' : 'Import Excel'}
               <input ref={fileInputRef} type="file" accept=".xlsx, .xls" onChange={handleImport} className="hidden" />
             </label>
-            <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 bg-kfc-red text-white rounded-md hover:bg-red-700 text-sm font-medium">
+            <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800 text-sm font-medium">
               <Icon name="plus" size={18} /> Tạo tài khoản
             </button>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="flex gap-4 items-center">
-          <select value={filterRole} onChange={e => setFilterRole(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md sm:text-sm">
+        <div className="flex gap-4 items-center rounded-lg border border-gray-200 bg-white px-4 py-3">
+          <select value={filterRole} onChange={e => setFilterRole(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-700">
             <option value="">Tất cả vai trò</option>
             {dbRoles.map(role => (
               <option key={role.id} value={role.code}>{role.name}</option>
             ))}
           </select>
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md sm:text-sm">
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-700">
             <option value="">Tất cả trạng thái</option>
             <option value="active">Hoạt động</option>
             <option value="inactive">Đã khóa</option>
@@ -346,20 +351,20 @@ export default function UsersManagementPage() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan={5} className="px-4 py-12 text-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-kfc-red mx-auto"></div></td></tr>
+                <tr><td colSpan={5} className="px-4 py-12 text-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mx-auto"></div></td></tr>
               ) : filteredUsers.length === 0 ? (
                 <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400"><Icon name="user" size={48} className="mb-2 opacity-20 mx-auto" /><p>Không tìm thấy tài khoản nào</p></td></tr>
               ) : (
                 filteredUsers.map(user => (
                   <tr
                     key={user.id}
-                    className="hover:bg-gray-50 cursor-pointer group"
+                    className="cursor-pointer group hover:bg-gray-50/80"
                     onContextMenu={(e) => handleContextMenu(e, user)}
                     onClick={() => openEdit(user)}
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-xs flex-shrink-0">
                           {user.fullName?.charAt(0) || '?'}
                         </div>
                         <div>
@@ -370,23 +375,23 @@ export default function UsersManagementPage() {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">{user.email}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-800'}`}>
+                      <span className={`inline-flex px-2.5 py-1 rounded-md text-xs font-medium ${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-700 border border-gray-200'}`}>
                         {user.roleObj?.name || ROLE_LABELS[user.role] || user.role}
                       </span>
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
                       {hasFullAccess(user.role) ? (
-                        <span className="inline-flex items-center gap-1 text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded-md font-medium">
+                        <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded-md font-medium border border-gray-200">
                           <Icon name="shield" size={12} />Toàn quyền
                         </span>
                       ) : user.managedStore ? (
-                        <span className="inline-flex items-center gap-1 text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-md font-medium">
+                        <span className="inline-flex items-center gap-1 text-xs bg-gray-50 text-gray-700 px-2.5 py-1 rounded-md font-medium border border-gray-200">
                           <Icon name="store" size={12} />{user.managedStore.code} – {user.managedStore.name}
                         </span>
                       ) : user.managedStores && user.managedStores.length > 0 ? (
                         <div className="flex flex-wrap gap-1">
                           {user.managedStores.slice(0, 3).map(s => (
-                            <span key={s.id} className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-md font-medium">
+                            <span key={s.id} className="inline-flex items-center gap-1 text-xs bg-gray-50 text-gray-700 px-2.5 py-1 rounded-md font-medium border border-gray-200">
                               {s.code}
                             </span>
                           ))}
@@ -399,7 +404,7 @@ export default function UsersManagementPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium border ${user.isActive ? 'bg-gray-100 text-gray-700 border-gray-200' : 'bg-white text-gray-500 border-gray-200'}`}>
                         {user.isActive ? 'Hoạt động' : 'Đã khóa'}
                       </span>
                     </td>
@@ -416,7 +421,7 @@ export default function UsersManagementPage() {
             <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-3">
-                  <div className="bg-kfc-red/10 p-2 rounded-lg text-kfc-red"><Icon name={editingUser ? 'pencil' : 'plus'} size={20} /></div>
+                  <div className="bg-gray-100 p-2 rounded-lg text-gray-700"><Icon name={editingUser ? 'pencil' : 'plus'} size={20} /></div>
                   {editingUser ? 'Chỉnh sửa tài khoản' : 'Tạo tài khoản mới'}
                 </DialogTitle>
               </DialogHeader>
@@ -446,7 +451,7 @@ export default function UsersManagementPage() {
                     <SelectContent>
                       {dbRoles.map(role => (
                         <SelectItem key={role.id} value={role.id}>
-                          {role.name} ({role.code})
+                          {formatRoleOptionLabel(role)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -474,11 +479,11 @@ export default function UsersManagementPage() {
 
                 {/* Roles with full access: no store picker needed */}
                 {!isSMRole && !isAMRole && (
-                  <div className="flex items-start gap-2 rounded-lg bg-blue-50 border border-blue-100 px-4 py-3">
-                    <svg className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="flex items-start gap-2 rounded-lg bg-gray-50 border border-gray-200 px-4 py-3">
+                    <svg className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <p className="text-xs text-blue-700">
+                    <p className="text-xs text-gray-600">
                       Vai trò <strong>{dbRoles.find(r => r.id === formData.roleId)?.name || 'Chưa chọn'}</strong> có toàn quyền trên tất cả cửa hàng, không cần gán cụ thể.
                     </p>
                   </div>
@@ -521,7 +526,7 @@ export default function UsersManagementPage() {
                                     : [...new Set([...prev.storeIds, ...ids])],
                                 }))
                               }}
-                              className="text-xs text-blue-600 hover:underline"
+                              className="text-xs text-gray-600 hover:text-gray-900"
                             >
                               {provinceStores.every(s => formData.storeIds.includes(s.id)) ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
                             </button>
@@ -532,14 +537,14 @@ export default function UsersManagementPage() {
                                 type="checkbox"
                                 checked={formData.storeIds.includes(s.id)}
                                 onChange={() => toggleStoreId(s.id)}
-                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                className="rounded border-gray-300 text-gray-900 focus:ring-gray-400"
                               />
                               <span className="text-sm flex-1">
                                 <span className="font-medium">{s.code}</span>
                                 <span className="text-gray-500"> – {s.name}</span>
                               </span>
                               {s.am && s.am.id !== editingUser?.id && (
-                                <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
+                                <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
                                   AM: {s.am.fullName?.split(' ').pop() || 'N/A'}
                                 </span>
                               )}
@@ -580,7 +585,7 @@ export default function UsersManagementPage() {
 
                 <DialogFooter>
                   <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50">Hủy bỏ</button>
-                  <button type="submit" disabled={submitting} className="px-4 py-2 bg-kfc-red text-white text-sm font-medium rounded-md hover:bg-red-700 disabled:opacity-50">
+                  <button type="submit" disabled={submitting} className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 disabled:opacity-50">
                     {submitting ? 'Đang xử lý...' : (editingUser ? 'Cập nhật' : 'Tạo mới')}
                   </button>
                 </DialogFooter>
@@ -610,7 +615,7 @@ export default function UsersManagementPage() {
            {contextMenu.user.email !== 'thinh.nguyenthevinh@kfcvietnam.com.vn' && (
              <button
                onClick={() => { handleDelete(contextMenu.user); setContextMenu(null) }}
-               className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 ${contextMenu.user.isActive ? 'text-red-600' : 'text-green-600'}`}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-700"
              >
                <Icon name={contextMenu.user.isActive ? 'trash' : 'check'} size={14} />
                {contextMenu.user.isActive ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}
@@ -624,17 +629,17 @@ export default function UsersManagementPage() {
           <DialogContent>
             <DialogHeader><DialogTitle>Kết quả Import</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-3 py-4">
-              <div className="rounded-lg bg-green-50 px-4 py-3">
-                <div className="text-xs uppercase font-semibold text-green-700">Thành công</div>
-                <div className="mt-1 text-2xl font-bold text-green-800">{importSummary.success}</div>
+              <div className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3">
+                <div className="text-xs uppercase font-semibold text-gray-500">Thành công</div>
+                <div className="mt-1 text-2xl font-bold text-gray-900">{importSummary.success}</div>
               </div>
-              <div className="rounded-lg bg-red-50 px-4 py-3">
-                <div className="text-xs uppercase font-semibold text-red-700">Lỗi</div>
-                <div className="mt-1 text-2xl font-bold text-red-800">{importSummary.failed}</div>
+              <div className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3">
+                <div className="text-xs uppercase font-semibold text-gray-500">Lỗi</div>
+                <div className="mt-1 text-2xl font-bold text-gray-900">{importSummary.failed}</div>
               </div>
             </div>
             <DialogFooter>
-              <button onClick={() => setImportSummary(null)} className="px-4 py-2 bg-kfc-red text-white text-sm font-medium rounded-md hover:bg-red-700">Đóng</button>
+              <button onClick={() => setImportSummary(null)} className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800">Đóng</button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

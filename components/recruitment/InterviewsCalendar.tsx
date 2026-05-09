@@ -5,6 +5,8 @@ import { format, addDays, startOfWeek, isSameDay, isToday, parseISO } from 'date
 import { vi } from 'date-fns/locale'
 import api from '@/lib/api'
 import Icon from '@/components/icons/Icon'
+import Modal from '@/components/common/Modal'
+import CandidateDetail from '@/components/recruitment/CandidateDetail'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
@@ -55,9 +57,14 @@ export default function InterviewsCalendar() {
     { id: 'PENDING', name: 'Chờ kết quả' }
   ])
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null)
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null)
 
-  const openInterviewDetail = (interview: Interview) => {
-    setSelectedInterview(interview)
+  const openCandidateDetail = (candidateId: string) => {
+    setSelectedCandidateId(candidateId)
+  }
+
+  const closeCandidateDetail = () => {
+    setSelectedCandidateId(null)
   }
 
   const closeInterviewDetail = () => {
@@ -367,7 +374,11 @@ export default function InterviewsCalendar() {
                 </tr>
               ) : (
                 interviews.map((interview) => (
-                  <tr key={interview.id} className="hover:bg-gray-50 transition-colors group">
+                  <tr
+                    key={interview.id}
+                    className="hover:bg-gray-50 transition-colors group cursor-pointer"
+                    onClick={() => openCandidateDetail(interview.candidate.id)}
+                  >
                     <td className="px-4 py-3 text-sm text-gray-900">
                       <div className="font-bold text-gray-900">{format(parseISO(interview.scheduledAt), 'dd/MM/yyyy')}</div>
                       <div className="text-gray-500 font-medium">{format(parseISO(interview.scheduledAt), 'HH:mm')}</div>
@@ -400,8 +411,8 @@ export default function InterviewsCalendar() {
       {displayMode === 'calendar' && (
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
           {/* Calendar Header */}
-          <div className="grid grid-cols-[140px_repeat(7,minmax(180px,1fr))] border-b bg-gray-50">
-            <div className="p-4 text-xs font-semibold text-gray-400 uppercase tracking-wider border-r flex items-center justify-end pr-4">
+          <div className="grid grid-cols-[88px_repeat(7,minmax(180px,1fr))] border-b bg-gray-50">
+            <div className="px-3 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider border-r flex items-center justify-end">
               Giờ
             </div>
             {weekDays.map(day => (
@@ -413,11 +424,11 @@ export default function InterviewsCalendar() {
           </div>
 
           {/* Calendar Body */}
-          <div className="max-h-[800px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 grid grid-cols-[140px_repeat(7,minmax(180px,1fr))]">
+          <div className="max-h-[800px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 grid grid-cols-[88px_repeat(7,minmax(180px,1fr))]">
             {TIME_SLOTS.map(hour => (
               <div key={hour} className="contents group">
-                <div className="p-3 text-sm font-bold text-gray-500 bg-gray-50/50 border-r border-b flex flex-col items-end justify-start gap-1 pr-4 group-hover:bg-gray-100 transition-colors">
-                  <span className="text-gray-900">{hour.toString().padStart(2, '0')}:00</span>
+                <div className="px-3 py-3 text-sm font-bold text-gray-500 bg-gray-50/50 border-r border-b flex flex-col items-end justify-start gap-0.5 group-hover:bg-gray-100 transition-colors">
+                  <span className="text-xs sm:text-sm text-gray-900">{hour.toString().padStart(2, '0')}:00</span>
                   <span className="text-[10px] text-gray-400 font-medium">{(hour + 1).toString().padStart(2, '0')}:00</span>
                 </div>
                 {weekDays.map(day => {
@@ -430,7 +441,7 @@ export default function InterviewsCalendar() {
                       {slots.map(interview => (
                         <div
                           key={interview.id}
-                          onClick={() => openInterviewDetail(interview)}
+                          onClick={() => openCandidateDetail(interview.candidate.id)}
                           className={`group/card p-3 rounded-xl text-xs cursor-pointer border-2 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${getResultColor(interview)}`}
                         >
                           <div className="font-bold text-sm truncate mb-1">{interview.candidate.fullName}</div>
@@ -459,8 +470,22 @@ export default function InterviewsCalendar() {
         </div>
       )}
 
+      <Modal
+        isOpen={!!selectedCandidateId}
+        onClose={closeCandidateDetail}
+        title="Chi tiết ứng viên"
+        maxWidth="max-w-5xl"
+      >
+        {selectedCandidateId && (
+          <CandidateDetail
+            candidateId={selectedCandidateId}
+            isModal={true}
+          />
+        )}
+      </Modal>
+
       {/* Interview Detail Modal */}
-      {selectedInterview && (
+      {false && selectedInterview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={closeInterviewDetail}>
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-6">

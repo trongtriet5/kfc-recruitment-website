@@ -5,9 +5,15 @@ const COMPLETELY_PUBLIC_PATHS = ['/login', '/apply'];
 
 export default function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const normalizedPath = pathname.startsWith('/api/backend')
+    ? pathname.replace('/api/backend', '/api')
+    : pathname;
 
   // Allow public paths
   if (COMPLETELY_PUBLIC_PATHS.some(path => pathname === path || pathname.startsWith('/api/auth'))) {
+    return NextResponse.next();
+  }
+  if (normalizedPath === '/api/auth/login') {
     return NextResponse.next();
   }
 
@@ -18,11 +24,11 @@ export default function proxy(request: NextRequest) {
 
   // Allow requests without token to public API endpoints (like apply)
   if (
-    pathname.startsWith('/api/recruitment/forms/link/') ||
-    pathname.startsWith('/api/recruitment/campaigns/link/') ||
-    pathname === '/api/recruitment/apply' ||
-    pathname === '/api/recruitment/public/stores' ||
-    pathname === '/api/recruitment/public/positions'
+    normalizedPath.startsWith('/api/recruitment/forms/link/') ||
+    normalizedPath.startsWith('/api/recruitment/campaigns/link/') ||
+    normalizedPath === '/api/recruitment/apply' ||
+    normalizedPath === '/api/recruitment/public/stores' ||
+    normalizedPath === '/api/recruitment/public/positions'
   ) {
     return NextResponse.next();
   }
